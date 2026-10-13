@@ -20,7 +20,8 @@ Use with Cursor rules under `.cursor/rules/`. Depth: **baseline** (security, aut
 | Apple login | JWKS verify, or disabled outside `dev` |
 | `/media` | Not anonymously mounted outside local `dev` + `local` storage |
 | CORS | Explicit origins in non-dev; no `*` + credentials |
-| Retention run | Admin token (or `dev` only), not any user |
+| Retention run | Admin token (any env) or `dev` authenticated user — not arbitrary non-dev clients |
+| Storage | Non-dev must use `STORAGE_BACKEND=s3` (no anonymous `/media`) |
 
 ## P1
 

@@ -108,10 +108,14 @@ class _BootstrapGateState extends State<BootstrapGate> {
       });
     } catch (e) {
       if (!mounted || epoch != _bootEpoch) return;
+      final hint = apiBaseUrlLooksRemote
+          ? '线上/内测请用 Cloudflare HTTPS 域名：\n'
+              '--dart-define=API_BASE_URL=https://bedtime-api.<你的域名>\n'
+              '并确认服务端开启了 dev-login（内测）或已接入 Apple 登录。'
+          : '若卡在白屏或连不上：系统设置 → 隐私与安全性 → 本地网络 → 打开本 App；\n'
+              '并确认用 --dart-define=API_BASE_URL=http://<电脑局域网IP>:8000 启动。';
       setState(() {
-        error =
-            '$e\n\nAPI: $apiBaseUrl\n\n若卡在白屏或连不上：系统设置 → 隐私与安全性 → 本地网络 → 打开本 App；'
-            '并确认用 --dart-define=API_BASE_URL=http://<电脑局域网IP>:8000 启动。';
+        error = '$e\n\nAPI: $apiBaseUrl\n\n$hint';
         loading = false;
       });
     }

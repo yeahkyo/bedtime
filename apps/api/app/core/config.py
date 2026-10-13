@@ -74,7 +74,7 @@ class SettingsValidationError(RuntimeError):
 
 
 def validate_settings_for_runtime(settings: Settings | None = None) -> None:
-    """Refuse to start with unsafe auth defaults outside env=dev."""
+    """Refuse to start with unsafe defaults outside env=dev."""
     s = settings or get_settings()
     if s.is_dev:
         return
@@ -83,6 +83,11 @@ def validate_settings_for_runtime(settings: Settings | None = None) -> None:
         errors.append("JWT_SECRET must be set to a non-default value when ENV is not dev")
     if s.dev_auth_bypass:
         errors.append("DEV_AUTH_BYPASS must be false when ENV is not dev")
+    # local + anonymous /media is dev-only; non-dev with local leaves audio URLs broken.
+    if s.storage_backend.strip().lower() != "s3":
+        errors.append("STORAGE_BACKEND must be s3 when ENV is not dev")
+    if not (s.retention_admin_token or "").strip():
+        errors.append("RETENTION_ADMIN_TOKEN must be set when ENV is not dev")
     if errors:
         raise SettingsValidationError("; ".join(errors))
 

@@ -37,10 +37,36 @@ def test_non_dev_rejects_dev_auth_bypass():
         validate_settings_for_runtime(s)
 
 
+def test_non_dev_rejects_local_storage():
+    s = Settings(
+        env="prod",
+        jwt_secret="a-strong-secret-value",
+        dev_auth_bypass=False,
+        storage_backend="local",
+        retention_admin_token="admin-token",
+    )
+    with pytest.raises(SettingsValidationError, match="STORAGE_BACKEND"):
+        validate_settings_for_runtime(s)
+
+
+def test_non_dev_rejects_missing_retention_admin_token():
+    s = Settings(
+        env="staging",
+        jwt_secret="a-strong-secret-value",
+        dev_auth_bypass=False,
+        storage_backend="s3",
+        retention_admin_token="",
+    )
+    with pytest.raises(SettingsValidationError, match="RETENTION_ADMIN_TOKEN"):
+        validate_settings_for_runtime(s)
+
+
 def test_non_dev_ok_with_safe_settings():
     s = Settings(
         env="prod",
         jwt_secret="a-strong-secret-value",
         dev_auth_bypass=False,
+        storage_backend="s3",
+        retention_admin_token="admin-token",
     )
     validate_settings_for_runtime(s)

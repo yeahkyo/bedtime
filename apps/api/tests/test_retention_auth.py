@@ -44,3 +44,29 @@ async def test_retention_non_dev_requires_admin_token():
             )
             assert ok.status_code == 200
             assert ok.json()["purged_raw_voices"] == 0
+
+
+@pytest.mark.asyncio
+async def test_retention_dev_accepts_admin_token_without_user():
+    """Staging hosts often keep ENV=dev for App dev-login; cron still uses admin token."""
+    with patch("app.api.account.get_settings", return_value=Settings(
+        env="dev",
+        jwt_secret="dev-secret",
+        dev_auth_bypass=True,
+        retention_admin_token="secret-admin",
+    )), patch(
+        "app.api.account.purge_expired_raw_voices", new_callable=AsyncMock, return_value=1
+    ), patch(
+        "app.api.account.purge_expired_stories", new_callable=AsyncMock, return_value=2
+    ):
+        transport = ASGITransport(app=_app())
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            ok = await client.post(
+                "/v1/account/retention/run",
+                headers={"X-Retention-Admin-Token": "secret-admin"},
+            )
+            assert ok.status_code == 200
+            body = ok.json()
+            assert body["purged_raw_voices"] == 1
+            assert body["purged_stories"] == 2
+            assert body["requested_by"] is None

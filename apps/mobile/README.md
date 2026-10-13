@@ -1,16 +1,20 @@
-# bedtime_mobile
+# Lullvale Bedtime (Flutter)
 
-A new Flutter project.
+## API base URL
 
-## Getting Started
+```bash
+# Simulator / local Docker API
+flutter run --dart-define=API_BASE_URL=http://127.0.0.1:8000
 
-This project is a starting point for a Flutter application.
+# Physical device on LAN
+flutter run --dart-define=API_BASE_URL=http://<电脑局域网IP>:8000
 
-A few resources to get you started if this is your first Flutter project:
+# Staging / online via Cloudflare (HTTPS — iOS ATS)
+flutter run --dart-define=API_BASE_URL=https://bedtime-api.lullvale.com
+```
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+## Auth (current)
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+Boot uses `POST /v1/auth/dev-login`. That only works when the API has `ENV=dev` and `DEV_AUTH_BYPASS=1`. Edge/TLS: Cloudflare orange-cloud → origin **:8080** (Origin Rule; Bandage keeps `:80`). See [docs/deploy-staging.md](../../docs/deploy-staging.md).
+
+Apple Sign-In is not wired in this app yet.

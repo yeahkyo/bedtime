@@ -10,4 +10,6 @@
 
 Cascade delete: `cascade_delete_user` removes DB rows, object keys, and vendor clone voices.
 
-Purge trigger: `POST /v1/account/retention/run` — in `ENV=dev` any authenticated user; otherwise requires header `X-Retention-Admin-Token` matching `RETENTION_ADMIN_TOKEN`. Production should cron this, not expose it to app clients.
+Purge trigger: `POST /v1/account/retention/run` — header `X-Retention-Admin-Token` matching `RETENTION_ADMIN_TOKEN` (any env); or in `ENV=dev` an authenticated user. Production should cron this, not expose it to app clients.
+
+Cron helper: [`apps/api/scripts/run_retention.sh`](../apps/api/scripts/run_retention.sh) (see [deploy-staging.md](deploy-staging.md)).

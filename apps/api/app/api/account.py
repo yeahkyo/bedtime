@@ -32,17 +32,19 @@ async def run_retention_jobs(
     x_retention_admin_token: str | None = Header(default=None, alias="X-Retention-Admin-Token"),
     credentials: HTTPAuthorizationCredentials | None = Depends(bearer),
 ) -> dict:
-    """Global purge. Dev: authenticated user (or bypass). Non-dev: admin token only."""
+    """Global purge. Admin token always accepted when configured; else dev may use auth user."""
     settings = get_settings()
     requested_by: int | None = None
+    expected = (settings.retention_admin_token or "").strip()
+    token_ok = bool(expected) and x_retention_admin_token == expected
 
-    if settings.is_dev:
+    if token_ok:
+        pass
+    elif settings.is_dev:
         user = await get_current_user(credentials=credentials, db=db)
         requested_by = user.id
     else:
-        expected = (settings.retention_admin_token or "").strip()
-        if not expected or x_retention_admin_token != expected:
-            raise HTTPException(status_code=403, detail="Retention admin token required")
+        raise HTTPException(status_code=403, detail="Retention admin token required")
 
     raw = await purge_expired_raw_voices(db)
     stories = await purge_expired_stories(db)

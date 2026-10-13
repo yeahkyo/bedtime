@@ -7,8 +7,8 @@ Personalized bilingual bedtime stories with natural TTS and parent voice cloning
 - **Flutter** (`apps/mobile`) — iOS first（不进服务器 Docker）
 - **FastAPI** (`apps/api`) — **默认 Docker Compose 容器内 uvicorn**
 - **MariaDB + Redis**（Compose；生产复用 Linode 同机栈）
-- **Object storage**：容器内 local 卷 / MinIO profile / Cloudflare R2
-- Providers：OpenAI + ElevenLabs（或 `MOCK_PROVIDERS=1`）
+- **Object storage**：本地 `.data` / MinIO profile / Cloudflare R2（线上用 R2）
+- Providers：豆包 Ark + 火山语音（或 `MOCK_PROVIDERS=1` / `openai` profile）
 
 ## Quick start（默认：全容器）
 
@@ -47,8 +47,23 @@ uvicorn app.main:app --reload --port 8000
 
 生产与日常联调请优先 **容器内 api**，避免环境漂移。
 
+## Staging / online App testing
+
+Cloudflare orange-cloud → origin **:8080** (co-exists with Bandage on :80). Secrets stay local.
+
+```bash
+cp apps/api/.env.staging.example apps/api/.env.staging   # fill secrets locally (gitignored)
+./deploy.sh                                              # scp .env + git pull + compose
+
+cd apps/mobile
+flutter run --dart-define=API_BASE_URL=https://bedtime-api.lullvale.com
+```
+
+Details: [docs/deploy-staging.md](docs/deploy-staging.md).
+
 ## Docs
 
+- [Staging deploy](docs/deploy-staging.md)
 - [Provider swap guide](docs/providers.md)
 - [Privacy / retention](docs/privacy-retention.md)
 - [Code review checklist](docs/code-review.md)
