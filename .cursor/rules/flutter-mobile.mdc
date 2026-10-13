@@ -1,0 +1,16 @@
+---
+description: Flutter mobile conventions for apps/mobile
+globs: apps/mobile/**
+alwaysApply: false
+---
+
+# Flutter (mobile)
+
+- API via `ApiClient`; use `--dart-define=API_BASE_URL=...` for device/LAN
+- On HTTP 401: clear stored token and surface re-auth (do not keep stale JWT)
+- Parse FastAPI `detail` into short user-facing text — never dump full JSON bodies in SnackBars
+- `HomeShell`: keep tabs with `IndexedStack` so generate/poll survives tab switches
+- History: open player only when `status == ready` and audio URL present; disable continue while `generating`
+- After every `await`, guard with `if (!mounted) return` before `setState` / navigation
+- Voice clone: `stop()` recorder before `dispose()` if still recording
+---

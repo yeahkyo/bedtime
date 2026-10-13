@@ -1,0 +1,41 @@
+---
+description: Lullvale Bedtime code review baseline (security, authz, errors, async, tests)
+alwaysApply: true
+---
+
+# Code review baseline
+
+Human checklist: `docs/code-review.md`. Scope: baseline fixes, not large refactors.
+
+## Security
+
+- Non-`dev`: reject default `jwt_secret`; `dev_auth_bypass` must be false
+- Apple Sign-In: verify JWKS in prod, or keep endpoint disabled outside `dev`
+- Do not expose anonymous long-lived `/media` in non-dev
+- CORS: never `allow_origins=["*"]` with `allow_credentials=True` outside local dev
+
+## Authorization
+
+- Filter child / story / voice by `user_id`
+- Global retention / purge: admin token or cron only — not any logged-in user
+
+## Quota & jobs
+
+- Validate ownership and request before `check_and_increment`
+- Story failures: `status=failed` + safe `error_message` (no raw `str(exc)` to clients)
+- Never mark story `ready` before audio is stored
+
+## Client errors
+
+- API: stable `detail` strings; Flutter: short messages, not raw HTTP bodies
+
+## Flutter lifecycle
+
+- Check `mounted` after async before `setState`
+- Stop recorder / dispose players cleanly
+- Keep create/history alive across tab switches (`IndexedStack` or equivalent)
+
+## Tests
+
+- Changing security, quota order, or job status machine → add/adjust pytest
+---

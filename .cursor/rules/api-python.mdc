@@ -1,0 +1,17 @@
+---
+description: FastAPI / providers conventions for apps/api
+globs: apps/api/**
+alwaysApply: false
+---
+
+# API (Python)
+
+- Layout: `api/` · `core/` · `models/` · `providers/` · `schemas/` · `services/`
+- Providers via `PROVIDER_PROFILE` + factory; prefer `MOCK_PROVIDERS` in tests
+- Call `validate_settings_for_runtime()` (or equivalent) before serving non-dev traffic
+- Persist client-facing errors with `safe_error_message()` — log full exception server-side
+- Retention purge: require `X-Retention-Admin-Token` matching `RETENTION_ADMIN_TOKEN`, or `is_dev`
+- Story create: resolve child + voice (+ series) before charging quota
+- Stream path: on TTS/storage failure set `failed`, do not leave `ready` without audio
+- When deleting stories, eagerly load / query `StoryAudio` before storage delete
+---

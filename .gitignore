@@ -1,0 +1,23 @@
+.DS_Store
+.env
+.env.local
+
+# Local design references (not for source control)
+design/
+*.pyc
+__pycache__/
+.venv/
+venv/
+apps/api/.data/
+apps/api/.env
+**/.dart_tool/
+**/build/
+**/.flutter-plugins
+**/.flutter-plugins-dependencies
+**/.packages
+**/Podfile.lock
+ios/Pods/
+.idea/
+.vscode/
+*.iml
+coverage/

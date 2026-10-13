@@ -1,0 +1,329 @@
+import 'dart:convert';
+
+import 'package:http/http.dart' as http;
+
+import '../config.dart';
+
+class ApiException implements Exception {
+  ApiException(this.message, {this.statusCode, this.unauthorized = false});
+
+  final String message;
+  final int? statusCode;
+  final bool unauthorized;
+
+  @override
+  String toString() => message;
+}
+
+class ApiClient {
+  ApiClient({this.token, this.onUnauthorized});
+
+  String? token;
+  void Function()? onUnauthorized;
+
+  static const _timeout = Duration(seconds: 20);
+  // Story LLM + TTS for 5–8 min targets can exceed 4 minutes end-to-end.
+  // Outline + plan + draft (+ TTS) for a new soft series can exceed 7 minutes.
+  static const _longTimeout = Duration(seconds: 540);
+
+  Map<String, String> get _headers => {
+        'Content-Type': 'application/json',
+        if (token != null) 'Authorization': 'Bearer $token',
+      };
+
+  Uri _u(String path) => Uri.parse('$apiBaseUrl$path');
+
+  Future<Map<String, dynamic>> devLogin() async {
+    final res = await http
+        .post(
+          _u('/v1/auth/dev-login'),
+          headers: _headers,
+          body: jsonEncode({
+            'display_name': 'Dev Parent',
+            'preferred_language': 'zh',
+          }),
+        )
+        .timeout(_timeout);
+    _ensure(res);
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
+  Future<List<dynamic>> listChildren() async {
+    final res = await http.get(_u('/v1/children'), headers: _headers).timeout(_timeout);
+    _ensure(res);
+    return jsonDecode(res.body) as List<dynamic>;
+  }
+
+  Future<Map<String, dynamic>> createChild({
+    required String nickname,
+    String ageBand = '3-5',
+    List<String> interests = const [],
+  }) async {
+    final res = await http
+        .post(
+          _u('/v1/children'),
+          headers: _headers,
+          body: jsonEncode({
+            'nickname': nickname,
+            'age_band': ageBand,
+            'interests': interests,
+          }),
+        )
+        .timeout(_timeout);
+    _ensure(res);
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> updateChild({
+    required int childId,
+    String? nickname,
+    String? ageBand,
+    List<String>? interests,
+  }) async {
+    final body = <String, dynamic>{};
+    if (nickname != null) body['nickname'] = nickname;
+    if (ageBand != null) body['age_band'] = ageBand;
+    if (interests != null) body['interests'] = interests;
+    final res = await http
+        .patch(
+          _u('/v1/children/$childId'),
+          headers: _headers,
+          body: jsonEncode(body),
+        )
+        .timeout(_timeout);
+    _ensure(res);
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
+  Future<void> updateVoicePrefs({
+    required int childId,
+    required String speedTier,
+    required String tonePreset,
+    required bool likenessBoost,
+    int? defaultVoiceId,
+  }) async {
+    final res = await http
+        .patch(
+          _u('/v1/children/$childId/voice-prefs'),
+          headers: _headers,
+          body: jsonEncode({
+            'speed_tier': speedTier,
+            'tone_preset': tonePreset,
+            'likeness_boost': likenessBoost,
+            'default_voice_id': defaultVoiceId,
+          }),
+        )
+        .timeout(_timeout);
+    _ensure(res);
+  }
+
+  Future<Map<String, dynamic>> ensureSystemVoice() async {
+    final res =
+        await http.post(_u('/v1/voices/system-default'), headers: _headers).timeout(_timeout);
+    _ensure(res);
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
+  Future<List<dynamic>> listVoices() async {
+    final res = await http.get(_u('/v1/voices'), headers: _headers).timeout(_timeout);
+    _ensure(res);
+    return jsonDecode(res.body) as List<dynamic>;
+  }
+
+  Future<Map<String, dynamic>> cloneVoice({
+    required List<int> bytes,
+    required String filename,
+    required String name,
+    required String language,
+  }) async {
+    final req = http.MultipartRequest('POST', _u('/v1/voices/clone'));
+    if (token != null) {
+      req.headers['Authorization'] = 'Bearer $token';
+    }
+    req.fields['consent'] = 'true';
+    req.fields['name'] = name;
+    req.fields['language'] = language;
+    req.files.add(http.MultipartFile.fromBytes('file', bytes, filename: filename));
+    final streamed = await req.send().timeout(_longTimeout);
+    final res = await http.Response.fromStream(streamed).timeout(_longTimeout);
+    _ensure(res);
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
+  Future<List<dynamic>> listStories() async {
+    final res = await http.get(_u('/v1/stories'), headers: _headers).timeout(_timeout);
+    _ensure(res);
+    return jsonDecode(res.body) as List<dynamic>;
+  }
+
+  Future<Map<String, dynamic>> getStory(int storyId) async {
+    final res = await http.get(_u('/v1/stories/$storyId'), headers: _headers).timeout(_timeout);
+    _ensure(res);
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
+  /// Enqueue generation (returns quickly with status=generating).
+  Future<Map<String, dynamic>> createStory({
+    required int childId,
+    required String theme,
+    required String language,
+    required int durationMinutes,
+    int? voiceId,
+    bool softSeriesMode = false,
+    int? seriesId,
+    int episodeCount = 4,
+    List<String> keywords = const [],
+    List<String> values = const [],
+    String? developmentFocus,
+    String childCastRole = 'auto',
+    String? recap,
+    String plotDrive = 'light',
+    String imagery = 'balanced',
+    String wonder = 'soft',
+    String windDown = 'gentle',
+    String dialogue = 'some',
+    String leadIn = 'soft',
+  }) async {
+    final res = await http
+        .post(
+          _u('/v1/stories'),
+          headers: _headers,
+          body: jsonEncode({
+            'child_id': childId,
+            'theme': theme,
+            'language': language,
+            'duration_minutes': durationMinutes,
+            'voice_id': voiceId,
+            'soft_series_mode': softSeriesMode || seriesId != null,
+            if (seriesId != null) 'series_id': seriesId,
+            'episode_count': episodeCount,
+            'keywords': keywords,
+            'values': values,
+            'development_focus': developmentFocus,
+            'child_cast_role': childCastRole,
+            'recap': recap,
+            'plot_drive': plotDrive,
+            'imagery': imagery,
+            'wonder': wonder,
+            'wind_down': windDown,
+            'dialogue': dialogue,
+            'lead_in': leadIn,
+            'source': 'manual',
+          }),
+        )
+        .timeout(const Duration(seconds: 45));
+    _ensure(res);
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
+  /// Create + poll until ready/failed. [onProgress] receives progress stage string.
+  Future<Map<String, dynamic>> createStoryAndWait({
+    required int childId,
+    required String theme,
+    required String language,
+    required int durationMinutes,
+    int? voiceId,
+    bool softSeriesMode = false,
+    int? seriesId,
+    int episodeCount = 4,
+    List<String> keywords = const [],
+    List<String> values = const [],
+    String? developmentFocus,
+    String childCastRole = 'auto',
+    String? recap,
+    String plotDrive = 'light',
+    String imagery = 'balanced',
+    String wonder = 'soft',
+    String windDown = 'gentle',
+    String dialogue = 'some',
+    String leadIn = 'soft',
+    void Function(String progress)? onProgress,
+  }) async {
+    final created = await createStory(
+      childId: childId,
+      theme: theme,
+      language: language,
+      durationMinutes: durationMinutes,
+      voiceId: voiceId,
+      softSeriesMode: softSeriesMode,
+      seriesId: seriesId,
+      episodeCount: episodeCount,
+      keywords: keywords,
+      values: values,
+      developmentFocus: developmentFocus,
+      childCastRole: childCastRole,
+      recap: recap,
+      plotDrive: plotDrive,
+      imagery: imagery,
+      wonder: wonder,
+      windDown: windDown,
+      dialogue: dialogue,
+      leadIn: leadIn,
+    );
+    final status = created['status'] as String? ?? '';
+    if (status == 'ready') return created;
+    if (status == 'failed') {
+      throw ApiException(created['error_message'] as String? ?? '故事生成失败');
+    }
+    final id = created['id'] as int;
+    onProgress?.call(created['progress'] as String? ?? 'queued');
+
+    final deadline = DateTime.now().add(_longTimeout);
+    while (DateTime.now().isBefore(deadline)) {
+      await Future<void>.delayed(const Duration(seconds: 2));
+      final story = await getStory(id);
+      final st = story['status'] as String? ?? '';
+      final prog = story['progress'] as String? ?? st;
+      onProgress?.call(prog);
+      if (st == 'ready') return story;
+      if (st == 'failed') {
+        throw ApiException(story['error_message'] as String? ?? '故事生成失败');
+      }
+    }
+    throw ApiException('等待故事生成超时，可在「历史」里查看是否已完成');
+  }
+
+  Future<Map<String, dynamic>> quota() async {
+    final res = await http.get(_u('/v1/account/quota'), headers: _headers).timeout(_timeout);
+    _ensure(res);
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
+  void _ensure(http.Response res) {
+    if (res.statusCode < 400) return;
+    if (res.statusCode == 401) {
+      token = null;
+      onUnauthorized?.call();
+      throw ApiException('登录已失效，请重新进入', statusCode: 401, unauthorized: true);
+    }
+    throw ApiException(_friendlyError(res.statusCode, res.body), statusCode: res.statusCode);
+  }
+
+  static String _friendlyError(int statusCode, String body) {
+    final detail = _extractDetail(body);
+    if (detail != null && detail.isNotEmpty) {
+      return detail.length > 160 ? '${detail.substring(0, 160)}…' : detail;
+    }
+    if (statusCode == 403) return '没有权限执行该操作';
+    if (statusCode == 404) return '未找到相关内容';
+    if (statusCode == 429) return '请求过于频繁，请稍后再试';
+    if (statusCode >= 500) return '服务暂时不可用，请稍后再试';
+    return '请求失败 ($statusCode)';
+  }
+
+  static String? _extractDetail(String body) {
+    try {
+      final decoded = jsonDecode(body);
+      if (decoded is Map<String, dynamic>) {
+        final detail = decoded['detail'];
+        if (detail is String) return detail;
+        if (detail is List && detail.isNotEmpty) {
+          final first = detail.first;
+          if (first is Map && first['msg'] != null) return first['msg'].toString();
+          return first.toString();
+        }
+      }
+    } catch (_) {}
+    return null;
+  }
+}
