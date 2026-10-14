@@ -5,7 +5,7 @@ import '../api/client.dart';
 import '../theme/app_theme.dart';
 import '../theme/widgets.dart';
 import 'children_manage_screen.dart';
-import 'voice_clone_screen.dart';
+import 'voices_manage_screen.dart';
 
 /// Tab 2: profile card + settings entries.
 class MeTab extends StatefulWidget {
@@ -134,7 +134,7 @@ class _MeTabState extends State<MeTab> {
           subtitle: '系统音色与家长声音克隆',
           onTap: () {
             Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => VoiceCloneScreen(api: widget.api)),
+              MaterialPageRoute(builder: (_) => VoicesManageScreen(api: widget.api)),
             );
           },
         ),

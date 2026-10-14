@@ -55,6 +55,10 @@ class VoiceOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class VoiceUpdate(BaseModel):
+    name: str = Field(min_length=1, max_length=64)
+
+
 class StoryCreate(BaseModel):
     child_id: int
     theme: str = "a gentle forest adventure"

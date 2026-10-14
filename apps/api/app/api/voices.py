@@ -8,7 +8,7 @@ from app.core.security import get_current_user
 from app.models.user import User
 from app.models.voice import Voice
 from app.providers.factory import get_clone_provider
-from app.schemas.common import VoiceOut
+from app.schemas.common import VoiceOut, VoiceUpdate
 from app.services.quota import check_and_increment
 from app.services.retention import raw_voice_purge_at
 from app.services.storage import storage_service
@@ -21,8 +21,29 @@ router = APIRouter(prefix="/voices", tags=["voices"])
 async def list_voices(
     user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
 ) -> list[VoiceOut]:
-    rows = await db.execute(select(Voice).where(Voice.user_id == user.id))
+    rows = await db.execute(
+        select(Voice).where(Voice.user_id == user.id).order_by(Voice.id.asc())
+    )
     return list(rows.scalars().all())
+
+
+@router.patch("/{voice_id}", response_model=VoiceOut)
+async def update_voice(
+    voice_id: int,
+    body: VoiceUpdate,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> Voice:
+    voice = await db.get(Voice, voice_id)
+    if voice is None or voice.user_id != user.id:
+        raise HTTPException(status_code=404, detail="Voice not found")
+    name = body.name.strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Name is required")
+    voice.name = name
+    await db.commit()
+    await db.refresh(voice)
+    return voice
 
 
 @router.post("/system-default", response_model=VoiceOut)

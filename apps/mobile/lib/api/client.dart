@@ -136,6 +136,21 @@ class ApiClient {
     return jsonDecode(res.body) as List<dynamic>;
   }
 
+  Future<Map<String, dynamic>> updateVoice({
+    required int voiceId,
+    required String name,
+  }) async {
+    final res = await http
+        .patch(
+          _u('/v1/voices/$voiceId'),
+          headers: _headers,
+          body: jsonEncode({'name': name}),
+        )
+        .timeout(_timeout);
+    _ensure(res);
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
   Future<Map<String, dynamic>> cloneVoice({
     required List<int> bytes,
     required String filename,
