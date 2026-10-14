@@ -17,7 +17,7 @@ class BedtimeApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Lullvale Bedtime',
+      title: '呼呼 - 枕边故事',
       debugShowCheckedModeBanner: false,
       theme: buildBedtimeTheme(),
       home: const BootstrapGate(),

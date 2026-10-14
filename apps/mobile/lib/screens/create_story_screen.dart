@@ -255,12 +255,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
       }
       await Navigator.of(context).push(
         MaterialPageRoute(
-          builder: (_) => PlayerScreen(
-            title: story['title'] as String? ?? 'Story',
-            body: story['body'] as String? ?? '',
-            audioUrl: story['audio_url'] as String?,
-            softHook: story['soft_hook'] as String?,
-          ),
+          builder: (_) => PlayerScreen.fromStory(story),
         ),
       );
       final q = await widget.api.quota();
@@ -323,12 +318,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
       }
       await Navigator.of(context).push(
         MaterialPageRoute(
-          builder: (_) => PlayerScreen(
-            title: story['title'] as String? ?? 'Story',
-            body: story['body'] as String? ?? '',
-            audioUrl: story['audio_url'] as String?,
-            softHook: story['soft_hook'] as String?,
-          ),
+          builder: (_) => PlayerScreen.fromStory(story),
         ),
       );
       final q = await widget.api.quota();

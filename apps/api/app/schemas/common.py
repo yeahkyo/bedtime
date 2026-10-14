@@ -100,6 +100,8 @@ class StoryOut(BaseModel):
     child_id: int | None = None
     progress: str | None = None
     error_message: str | None = None
+    voice_name: str | None = None
+    development_focus_label: str | None = None
 
     model_config = {"from_attributes": True}
 

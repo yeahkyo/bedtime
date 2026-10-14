@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:audio_session/audio_session.dart';
 import 'package:flutter/material.dart';
@@ -16,6 +17,60 @@ class _BedTrack {
   final String asset;
 }
 
+List<String> _splitSentences(String body) {
+  final trimmed = body.trim();
+  if (trimmed.isEmpty) return const [];
+  final parts = <String>[];
+  final buf = StringBuffer();
+  for (final rune in trimmed.runes) {
+    final ch = String.fromCharCode(rune);
+    buf.write(ch);
+    if ('。！？…；\n'.contains(ch)) {
+      final s = buf.toString().trim();
+      if (s.isNotEmpty) parts.add(s);
+      buf.clear();
+    }
+  }
+  final tail = buf.toString().trim();
+  if (tail.isNotEmpty) parts.add(tail);
+  return parts.isEmpty ? [trimmed] : parts;
+}
+
+int _sentenceIndexForPosition({
+  required List<String> sentences,
+  required Duration position,
+  required Duration total,
+}) {
+  if (sentences.isEmpty) return 0;
+  if (total.inMilliseconds <= 0) return 0;
+  final totalChars = sentences.fold<int>(0, (a, s) => a + math.max(1, s.length));
+  if (totalChars <= 0) return 0;
+  final ratio = (position.inMilliseconds / total.inMilliseconds).clamp(0.0, 0.999999);
+  var target = ratio * totalChars;
+  var acc = 0;
+  for (var i = 0; i < sentences.length; i++) {
+    acc += math.max(1, sentences[i].length);
+    if (target < acc) return i;
+  }
+  return sentences.length - 1;
+}
+
+Duration _positionForSentence({
+  required List<String> sentences,
+  required int index,
+  required Duration total,
+}) {
+  if (sentences.isEmpty || total.inMilliseconds <= 0) return Duration.zero;
+  final i = index.clamp(0, sentences.length - 1);
+  final totalChars = sentences.fold<int>(0, (a, s) => a + math.max(1, s.length));
+  var before = 0;
+  for (var k = 0; k < i; k++) {
+    before += math.max(1, sentences[k].length);
+  }
+  final ms = (before / totalChars * total.inMilliseconds).round();
+  return Duration(milliseconds: ms.clamp(0, total.inMilliseconds));
+}
+
 class PlayerScreen extends StatefulWidget {
   const PlayerScreen({
     super.key,
@@ -23,12 +78,31 @@ class PlayerScreen extends StatefulWidget {
     required this.body,
     this.audioUrl,
     this.softHook,
+    this.theme,
+    this.voiceName,
+    this.developmentFocusLabel,
   });
 
   final String title;
   final String body;
   final String? audioUrl;
   final String? softHook;
+  final String? theme;
+  final String? voiceName;
+  final String? developmentFocusLabel;
+
+  /// Convenience for story JSON from API / list.
+  factory PlayerScreen.fromStory(Map<String, dynamic> story) {
+    return PlayerScreen(
+      title: story['title'] as String? ?? 'Story',
+      body: story['body'] as String? ?? '',
+      audioUrl: story['audio_url'] as String?,
+      softHook: story['soft_hook'] as String?,
+      theme: story['theme'] as String?,
+      voiceName: story['voice_name'] as String?,
+      developmentFocusLabel: story['development_focus_label'] as String?,
+    );
+  }
 
   @override
   State<PlayerScreen> createState() => _PlayerScreenState();
@@ -50,16 +124,19 @@ class _PlayerScreenState extends State<PlayerScreen> {
   static const _outroTick = Duration(milliseconds: 200);
 
   final narration = AudioPlayer();
-  // Avoid fighting the narration player for audio-session focus.
   final bed = AudioPlayer(handleInterruptions: false);
   StreamSubscription<PlayerState>? _narrationStateSub;
   Timer? _outroTimer;
+  final _passageScroll = ScrollController();
+  final Map<int, GlobalKey> _sentenceKeys = {};
+
+  late final List<String> _sentences = _splitSentences(widget.body);
 
   double playSpeed = 1.0;
   double bedVolume = _bedVolumeDefault;
   bool bedEnabled = true;
-  /// Design: 绘本伴读 vs 纯听熄屏 — keep text visible by default.
   bool showText = true;
+  bool textExpanded = false;
   String? error;
 
   int outroMinutes = _outroMinutesDefault;
@@ -68,6 +145,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
   bool _scrubbing = false;
   double _scrubMs = 0;
+  int _lastScrolledSentence = -1;
+
+  GlobalKey _keyFor(int i) => _sentenceKeys.putIfAbsent(i, GlobalKey.new);
 
   @override
   void initState() {
@@ -243,16 +323,15 @@ class _PlayerScreenState extends State<PlayerScreen> {
     ]);
   }
 
-  Future<void> _seekBy(Duration delta) async {
-    final pos = narration.position;
+  Future<void> _seekTo(Duration next) async {
     final total = narration.duration ?? Duration.zero;
-    var next = pos + delta;
-    if (next < Duration.zero) next = Duration.zero;
-    if (total > Duration.zero && next > total) next = total;
-    if (narration.processingState == ProcessingState.completed) {
+    var clamped = next;
+    if (clamped < Duration.zero) clamped = Duration.zero;
+    if (total > Duration.zero && clamped > total) clamped = total;
+    if (narration.processingState == ProcessingState.completed || _outroActive) {
       await _cancelBedOutro();
     }
-    await narration.seek(next);
+    await narration.seek(clamped);
     if (!narration.playing &&
         narration.processingState != ProcessingState.completed) {
       await Future.wait([
@@ -260,6 +339,13 @@ class _PlayerScreenState extends State<PlayerScreen> {
         if (bedEnabled) bed.play(),
       ]);
     }
+  }
+
+  Future<void> _seekToSentence(int index) async {
+    final total = narration.duration ?? Duration.zero;
+    await _seekTo(
+      _positionForSentence(sentences: _sentences, index: index, total: total),
+    );
   }
 
   Future<void> _setBedEnabled(bool enabled) async {
@@ -283,6 +369,11 @@ class _PlayerScreenState extends State<PlayerScreen> {
     }
   }
 
+  Future<void> _setPlaySpeed(double v) async {
+    setState(() => playSpeed = v);
+    await narration.setSpeed(v);
+  }
+
   String _fmt(Duration d) {
     final m = d.inMinutes.remainder(60).toString().padLeft(2, '0');
     final s = d.inSeconds.remainder(60).toString().padLeft(2, '0');
@@ -296,10 +387,265 @@ class _PlayerScreenState extends State<PlayerScreen> {
     return '$m:${s.toString().padLeft(2, '0')}';
   }
 
+  void _maybeScrollToSentence(int index) {
+    if (!textExpanded || index == _lastScrolledSentence) return;
+    _lastScrolledSentence = index;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final ctx = _keyFor(index).currentContext;
+      if (ctx == null) return;
+      Scrollable.ensureVisible(
+        ctx,
+        duration: const Duration(milliseconds: 520),
+        curve: Curves.easeInOutCubic,
+        alignment: 0.35,
+      );
+    });
+  }
+
+  List<Widget> _metaChips() {
+    final chips = <Widget>[];
+    final voice = widget.voiceName?.trim();
+    if (voice != null && voice.isNotEmpty) {
+      chips.add(_MetaChip(
+        icon: Icons.record_voice_over_outlined,
+        label: voice,
+        accent: true,
+      ));
+    }
+    final focus = widget.developmentFocusLabel?.trim();
+    final theme = widget.theme?.trim();
+    if (focus != null && focus.isNotEmpty) {
+      chips.add(_MetaChip(icon: Icons.auto_awesome_outlined, label: focus));
+    } else if (theme != null && theme.isNotEmpty) {
+      chips.add(_MetaChip(icon: Icons.spa_outlined, label: theme));
+    }
+    return chips;
+  }
+
+  Future<void> _openTimerSheet() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AppColors.surfaceLow,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadii.xl)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setModal) {
+            final remain = _outroEndsAt?.difference(DateTime.now());
+            return Padding(
+              padding: EdgeInsets.fromLTRB(
+                20,
+                16,
+                20,
+                20 + MediaQuery.paddingOf(ctx).bottom,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text('故事结束后', style: Theme.of(ctx).textTheme.titleMedium),
+                  const SizedBox(height: 6),
+                  Text(
+                    '背景音再播多久后渐弱结束（不中途打断旁白）。',
+                    style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
+                          color: AppColors.onSurfaceDim,
+                        ),
+                  ),
+                  if (_outroActive && remain != null && !remain.isNegative) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      '背景音正慢慢停下 · 剩余 ${_fmtOutroRemain(remain)}',
+                      style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
+                            color: AppColors.secondary,
+                            fontWeight: FontWeight.w600,
+                          ),
+                    ),
+                  ],
+                  const SizedBox(height: 14),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (final m in _outroMinutesOptions)
+                        ChoiceChip(
+                          label: Text('$m 分钟'),
+                          selected: outroMinutes == m,
+                          onSelected: (_) async {
+                            await _setOutroMinutes(m);
+                            setModal(() {});
+                            if (mounted) setState(() {});
+                          },
+                        ),
+                    ],
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _openSpeedSheet() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AppColors.surfaceLow,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadii.xl)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setModal) {
+            return Padding(
+              padding: EdgeInsets.fromLTRB(
+                20,
+                16,
+                20,
+                20 + MediaQuery.paddingOf(ctx).bottom,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text('朗读倍速', style: Theme.of(ctx).textTheme.titleMedium),
+                  const SizedBox(height: 6),
+                  Text(
+                    '只改变故事朗读速度，背景音乐不受影响。不会重新合成音频。',
+                    style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
+                          color: AppColors.onSurfaceDim,
+                        ),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Text(
+                        '0.70×',
+                        style: Theme.of(ctx).textTheme.bodySmall,
+                      ),
+                      Expanded(
+                        child: Slider(
+                          value: playSpeed,
+                          min: 0.7,
+                          max: 1.2,
+                          divisions: 10,
+                          label: '${playSpeed.toStringAsFixed(2)}×',
+                          onChanged: (v) async {
+                            await _setPlaySpeed(v);
+                            setModal(() {});
+                          },
+                        ),
+                      ),
+                      Text(
+                        '1.20×',
+                        style: Theme.of(ctx).textTheme.bodySmall,
+                      ),
+                    ],
+                  ),
+                  Text(
+                    '当前 ${playSpeed.toStringAsFixed(2)}×',
+                    textAlign: TextAlign.center,
+                    style: Theme.of(ctx).textTheme.labelLarge?.copyWith(
+                          color: AppColors.primary,
+                        ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _openBedSheet() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AppColors.surfaceLow,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadii.xl)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setModal) {
+            return Padding(
+              padding: EdgeInsets.fromLTRB(
+                20,
+                16,
+                20,
+                20 + MediaQuery.paddingOf(ctx).bottom,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.water_drop_outlined,
+                          size: 18, color: AppColors.secondary),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          '摇篮背景音 · ${_bedTrack.label}',
+                          style: Theme.of(ctx).textTheme.titleMedium,
+                        ),
+                      ),
+                      Switch(
+                        value: bedEnabled,
+                        onChanged: (v) async {
+                          await _setBedEnabled(v);
+                          setModal(() {});
+                        },
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Opacity(
+                    opacity: bedEnabled ? 1 : 0.4,
+                    child: Row(
+                      children: [
+                        const Icon(Icons.volume_mute,
+                            size: 16, color: AppColors.onSurfaceDim),
+                        Expanded(
+                          child: Slider(
+                            value: bedVolume,
+                            min: 0.04,
+                            max: 0.35,
+                            divisions: 31,
+                            label: '${(bedVolume * 100).round()}%',
+                            onChanged: bedEnabled
+                                ? (v) async {
+                                    await _setBedVolume(v);
+                                    setModal(() {});
+                                  }
+                                : null,
+                          ),
+                        ),
+                        Text(
+                          '${(bedVolume * 100).round()}%',
+                          style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
+                                color: AppColors.secondary,
+                                fontWeight: FontWeight.w600,
+                              ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   @override
   void dispose() {
     _outroTimer?.cancel();
     _narrationStateSub?.cancel();
+    _passageScroll.dispose();
     narration.dispose();
     bed.dispose();
     super.dispose();
@@ -313,443 +659,568 @@ class _PlayerScreenState extends State<PlayerScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('伴读播放'),
+        title: const Text('伴读'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new, size: 20),
           onPressed: () => Navigator.of(context).maybePop(),
         ),
       ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
+      body: Column(
         children: [
-          if (error != null)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: Text(error!, style: const TextStyle(color: Color(0xFFFFB4AB))),
-            ),
-          // Status + reading mode (from design; 纯听 = dim story text)
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: AppColors.surfaceHigh.withValues(alpha: 0.85),
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      width: 7,
-                      height: 7,
-                      decoration: const BoxDecoration(
-                        color: AppColors.primary,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      '床头暖灯 · 伴睡夜播中',
-                      style: tt.bodySmall?.copyWith(
-                        color: AppColors.primary,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const Spacer(),
-              Container(
-                padding: const EdgeInsets.all(2),
-                decoration: BoxDecoration(
-                  color: AppColors.surfaceLow,
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    _ModePill(
-                      label: '绘本伴读',
-                      selected: showText,
-                      onTap: () => setState(() => showText = true),
-                    ),
-                    _ModePill(
-                      label: '纯听',
-                      selected: !showText,
-                      onTap: () => setState(() => showText = false),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          // Illustration plate (decorative — no cover art yet)
-          AspectRatio(
-            aspectRatio: 1.15,
-            child: Container(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(AppRadii.xl),
-                gradient: const LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    Color(0xFF1A2A3F),
-                    Color(0xFF164F4A),
-                    Color(0xFF2A1F18),
-                  ],
-                ),
-                border: Border.all(color: AppColors.outline),
-                boxShadow: const [
-                  BoxShadow(
-                    color: Color(0x50000000),
-                    blurRadius: 18,
-                    offset: Offset(0, 8),
-                  ),
-                ],
-              ),
-              child: Stack(
-                children: [
-                  Positioned(
-                    right: -30,
-                    top: -20,
-                    child: Container(
-                      width: 140,
-                      height: 140,
-                      decoration: const BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: AppColors.lanternGlow,
-                      ),
-                    ),
-                  ),
-                  Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.nightlight_round,
-                          size: 56,
-                          color: AppColors.primary.withValues(alpha: 0.85),
-                        ),
-                        const SizedBox(height: 10),
-                        Text(
-                          '枕边暖光',
-                          style: tt.titleMedium?.copyWith(color: AppColors.primarySoft),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 18),
-          Text(widget.title, style: tt.headlineMedium),
-          const SizedBox(height: 4),
-          Text('Lullvale · 睡前伴读', style: tt.bodyMedium),
-          const SizedBox(height: 10),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              _MetaChip(
-                icon: Icons.graphic_eq,
-                label: '倍速 ${playSpeed.toStringAsFixed(2)}×',
-                accent: true,
-              ),
-              _MetaChip(
-                icon: Icons.music_note,
-                label: bedEnabled ? _bedTrack.label : '无垫乐',
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          // Story passage card
-          AnimatedOpacity(
-            opacity: showText ? 1 : 0.28,
-            duration: const Duration(milliseconds: 280),
-            child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: AppColors.surfaceLow,
-                borderRadius: BorderRadius.circular(AppRadii.lg),
-                border: Border.all(color: AppColors.outline),
-              ),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  if (error != null)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Text(
+                        error!,
+                        style: const TextStyle(color: Color(0xFFFFB4AB)),
+                      ),
+                    ),
                   Row(
                     children: [
-                      const Icon(Icons.auto_stories, size: 16, color: AppColors.primary),
-                      const SizedBox(width: 6),
-                      Text(
-                        '亲子同屏伴读',
-                        style: tt.bodySmall?.copyWith(
-                          color: AppColors.primary,
-                          fontWeight: FontWeight.w600,
+                      Flexible(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: AppColors.surfaceHigh.withValues(alpha: 0.85),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Container(
+                                width: 7,
+                                height: 7,
+                                decoration: const BoxDecoration(
+                                  color: AppColors.primary,
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Flexible(
+                                child: Text(
+                                  '床头暖灯 · 伴睡夜播中',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: tt.bodySmall?.copyWith(
+                                    color: AppColors.primary,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.all(2),
+                        decoration: BoxDecoration(
+                          color: AppColors.surfaceLow,
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            _ModePill(
+                              label: '绘本伴读',
+                              selected: showText,
+                              onTap: () => setState(() => showText = true),
+                            ),
+                            _ModePill(
+                              label: '纯听',
+                              selected: !showText,
+                              onTap: () => setState(() => showText = false),
+                            ),
+                          ],
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 12),
+                  if (!textExpanded) ...[
+                    const SizedBox(height: 10),
+                    AspectRatio(
+                      aspectRatio: 1.6,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(AppRadii.xl),
+                          gradient: const LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [
+                              Color(0xFF1A2A3F),
+                              Color(0xFF164F4A),
+                              Color(0xFF2A1F18),
+                            ],
+                          ),
+                          border: Border.all(color: AppColors.outline),
+                        ),
+                        child: Stack(
+                          children: [
+                            Positioned(
+                              right: -24,
+                              top: -16,
+                              child: Container(
+                                width: 110,
+                                height: 110,
+                                decoration: const BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: AppColors.lanternGlow,
+                                ),
+                              ),
+                            ),
+                            Center(
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.nightlight_round,
+                                    size: 44,
+                                    color: AppColors.primary.withValues(alpha: 0.85),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    '枕边暖光',
+                                    style: tt.titleMedium?.copyWith(
+                                      color: AppColors.primarySoft,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                  ] else
+                    const SizedBox(height: 4),
                   Text(
-                    widget.body,
-                    style: tt.bodyLarge?.copyWith(
-                      height: 1.7,
-                      color: AppColors.primarySoft,
+                    widget.title,
+                    maxLines: textExpanded ? 1 : 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: tt.headlineMedium?.copyWith(
+                      fontSize: textExpanded ? 20 : 24,
                     ),
                   ),
-                  if (widget.softHook != null && widget.softHook!.trim().isNotEmpty) ...[
-                    const SizedBox(height: 14),
-                    Text(
-                      '轻柔伏笔',
-                      style: tt.labelLarge?.copyWith(color: AppColors.secondary),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      widget.softHook!,
-                      style: tt.bodyMedium?.copyWith(color: AppColors.onSurfaceDim),
-                    ),
+                  if (!textExpanded) ...[
+                    const SizedBox(height: 2),
+                    Text('呼呼 · 枕边故事', style: tt.bodyMedium),
+                    if (_metaChips().isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 6,
+                        children: _metaChips(),
+                      ),
+                    ],
                   ],
+                  const SizedBox(height: 10),
+                  Expanded(
+                    child: AnimatedOpacity(
+                      opacity: showText ? 1 : 0.28,
+                      duration: const Duration(milliseconds: 280),
+                      child: _buildPassageCard(tt),
+                    ),
+                  ),
                 ],
               ),
             ),
           ),
-          const SizedBox(height: 20),
-          // Timeline
-          StreamBuilder<Duration>(
-            stream: narration.positionStream,
-            builder: (context, snap) {
-              final streamPos = snap.data ?? Duration.zero;
-              final total = narration.duration ?? Duration.zero;
-              final maxMs = total.inMilliseconds <= 0
-                  ? 1.0
-                  : total.inMilliseconds.toDouble();
-              final pos = _scrubbing
-                  ? Duration(milliseconds: _scrubMs.round())
-                  : streamPos;
-              final value = (_scrubbing ? _scrubMs : streamPos.inMilliseconds.toDouble())
-                  .clamp(0.0, maxMs);
-              final remain = total > pos ? total - pos : Duration.zero;
-              return Column(
-                children: [
-                  Row(
-                    children: [
-                      Text(
-                        _fmt(pos),
-                        style: tt.bodySmall?.copyWith(
-                          color: AppColors.primary,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const Spacer(),
-                      Text(
-                        total > Duration.zero ? '余 ${_fmt(remain)}' : '—',
-                        style: tt.bodySmall,
-                      ),
-                      const Spacer(),
-                      Text(
-                        total > Duration.zero ? _fmt(total) : '--:--',
-                        style: tt.bodySmall,
-                      ),
-                    ],
-                  ),
-                  SliderTheme(
-                    data: SliderTheme.of(context).copyWith(
-                      trackHeight: 3,
-                      thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
-                    ),
-                    child: Slider(
-                      value: value,
-                      min: 0,
-                      max: maxMs,
-                      onChangeStart: (v) {
-                        setState(() {
-                          _scrubbing = true;
-                          _scrubMs = v;
-                        });
-                      },
-                      onChanged: (v) {
-                        setState(() => _scrubMs = v);
-                      },
-                      onChangeEnd: (v) async {
-                        if (_outroActive) await _cancelBedOutro();
-                        await narration.seek(Duration(milliseconds: v.round()));
-                        if (!mounted) return;
-                        setState(() {
-                          _scrubbing = false;
-                          _scrubMs = v;
-                        });
-                      },
-                    ),
-                  ),
-                ],
-              );
-            },
+          _buildDock(tt, outroRemain),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPassageCard(TextTheme tt) {
+    return StreamBuilder<Duration>(
+      stream: narration.positionStream,
+      builder: (context, snap) {
+        final pos = _scrubbing
+            ? Duration(milliseconds: _scrubMs.round())
+            : (snap.data ?? Duration.zero);
+        final total = narration.duration ?? Duration.zero;
+        final idx = _sentenceIndexForPosition(
+          sentences: _sentences,
+          position: pos,
+          total: total,
+        );
+        _maybeScrollToSentence(idx);
+
+        final current = _sentences.isEmpty ? widget.body : _sentences[idx];
+        final next = (idx + 1 < _sentences.length)
+            ? _sentences[idx + 1]
+            : (widget.softHook?.trim().isNotEmpty == true
+                ? widget.softHook!.trim()
+                : null);
+
+        return Container(
+          width: double.infinity,
+          padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+          decoration: BoxDecoration(
+            color: AppColors.surfaceLow,
+            borderRadius: BorderRadius.circular(AppRadii.lg),
+            border: Border.all(color: AppColors.outline),
           ),
-          const SizedBox(height: 4),
-          // Transport
-          StreamBuilder<PlayerState>(
-            stream: narration.playerStateStream,
-            builder: (context, snap) {
-              final playing =
-                  (snap.data?.playing ?? false) || _outroActive;
-              return Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
                 children: [
-                  _RoundCtrl(
-                    icon: Icons.replay_10,
-                    onTap: () => _seekBy(const Duration(seconds: -15)),
-                  ),
-                  DecoratedBox(
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppColors.lanternGlow,
-                          blurRadius: 22,
-                          spreadRadius: 2,
-                        ),
-                      ],
-                    ),
-                    child: Material(
+                  const Icon(Icons.auto_stories, size: 16, color: AppColors.primary),
+                  const SizedBox(width: 6),
+                  Text(
+                    '亲子同屏伴读',
+                    style: tt.bodySmall?.copyWith(
                       color: AppColors.primary,
-                      shape: const CircleBorder(),
-                      child: InkWell(
-                        customBorder: const CircleBorder(),
-                        onTap: () => _togglePlayPause(playing),
-                        child: SizedBox(
-                          width: 68,
-                          height: 68,
-                          child: Icon(
-                            playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
-                            size: 36,
-                            color: AppColors.onPrimary,
-                          ),
-                        ),
-                      ),
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
-                  _RoundCtrl(
-                    icon: Icons.forward_10,
-                    onTap: () => _seekBy(const Duration(seconds: 15)),
+                  const Spacer(),
+                  Text(
+                    textExpanded ? '全文' : '字句平滑随行',
+                    style: tt.bodySmall?.copyWith(color: AppColors.onSurfaceDim),
+                  ),
+                  const SizedBox(width: 8),
+                  TextButton(
+                    onPressed: () {
+                      setState(() {
+                        textExpanded = !textExpanded;
+                        if (!textExpanded) _lastScrolledSentence = -1;
+                      });
+                    },
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      foregroundColor: AppColors.secondary,
+                    ),
+                    child: Text(textExpanded ? '收起' : '查看全文'),
                   ),
                 ],
-              );
-            },
-          ),
-          const SizedBox(height: 22),
-          Text('播放倍速（不重合成）', style: tt.labelLarge),
-          Slider(
-            value: playSpeed,
-            min: 0.7,
-            max: 1.2,
-            divisions: 10,
-            label: playSpeed.toStringAsFixed(2),
-            onChanged: (v) async {
-              setState(() => playSpeed = v);
-              await narration.setSpeed(v);
-            },
-          ),
-          const SizedBox(height: 8),
-          // Ambient mixer strip (design-aligned)
-          Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: AppColors.surfaceLow,
-              borderRadius: BorderRadius.circular(AppRadii.lg),
-              border: Border.all(color: AppColors.outline),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    const Icon(Icons.water_drop_outlined, size: 18, color: AppColors.secondary),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        bedEnabled
-                            ? '摇篮背景音 · ${_bedTrack.label}'
-                            : '摇篮背景音 · 已关闭',
-                        style: tt.labelLarge?.copyWith(color: AppColors.onSurface),
-                      ),
-                    ),
-                    Switch(
-                      value: bedEnabled,
-                      onChanged: _setBedEnabled,
-                    ),
-                  ],
-                ),
-                if (bedEnabled) ...[
-                  const SizedBox(height: 8),
-                  Row(
+              ),
+              const SizedBox(height: 8),
+              if (!textExpanded)
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Icon(Icons.volume_mute, size: 16, color: AppColors.onSurfaceDim),
                       Expanded(
-                        child: Slider(
-                          value: bedVolume,
-                          min: 0.04,
-                          max: 0.35,
-                          divisions: 31,
-                          label: '${(bedVolume * 100).round()}%',
-                          onChanged: _setBedVolume,
-                        ),
-                      ),
-                      Text(
-                        '${(bedVolume * 100).round()}%',
-                        style: tt.bodySmall?.copyWith(
-                          color: AppColors.secondary,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      Text(
-                        '故事结束后',
-                        style: tt.bodySmall?.copyWith(color: AppColors.onSurfaceDim),
-                      ),
-                      if (_outroActive &&
-                          outroRemain != null &&
-                          !outroRemain.isNegative) ...[
-                        const SizedBox(width: 8),
-                        Text(
-                          '余 ${_fmtOutroRemain(outroRemain)}',
-                          style: tt.bodySmall?.copyWith(
-                            color: AppColors.secondary,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      children: [
-                        for (final m in _outroMinutesOptions) ...[
-                          Padding(
-                            padding: const EdgeInsets.only(right: 8),
-                            child: ChoiceChip(
-                              label: Text('$m 分钟'),
-                              selected: outroMinutes == m,
-                              onSelected: (_) => _setOutroMinutes(m),
+                        child: AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 420),
+                          switchInCurve: Curves.easeOutCubic,
+                          switchOutCurve: Curves.easeInCubic,
+                          transitionBuilder: (child, anim) {
+                            return FadeTransition(
+                              opacity: anim,
+                              child: SlideTransition(
+                                position: Tween<Offset>(
+                                  begin: const Offset(0, 0.08),
+                                  end: Offset.zero,
+                                ).animate(anim),
+                                child: child,
+                              ),
+                            );
+                          },
+                          child: SingleChildScrollView(
+                            key: ValueKey<int>(idx),
+                            child: Text(
+                              current,
+                              style: tt.bodyLarge?.copyWith(
+                                height: 1.65,
+                                color: AppColors.primarySoft,
+                                fontSize: 18,
+                              ),
                             ),
                           ),
-                        ],
+                        ),
+                      ),
+                      if (next != null && next.isNotEmpty) ...[
+                        const SizedBox(height: 10),
+                        AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 420),
+                          child: Text(
+                            next,
+                            key: ValueKey<String>('next-$idx'),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: tt.bodyMedium?.copyWith(
+                              color: AppColors.onSurfaceDim.withValues(alpha: 0.72),
+                              height: 1.45,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ),
                       ],
-                    ),
+                    ],
                   ),
-                ],
-              ],
-            ),
+                )
+              else
+                Expanded(
+                  child: ListView.builder(
+                    controller: _passageScroll,
+                    itemCount: _sentences.length,
+                    itemBuilder: (context, i) {
+                      final active = i == idx;
+                      return KeyedSubtree(
+                        key: _keyFor(i),
+                        child: InkWell(
+                          onTap: () => _seekToSentence(i),
+                          borderRadius: BorderRadius.circular(8),
+                          child: AnimatedDefaultTextStyle(
+                            duration: const Duration(milliseconds: 320),
+                            curve: Curves.easeInOutCubic,
+                            style: (tt.bodyLarge ?? const TextStyle()).copyWith(
+                              height: 1.6,
+                              fontSize: active ? 17 : 15,
+                              fontWeight:
+                                  active ? FontWeight.w600 : FontWeight.w400,
+                              color: active
+                                  ? AppColors.primarySoft
+                                  : AppColors.onSurfaceDim.withValues(
+                                      alpha: 0.75,
+                                    ),
+                            ),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                vertical: 8,
+                                horizontal: 4,
+                              ),
+                              child: Text(_sentences[i]),
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+            ],
           ),
-        ],
+        );
+      },
+    );
+  }
+
+  Widget _buildDock(TextTheme tt, Duration? outroRemain) {
+    return Material(
+      color: AppColors.background,
+      elevation: 8,
+      shadowColor: Colors.black54,
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 10),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              StreamBuilder<Duration>(
+                stream: narration.positionStream,
+                builder: (context, snap) {
+                  final streamPos = snap.data ?? Duration.zero;
+                  final total = narration.duration ?? Duration.zero;
+                  final maxMs = total.inMilliseconds <= 0
+                      ? 1.0
+                      : total.inMilliseconds.toDouble();
+                  final pos = _scrubbing
+                      ? Duration(milliseconds: _scrubMs.round())
+                      : streamPos;
+                  final value =
+                      (_scrubbing ? _scrubMs : streamPos.inMilliseconds.toDouble())
+                          .clamp(0.0, maxMs);
+                  final remain = total > pos ? total - pos : Duration.zero;
+                  final centerBits = <String>[];
+                  if (total > Duration.zero) {
+                    centerBits.add('剩余 ${_fmt(remain)}');
+                  }
+                  if (_outroActive &&
+                      outroRemain != null &&
+                      !outroRemain.isNegative) {
+                    centerBits.add('背景音正慢慢停下');
+                  } else {
+                    centerBits.add('结束后再播$outroMinutes分钟');
+                  }
+                  return Column(
+                    children: [
+                      Row(
+                        children: [
+                          Text(
+                            _fmt(pos),
+                            style: tt.bodySmall?.copyWith(
+                              color: AppColors.primary,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          Expanded(
+                            child: Text(
+                              centerBits.join(' · '),
+                              textAlign: TextAlign.center,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: tt.bodySmall?.copyWith(
+                                color: AppColors.onSurfaceDim,
+                              ),
+                            ),
+                          ),
+                          Text(
+                            total > Duration.zero ? _fmt(total) : '--:--',
+                            style: tt.bodySmall,
+                          ),
+                        ],
+                      ),
+                      SliderTheme(
+                        data: SliderTheme.of(context).copyWith(
+                          trackHeight: 3,
+                          thumbShape: const RoundSliderThumbShape(
+                            enabledThumbRadius: 6,
+                          ),
+                        ),
+                        child: Slider(
+                          value: value,
+                          min: 0,
+                          max: maxMs,
+                          onChangeStart: (v) {
+                            setState(() {
+                              _scrubbing = true;
+                              _scrubMs = v;
+                            });
+                          },
+                          onChanged: (v) => setState(() => _scrubMs = v),
+                          onChangeEnd: (v) async {
+                            await _seekTo(Duration(milliseconds: v.round()));
+                            if (!mounted) return;
+                            setState(() {
+                              _scrubbing = false;
+                              _scrubMs = v;
+                            });
+                          },
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+              const SizedBox(height: 4),
+              StreamBuilder<PlayerState>(
+                stream: narration.playerStateStream,
+                builder: (context, snap) {
+                  final playing =
+                      (snap.data?.playing ?? false) || _outroActive;
+                  return Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      _DockAction(
+                        icon: Icons.bedtime_outlined,
+                        label: '$outroMinutes分钟',
+                        onTap: _openTimerSheet,
+                      ),
+                      _DockAction(
+                        icon: Icons.graphic_eq,
+                        label: '${playSpeed.toStringAsFixed(2)}×',
+                        onTap: _openSpeedSheet,
+                      ),
+                      DecoratedBox(
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppColors.lanternGlow,
+                              blurRadius: 22,
+                              spreadRadius: 2,
+                            ),
+                          ],
+                        ),
+                        child: Material(
+                          color: AppColors.primary,
+                          shape: const CircleBorder(),
+                          child: InkWell(
+                            customBorder: const CircleBorder(),
+                            onTap: () => _togglePlayPause(playing),
+                            child: SizedBox(
+                              width: 68,
+                              height: 68,
+                              child: Icon(
+                                playing
+                                    ? Icons.pause_rounded
+                                    : Icons.play_arrow_rounded,
+                                size: 36,
+                                color: AppColors.onPrimary,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      _DockAction(
+                        icon: bedEnabled
+                            ? Icons.water_drop_outlined
+                            : Icons.water_drop,
+                        label: bedEnabled ? _bedTrack.label : '已关',
+                        onTap: _openBedSheet,
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DockAction extends StatelessWidget {
+  const _DockAction({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: SizedBox(
+        width: 72,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: const BoxDecoration(
+                color: AppColors.surfaceContainer,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, size: 22, color: AppColors.onSurfaceMuted),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 11,
+                color: AppColors.onSurfaceDim,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -812,7 +1283,11 @@ class _MetaChip extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 13, color: accent ? AppColors.secondary : AppColors.onSurfaceDim),
+          Icon(
+            icon,
+            size: 13,
+            color: accent ? AppColors.secondary : AppColors.onSurfaceDim,
+          ),
           const SizedBox(width: 4),
           Text(
             label,
@@ -822,30 +1297,6 @@ class _MetaChip extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _RoundCtrl extends StatelessWidget {
-  const _RoundCtrl({required this.icon, required this.onTap});
-
-  final IconData icon;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: AppColors.surfaceHigh,
-      shape: const CircleBorder(),
-      child: InkWell(
-        customBorder: const CircleBorder(),
-        onTap: onTap,
-        child: SizedBox(
-          width: 48,
-          height: 48,
-          child: Icon(icon, color: AppColors.onSurface, size: 26),
-        ),
       ),
     );
   }

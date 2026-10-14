@@ -179,6 +179,21 @@ async def _story_out(db: AsyncSession, story: Story) -> StoryOut:
     audio_url = None
     if story.audio:
         audio_url = await storage_service.presigned_url(story.audio.object_key)
+    voice_name: str | None = None
+    if story.voice_id is not None:
+        voice = await db.get(Voice, story.voice_id)
+        if voice is not None:
+            voice_name = voice.name
+    focus_label: str | None = None
+    if story.params_json:
+        try:
+            params = json.loads(story.params_json)
+            if isinstance(params, dict):
+                raw = params.get("development_focus_label") or params.get("development_focus")
+                if isinstance(raw, str) and raw.strip():
+                    focus_label = raw.strip()
+        except json.JSONDecodeError:
+            pass
     return StoryOut(
         id=story.id,
         title=story.title,
@@ -195,6 +210,8 @@ async def _story_out(db: AsyncSession, story: Story) -> StoryOut:
         child_id=story.child_id,
         progress=story.progress,
         error_message=story.error_message,
+        voice_name=voice_name,
+        development_focus_label=focus_label,
     )
 
 

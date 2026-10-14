@@ -85,12 +85,7 @@ class StoriesTabState extends State<StoriesTab> {
       if (!mounted) return;
       await Navigator.of(context).push(
         MaterialPageRoute(
-          builder: (_) => PlayerScreen(
-            title: story['title'] as String? ?? 'Story',
-            body: story['body'] as String? ?? '',
-            audioUrl: story['audio_url'] as String?,
-            softHook: story['soft_hook'] as String?,
-          ),
+          builder: (_) => PlayerScreen.fromStory(story),
         ),
       );
       await _load();
@@ -117,12 +112,7 @@ class StoriesTabState extends State<StoriesTab> {
     }
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => PlayerScreen(
-          title: s['title'] as String? ?? 'Story',
-          body: s['body'] as String? ?? '',
-          audioUrl: audioUrl,
-          softHook: s['soft_hook'] as String?,
-        ),
+        builder: (_) => PlayerScreen.fromStory(s),
       ),
     );
   }
@@ -166,12 +156,7 @@ class StoriesTabState extends State<StoriesTab> {
       if (!mounted) return;
       await Navigator.of(context).push(
         MaterialPageRoute(
-          builder: (_) => PlayerScreen(
-            title: story['title'] as String? ?? 'Story',
-            body: story['body'] as String? ?? '',
-            audioUrl: story['audio_url'] as String?,
-            softHook: story['soft_hook'] as String?,
-          ),
+          builder: (_) => PlayerScreen.fromStory(story),
         ),
       );
       await _load();

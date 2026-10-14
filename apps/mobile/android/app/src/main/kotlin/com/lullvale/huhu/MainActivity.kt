@@ -1,4 +1,4 @@
-package com.lullvale.bedtime_mobile
+package com.lullvale.huhu
 
 import io.flutter.embedding.android.FlutterActivity
 
