@@ -128,7 +128,13 @@ class _VoiceCloneScreenState extends State<VoiceCloneScreen> {
     final tt = Theme.of(context).textTheme;
     final canUpload = path != null && !recording && !uploading && consent;
 
-    return ListView(
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        title: const Text('音色管理'),
+        backgroundColor: AppColors.background,
+      ),
+      body: ListView(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
       children: [
         const BrandHeader(
@@ -143,7 +149,7 @@ class _VoiceCloneScreenState extends State<VoiceCloneScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                '原始录音上传后会尽快删除。建议安静环境朗读 10–15 秒；克隆成功后回到「创作室」可选该音色。',
+                '原始录音上传后会尽快删除。建议安静环境朗读 10–15 秒；克隆成功后可在创作故事时选用该音色。',
                 style: tt.bodyMedium,
               ),
               const SizedBox(height: 12),
@@ -325,6 +331,7 @@ class _VoiceCloneScreenState extends State<VoiceCloneScreen> {
                 ),
         ),
       ],
+    ),
     );
   }
 }

@@ -179,26 +179,33 @@ class LibraryStoryTile extends StatelessWidget {
     required this.meta,
     required this.onPlay,
     this.onContinue,
+    this.onRetry,
+    this.failed = false,
   });
 
   final String title;
   final String meta;
   final VoidCallback onPlay;
   final VoidCallback? onContinue;
+  final VoidCallback? onRetry;
+  final bool failed;
 
   @override
   Widget build(BuildContext context) {
+    final primaryAction = failed && onRetry != null ? onRetry! : onPlay;
     return Material(
       color: AppColors.card,
       borderRadius: BorderRadius.circular(AppRadii.lg),
       child: InkWell(
         borderRadius: BorderRadius.circular(AppRadii.lg),
-        onTap: onPlay,
+        onTap: primaryAction,
         child: Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(AppRadii.lg),
-            border: Border.all(color: AppColors.outline),
+            border: Border.all(
+              color: failed ? AppColors.secondary.withValues(alpha: 0.45) : AppColors.outline,
+            ),
           ),
           child: Row(
             children: [
@@ -213,7 +220,10 @@ class LibraryStoryTile extends StatelessWidget {
                     colors: [Color(0xFF2A3A4F), Color(0xFF164F4A)],
                   ),
                 ),
-                child: const Icon(Icons.menu_book_rounded, color: AppColors.primarySoft),
+                child: Icon(
+                  failed ? Icons.error_outline_rounded : Icons.menu_book_rounded,
+                  color: failed ? AppColors.secondary : AppColors.primarySoft,
+                ),
               ),
               const SizedBox(width: 14),
               Expanded(
@@ -242,11 +252,14 @@ class LibraryStoryTile extends StatelessWidget {
                 shape: const CircleBorder(),
                 child: InkWell(
                   customBorder: const CircleBorder(),
-                  onTap: onPlay,
-                  child: const SizedBox(
+                  onTap: primaryAction,
+                  child: SizedBox(
                     width: 42,
                     height: 42,
-                    child: Icon(Icons.play_arrow_rounded, color: AppColors.onPrimary),
+                    child: Icon(
+                      failed ? Icons.refresh_rounded : Icons.play_arrow_rounded,
+                      color: AppColors.onPrimary,
+                    ),
                   ),
                 ),
               ),

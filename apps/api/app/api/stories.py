@@ -352,6 +352,144 @@ async def create_story_batch(
     return await _story_out(db, story)
 
 
+def _story_create_from_params(story: Story, params: dict) -> StoryCreate:
+    """Rebuild StoryCreate from persisted params_json + story columns."""
+    data = {
+        "child_id": story.child_id,
+        "theme": story.theme or params.get("theme") or "a gentle forest adventure",
+        "language": story.language or params.get("language") or "zh",
+        "duration_minutes": story.duration_minutes or params.get("duration_minutes") or 5,
+        "voice_id": story.voice_id or params.get("voice_id"),
+        "values": params.get("values") or [],
+        "soft_series_mode": bool(params.get("soft_series_mode") or story.series_id),
+        "recap": story.recap if story.recap is not None else params.get("recap"),
+        "series_id": story.series_id or params.get("series_id"),
+        "episode_count": params.get("episode_count") or 4,
+        "source": story.source or params.get("source") or "manual",
+        "memory_ids": params.get("memory_ids") or [],
+        "keywords": params.get("keywords") or [],
+        "development_focus": params.get("development_focus"),
+        "child_cast_role": params.get("child_cast_role") or "auto",
+        "plot_drive": params.get("plot_drive") or "light",
+        "imagery": params.get("imagery") or "balanced",
+        "wonder": params.get("wonder") or "soft",
+        "wind_down": params.get("wind_down") or "gentle",
+        "dialogue": params.get("dialogue") or "some",
+        "lead_in": params.get("lead_in") or "soft",
+    }
+    return StoryCreate.model_validate(data)
+
+
+@router.post("/{story_id}/retry", response_model=StoryOut, status_code=202)
+async def retry_failed_story(
+    story_id: int,
+    background_tasks: BackgroundTasks,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> StoryOut:
+    """Re-enqueue a failed story with the same params. Does not charge quota again."""
+    story = (
+        await db.execute(
+            select(Story).where(Story.id == story_id).options(selectinload(Story.audio))
+        )
+    ).scalar_one_or_none()
+    if story is None or story.user_id != user.id:
+        raise HTTPException(status_code=404, detail="Story not found")
+    if story.status != "failed":
+        raise HTTPException(status_code=400, detail="Only failed stories can be retried")
+    if story.child_id is None:
+        raise HTTPException(status_code=400, detail="Missing child")
+
+    child = await db.get(Child, story.child_id)
+    if child is None or child.user_id != user.id:
+        raise HTTPException(status_code=404, detail="Child not found")
+
+    try:
+        params = json.loads(story.params_json or "{}")
+    except json.JSONDecodeError:
+        params = {}
+    body = _story_create_from_params(story, params if isinstance(params, dict) else {})
+
+    interests = json.loads(child.interests_json) if child.interests_json else []
+    series_row: StorySeries | None = None
+    outline: dict | None = None
+    episode_no = int(story.episode_no or params.get("episode_no") or 1)
+    need_outline = False
+    recap = story.recap or body.recap
+
+    if story.series_id is not None:
+        series_row = await db.get(StorySeries, story.series_id)
+        if series_row is None or series_row.user_id != user.id:
+            raise HTTPException(status_code=404, detail="Series not found")
+        try:
+            outline = json.loads(series_row.outline_json or "{}")
+        except json.JSONDecodeError as exc:
+            raise HTTPException(status_code=500, detail="Series outline corrupt") from exc
+        need_outline = False
+    elif body.soft_series_mode:
+        # First episode failed before a series row was created — restart outline.
+        need_outline = True
+        episode_no = 1
+
+    voice, vs = await _resolve_voice_and_settings(db, user, child, story.voice_id or body.voice_id)
+    if story.voice_settings_json:
+        try:
+            saved = json.loads(story.voice_settings_json)
+            if isinstance(saved, dict):
+                vs = VoiceSettings(
+                    **{
+                        k: saved[k]
+                        for k in ("speed", "stability", "style", "similarity_boost")
+                        if k in saved
+                    }
+                )
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+    story_req, focus_id, focus_label = _build_story_request(
+        child=child,
+        body=body,
+        interests=interests,
+        episode_no=episode_no,
+        series_outline=outline,
+        need_series_outline=need_outline,
+        recap=recap,
+        soft_series_mode=body.soft_series_mode or series_row is not None or need_outline,
+    )
+    # Refresh params snapshot (keep voice/child binding on the story row).
+    retry_params = body.model_dump()
+    retry_params["development_focus"] = focus_id
+    retry_params["development_focus_label"] = focus_label
+    retry_params["episode_no"] = episode_no
+
+    story.status = "generating"
+    story.progress = "queued"
+    story.error_message = None
+    story.voice_id = voice.id
+    story.params_json = json.dumps(retry_params, ensure_ascii=False)
+    story.voice_settings_json = json.dumps(vs.__dict__)
+    await db.commit()
+    await db.refresh(story)
+
+    background_tasks.add_task(
+        process_story_job,
+        story_id=story.id,
+        request_data=serialize_story_request(story_req),
+        provider_voice_id=voice.provider_voice_id,
+        voice_settings=vs.__dict__,
+        user_id=user.id,
+        episode_count=clamp_episode_count(body.episode_count),
+        continuing_series_id=series_row.id if series_row else None,
+    )
+
+    story = (
+        await db.execute(
+            select(Story).where(Story.id == story.id).options(selectinload(Story.audio))
+        )
+    ).scalar_one()
+    return await _story_out(db, story)
+
+
 @router.post("/{story_id}/stream-audio")
 async def stream_story_audio(
     story_id: int, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)

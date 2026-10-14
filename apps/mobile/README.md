@@ -13,6 +13,11 @@ flutter run --dart-define=API_BASE_URL=http://<电脑局域网IP>:8000
 flutter run --dart-define=API_BASE_URL=https://bedtime-api.lullvale.com
 ```
 
+## Navigation
+
+- **故事** — library (newest first) + CTA to push create-story
+- **我的** — profile card + 音色管理 / 角色管理
+
 ## Auth (current)
 
 Boot uses `POST /v1/auth/dev-login`. That only works when the API has `ENV=dev` and `DEV_AUTH_BYPASS=1`. Edge/TLS: Cloudflare orange-cloud → origin **:8080** (Origin Rule; Bandage keeps `:80`). See [docs/deploy-staging.md](../../docs/deploy-staging.md).

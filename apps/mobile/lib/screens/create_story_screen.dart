@@ -117,6 +117,12 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
     _prepare();
   }
 
+  int? _asId(dynamic value) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    return int.tryParse('$value');
+  }
+
   Future<void> _prepare() async {
     setState(() => preparing = true);
     try {
@@ -126,15 +132,18 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
           nickname: nicknameCtrl.text.trim().isEmpty ? '豆豆' : nicknameCtrl.text.trim(),
           ageBand: ageBand,
         );
-        childId = child['id'] as int;
+        childId = _asId(child['id']);
         ageBand = child['age_band'] as String? ?? ageBand;
       } else {
         final c = children.first as Map<String, dynamic>;
-        childId = c['id'] as int;
+        childId = _asId(c['id']);
         nicknameCtrl.text = c['nickname'] as String? ?? nicknameCtrl.text;
         ageBand = c['age_band'] as String? ?? ageBand;
         final interests = (c['interests'] as List<dynamic>? ?? []).cast<String>();
         interestsCtrl.text = interests.join(', ');
+      }
+      if (childId == null) {
+        throw ApiException('无法读取孩子档案 id，请下拉重试或重新进入');
       }
       final system = await widget.api.ensureSystemVoice();
       final listed = await widget.api.listVoices();
@@ -149,11 +158,12 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
           break;
         }
       }
-      voiceId = (preferred?['id'] as int?) ?? (system['id'] as int);
+      voiceId = _asId(preferred?['id']) ?? _asId(system['id']);
       final q = await widget.api.quota();
       quotaText =
           '本月故事 ${q['story_used']}/${q['story_limit']} · 克隆 ${q['clone_used']}/${q['clone_limit']}';
     } catch (e) {
+      childId = null;
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
     } finally {
@@ -162,11 +172,29 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
   }
 
   Future<void> _generate() async {
-    if (childId == null) return;
+    if (childId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('档案未就绪，正在重新加载…')),
+      );
+      await _prepare();
+      if (!mounted) return;
+      if (childId == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('仍无法加载孩子档案，请检查网络后重试')),
+        );
+        return;
+      }
+    }
     final nick = nicknameCtrl.text.trim();
     if (nick.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('请填写孩子昵称（即使故事里可不出现）')),
+      );
+      return;
+    }
+    if (voiceId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('请选择音色（或先到「音色」页创建系统音色）')),
       );
       return;
     }
@@ -243,7 +271,84 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
       });
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+      final storyId = e is ApiException ? e.storyId : null;
+      if (storyId != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('$e'),
+            action: SnackBarAction(
+              label: '重试',
+              onPressed: () => _retryFailed(storyId),
+            ),
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          busy = false;
+          progressText = null;
+        });
+      }
+    }
+  }
+
+  Future<void> _retryFailed(int storyId) async {
+    if (busy) return;
+    setState(() {
+      busy = true;
+      progressText = '正在重新生成…';
+    });
+    try {
+      final story = await widget.api.retryStoryAndWait(
+        storyId,
+        onProgress: (p) {
+          if (!mounted) return;
+          setState(() => progressText = _progressLabel(p));
+        },
+      );
+      if (!mounted) return;
+      final sid = story['series_id'] as int?;
+      final ep = story['episode_no'] as int?;
+      if (sid != null) {
+        setState(() {
+          softSeries = true;
+          continueSeriesId = sid;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('系列第 ${ep ?? '?'} 集已生成，可再点生成续写下一集')),
+        );
+      }
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => PlayerScreen(
+            title: story['title'] as String? ?? 'Story',
+            body: story['body'] as String? ?? '',
+            audioUrl: story['audio_url'] as String?,
+            softHook: story['soft_hook'] as String?,
+          ),
+        ),
+      );
+      final q = await widget.api.quota();
+      if (!mounted) return;
+      setState(() {
+        quotaText =
+            '本月故事 ${q['story_used']}/${q['story_limit']} · 克隆 ${q['clone_used']}/${q['clone_limit']}';
+      });
+    } catch (e) {
+      if (!mounted) return;
+      final retryId = e is ApiException ? e.storyId : storyId;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('$e'),
+          action: SnackBarAction(
+            label: '重试',
+            onPressed: () => _retryFailed(retryId ?? storyId),
+          ),
+        ),
+      );
     } finally {
       if (mounted) {
         setState(() {
@@ -299,9 +404,22 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
   @override
   Widget build(BuildContext context) {
     if (preparing) {
-      return const Center(child: CircularProgressIndicator());
+      return Scaffold(
+        backgroundColor: AppColors.background,
+        appBar: AppBar(
+          title: const Text('创作故事'),
+          backgroundColor: AppColors.background,
+        ),
+        body: const Center(child: CircularProgressIndicator()),
+      );
     }
-    return Column(
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        title: const Text('创作故事'),
+        backgroundColor: AppColors.background,
+      ),
+      body: Column(
       children: [
         Expanded(
           child: ListView(
@@ -559,7 +677,9 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               AmberCta(
-                label: busy ? (progressText ?? '编织中…') : '编织今晚的枕边故事',
+                label: busy
+                    ? (progressText ?? '编织中…')
+                    : (childId == null ? '档案未就绪，点此重试' : '编织今晚的枕边故事'),
                 busy: busy,
                 onPressed: busy ? null : _generate,
               ),
@@ -575,6 +695,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
           ),
         ),
       ],
+    ),
     );
   }
 

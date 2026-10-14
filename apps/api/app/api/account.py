@@ -6,12 +6,21 @@ from app.core.config import get_settings
 from app.core.db import get_db
 from app.core.security import bearer, get_current_user
 from app.models.user import User
-from app.schemas.common import QuotaOut
+from app.schemas.common import QuotaOut, UserOut
 from app.services.quota import usage_summary
 from app.services.retention import cascade_delete_user, purge_expired_raw_voices, purge_expired_stories
 
 
 router = APIRouter(prefix="/account", tags=["account"])
+
+
+@router.get("/me", response_model=UserOut)
+async def get_me(user: User = Depends(get_current_user)) -> UserOut:
+    return UserOut(
+        id=user.id,
+        display_name=user.display_name,
+        preferred_language=user.preferred_language or "zh",
+    )
 
 
 @router.get("/quota", response_model=QuotaOut)

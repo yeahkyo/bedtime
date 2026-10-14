@@ -2,9 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../api/client.dart';
 import '../theme/app_theme.dart';
-import 'create_story_screen.dart';
-import 'history_screen.dart';
-import 'voice_clone_screen.dart';
+import 'me_tab.dart';
+import 'stories_tab.dart';
 
 class HomeShell extends StatefulWidget {
   const HomeShell({super.key, required this.api});
@@ -17,11 +16,11 @@ class HomeShell extends StatefulWidget {
 
 class _HomeShellState extends State<HomeShell> {
   int index = 0;
+  final _storiesKey = GlobalKey<StoriesTabState>();
 
   late final List<Widget> _pages = [
-    CreateStoryScreen(api: widget.api),
-    HistoryScreen(api: widget.api),
-    VoiceCloneScreen(api: widget.api),
+    StoriesTab(key: _storiesKey, api: widget.api),
+    MeTab(api: widget.api),
   ];
 
   @override
@@ -44,22 +43,22 @@ class _HomeShellState extends State<HomeShell> {
       ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: index,
-        onDestinationSelected: (i) => setState(() => index = i),
+        onDestinationSelected: (i) {
+          setState(() => index = i);
+          if (i == 0) {
+            _storiesKey.currentState?.reload();
+          }
+        },
         destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.edit_note_outlined),
-            selectedIcon: Icon(Icons.edit_note),
-            label: '创作室',
-          ),
           NavigationDestination(
             icon: Icon(Icons.menu_book_outlined),
             selectedIcon: Icon(Icons.menu_book),
-            label: '藏书阁',
+            label: '故事',
           ),
           NavigationDestination(
-            icon: Icon(Icons.mic_none),
-            selectedIcon: Icon(Icons.mic),
-            label: '音色',
+            icon: Icon(Icons.person_outline),
+            selectedIcon: Icon(Icons.person),
+            label: '我的',
           ),
         ],
       ),

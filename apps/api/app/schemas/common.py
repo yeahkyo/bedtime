@@ -112,6 +112,14 @@ class QuotaOut(BaseModel):
     clone_limit: int
 
 
+class UserOut(BaseModel):
+    id: int
+    display_name: str | None = None
+    preferred_language: str = "zh"
+
+    model_config = {"from_attributes": True}
+
+
 class CloneConsent(BaseModel):
     consent: bool
     name: str = "My voice"

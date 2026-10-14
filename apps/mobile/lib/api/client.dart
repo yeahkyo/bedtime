@@ -5,11 +5,17 @@ import 'package:http/http.dart' as http;
 import '../config.dart';
 
 class ApiException implements Exception {
-  ApiException(this.message, {this.statusCode, this.unauthorized = false});
+  ApiException(
+    this.message, {
+    this.statusCode,
+    this.unauthorized = false,
+    this.storyId,
+  });
 
   final String message;
   final int? statusCode;
   final bool unauthorized;
+  final int? storyId;
 
   @override
   String toString() => message;
@@ -262,12 +268,50 @@ class ApiClient {
     );
     final status = created['status'] as String? ?? '';
     if (status == 'ready') return created;
+    final id = created['id'] as int?;
     if (status == 'failed') {
-      throw ApiException(created['error_message'] as String? ?? '故事生成失败');
+      throw ApiException(
+        created['error_message'] as String? ?? '故事生成失败',
+        storyId: id,
+      );
     }
-    final id = created['id'] as int;
-    onProgress?.call(created['progress'] as String? ?? 'queued');
+    if (id == null) {
+      throw ApiException('故事创建失败');
+    }
+    return waitForStory(id, onProgress: onProgress);
+  }
 
+  /// Re-enqueue a failed story (no extra story quota charge).
+  Future<Map<String, dynamic>> retryStory(int storyId) async {
+    final res = await http
+        .post(_u('/v1/stories/$storyId/retry'), headers: _headers)
+        .timeout(const Duration(seconds: 45));
+    _ensure(res);
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> retryStoryAndWait(
+    int storyId, {
+    void Function(String progress)? onProgress,
+  }) async {
+    final created = await retryStory(storyId);
+    final status = created['status'] as String? ?? '';
+    if (status == 'ready') return created;
+    final id = created['id'] as int? ?? storyId;
+    if (status == 'failed') {
+      throw ApiException(
+        created['error_message'] as String? ?? '故事生成失败',
+        storyId: id,
+      );
+    }
+    return waitForStory(id, onProgress: onProgress);
+  }
+
+  Future<Map<String, dynamic>> waitForStory(
+    int id, {
+    void Function(String progress)? onProgress,
+  }) async {
+    onProgress?.call('queued');
     final deadline = DateTime.now().add(_longTimeout);
     while (DateTime.now().isBefore(deadline)) {
       await Future<void>.delayed(const Duration(seconds: 2));
@@ -277,10 +321,22 @@ class ApiClient {
       onProgress?.call(prog);
       if (st == 'ready') return story;
       if (st == 'failed') {
-        throw ApiException(story['error_message'] as String? ?? '故事生成失败');
+        throw ApiException(
+          story['error_message'] as String? ?? '故事生成失败',
+          storyId: id,
+        );
       }
     }
-    throw ApiException('等待故事生成超时，可在「历史」里查看是否已完成');
+    throw ApiException(
+      '等待故事生成超时，可在「故事」里查看是否已完成',
+      storyId: id,
+    );
+  }
+
+  Future<Map<String, dynamic>> me() async {
+    final res = await http.get(_u('/v1/account/me'), headers: _headers).timeout(_timeout);
+    _ensure(res);
+    return jsonDecode(res.body) as Map<String, dynamic>;
   }
 
   Future<Map<String, dynamic>> quota() async {

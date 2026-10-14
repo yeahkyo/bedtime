@@ -1,0 +1,278 @@
+import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import '../api/client.dart';
+import '../theme/app_theme.dart';
+import '../theme/widgets.dart';
+import 'children_manage_screen.dart';
+import 'voice_clone_screen.dart';
+
+/// Tab 2: profile card + settings entries.
+class MeTab extends StatefulWidget {
+  const MeTab({super.key, required this.api});
+
+  final ApiClient api;
+
+  @override
+  State<MeTab> createState() => _MeTabState();
+}
+
+class _MeTabState extends State<MeTab> {
+  bool loading = true;
+  bool loggedIn = false;
+  String displayName = '';
+  String? quotaText;
+  String? error;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      loading = true;
+      error = null;
+    });
+    if (widget.api.token == null || widget.api.token!.isEmpty) {
+      if (!mounted) return;
+      setState(() {
+        loggedIn = false;
+        displayName = '';
+        quotaText = null;
+        loading = false;
+      });
+      return;
+    }
+    try {
+      final me = await widget.api.me();
+      final q = await widget.api.quota();
+      if (!mounted) return;
+      setState(() {
+        loggedIn = true;
+        displayName = (me['display_name'] as String?)?.trim().isNotEmpty == true
+            ? me['display_name'] as String
+            : '枕边家长';
+        quotaText =
+            '本月故事 ${q['story_used']}/${q['story_limit']} · 克隆 ${q['clone_used']}/${q['clone_limit']}';
+        loading = false;
+      });
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      if (e.unauthorized) {
+        setState(() {
+          loggedIn = false;
+          displayName = '';
+          quotaText = null;
+          loading = false;
+        });
+        return;
+      }
+      setState(() {
+        error = e.message;
+        loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        error = '$e';
+        loading = false;
+      });
+    }
+  }
+
+  Future<void> _devLogin() async {
+    setState(() => loading = true);
+    try {
+      final login = await widget.api.devLogin();
+      final token = login['access_token'] as String?;
+      widget.api.token = token;
+      if (token != null) {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('token', token);
+      }
+      await _load();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => loading = false);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (loading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
+      children: [
+        BrandHeader(
+          eyebrow: 'Lullvale · Me',
+          title: '我的',
+          subtitle: quotaText,
+        ),
+        const SizedBox(height: 18),
+        _ProfileCard(
+          loggedIn: loggedIn,
+          displayName: displayName,
+          onLogin: _devLogin,
+          onRefresh: _load,
+        ),
+        if (error != null) ...[
+          const SizedBox(height: 12),
+          Text(error!, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.redAccent)),
+        ],
+        const SizedBox(height: 22),
+        Text('设置', style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: 10),
+        _SettingsTile(
+          icon: Icons.mic_none,
+          title: '音色管理',
+          subtitle: '系统音色与家长声音克隆',
+          onTap: () {
+            Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => VoiceCloneScreen(api: widget.api)),
+            );
+          },
+        ),
+        const SizedBox(height: 10),
+        _SettingsTile(
+          icon: Icons.child_care_outlined,
+          title: '角色管理',
+          subtitle: '孩子档案：昵称、年龄档与兴趣',
+          onTap: () {
+            Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => ChildrenManageScreen(api: widget.api)),
+            );
+          },
+        ),
+      ],
+    );
+  }
+}
+
+class _ProfileCard extends StatelessWidget {
+  const _ProfileCard({
+    required this.loggedIn,
+    required this.displayName,
+    required this.onLogin,
+    required this.onRefresh,
+  });
+
+  final bool loggedIn;
+  final String displayName;
+  final VoidCallback onLogin;
+  final VoidCallback onRefresh;
+
+  @override
+  Widget build(BuildContext context) {
+    final initial = loggedIn && displayName.isNotEmpty
+        ? displayName.characters.first
+        : '?';
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: AppColors.card,
+        borderRadius: BorderRadius.circular(AppRadii.lg),
+        border: Border.all(color: AppColors.outline),
+      ),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 28,
+            backgroundColor: AppColors.secondaryContainer,
+            child: Text(
+              initial,
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    color: AppColors.secondary,
+                  ),
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  loggedIn ? displayName : '未登录',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  loggedIn ? '已连接枕边故事服务' : '登录后可同步故事与音色',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ],
+            ),
+          ),
+          if (!loggedIn)
+            FilledButton(
+              onPressed: onLogin,
+              child: const Text('登录'),
+            )
+          else
+            IconButton(
+              tooltip: '刷新',
+              onPressed: onRefresh,
+              icon: const Icon(Icons.refresh, color: AppColors.onSurfaceMuted),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SettingsTile extends StatelessWidget {
+  const _SettingsTile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppColors.card,
+      borderRadius: BorderRadius.circular(AppRadii.lg),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(AppRadii.lg),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(AppRadii.lg),
+            border: Border.all(color: AppColors.outline),
+          ),
+          child: Row(
+            children: [
+              Icon(icon, color: AppColors.primarySoft),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title, style: Theme.of(context).textTheme.titleMedium),
+                    const SizedBox(height: 2),
+                    Text(subtitle, style: Theme.of(context).textTheme.bodySmall),
+                  ],
+                ),
+              ),
+              const Icon(Icons.chevron_right, color: AppColors.onSurfaceDim),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}

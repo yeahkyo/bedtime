@@ -1,7 +1,9 @@
 import 'dart:async';
 
+import 'package:audio_session/audio_session.dart';
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../config.dart';
 import '../theme/app_theme.dart';
@@ -33,52 +35,49 @@ class PlayerScreen extends StatefulWidget {
 }
 
 class _PlayerScreenState extends State<PlayerScreen> {
-  static const _bedTracks = <_BedTrack>[
-    _BedTrack(
-      id: 'ambient',
-      label: '柔和垫乐',
-      asset: 'assets/audio/bed_soft_ambient.mp3',
-    ),
-    _BedTrack(
-      id: 'music_box',
-      label: '八音盒',
-      asset:
-          'assets/audio/denis-pavlov-music-calm-baby-lullaby-sweet-dreams-music-box-397059.mp3',
-    ),
-  ];
-
-  /// Rotate default bed track across story opens so both get A/B exposure.
-  static int _nextBedIndex = 0;
+  static const _bedTrack = _BedTrack(
+    id: 'music_box',
+    label: '八音盒',
+    asset:
+        'assets/audio/denis-pavlov-music-calm-baby-lullaby-sweet-dreams-music-box-397059.mp3',
+  );
 
   static const _bedVolumeDefault = 0.14;
+  static const _outroMinutesOptions = <int>[1, 5, 10, 30, 60];
+  static const _outroMinutesDefault = 5;
+  static const _outroFade = Duration(seconds: 20);
+  static const _outroPrefsKey = 'bed_outro_minutes';
+  static const _outroTick = Duration(milliseconds: 200);
 
   final narration = AudioPlayer();
   // Avoid fighting the narration player for audio-session focus.
   final bed = AudioPlayer(handleInterruptions: false);
   StreamSubscription<PlayerState>? _narrationStateSub;
+  Timer? _outroTimer;
 
-  late int bedIndex;
   double playSpeed = 1.0;
   double bedVolume = _bedVolumeDefault;
   bool bedEnabled = true;
-  bool bedLoading = false;
   /// Design: 绘本伴读 vs 纯听熄屏 — keep text visible by default.
   bool showText = true;
   String? error;
 
-  _BedTrack get _currentBed => _bedTracks[bedIndex];
+  int outroMinutes = _outroMinutesDefault;
+  bool _outroActive = false;
+  DateTime? _outroEndsAt;
+
+  bool _scrubbing = false;
+  double _scrubMs = 0;
 
   @override
   void initState() {
     super.initState();
-    bedIndex = _nextBedIndex % _bedTracks.length;
-    _nextBedIndex = bedIndex + 1;
     _narrationStateSub = narration.playerStateStream.listen((state) {
       if (state.processingState == ProcessingState.completed) {
-        bed.pause();
+        unawaited(_onNarrationCompleted());
       }
     });
-    _load();
+    unawaited(_load());
   }
 
   String? _resolveUrl(String? url) {
@@ -95,14 +94,24 @@ class _PlayerScreenState extends State<PlayerScreen> {
       return;
     }
     try {
+      final prefs = await SharedPreferences.getInstance();
+      final saved = prefs.getInt(_outroPrefsKey);
+      if (saved != null && _outroMinutesOptions.contains(saved)) {
+        outroMinutes = saved;
+      }
+
+      final session = await AudioSession.instance;
+      await session.configure(const AudioSessionConfiguration.music());
+
       await Future.wait([
         narration.setUrl(url),
-        bed.setAsset(_currentBed.asset),
+        bed.setAsset(_bedTrack.asset),
       ]);
       if (!mounted) return;
       await bed.setLoopMode(LoopMode.one);
       await bed.setVolume(bedEnabled ? bedVolume : 0);
       await narration.setSpeed(playSpeed);
+      if (mounted) setState(() {});
       await Future.wait([
         narration.play(),
         if (bedEnabled) bed.play(),
@@ -113,38 +122,125 @@ class _PlayerScreenState extends State<PlayerScreen> {
     }
   }
 
-  Future<void> _selectBed(int index) async {
-    if (index == bedIndex || bedLoading) return;
-    final wasPlaying = narration.playing && bedEnabled;
-    setState(() {
-      bedIndex = index;
-      bedLoading = true;
-    });
+  Future<void> _onNarrationCompleted() async {
+    if (!bedEnabled) {
+      await bed.pause();
+      return;
+    }
+    await _startBedOutro(Duration(minutes: outroMinutes));
+  }
+
+  Future<void> _startBedOutro(Duration total) async {
+    await _cancelBedOutro(restoreVolume: false);
+    if (!bedEnabled) return;
+
+    final fade = total <= _outroFade ? total : _outroFade;
+    final hold = total - fade;
+    final startVolume = bedVolume;
+    final endsAt = DateTime.now().add(total);
+
+    if (mounted) {
+      setState(() {
+        _outroActive = true;
+        _outroEndsAt = endsAt;
+      });
+    }
+
     try {
-      await bed.setAsset(_currentBed.asset);
-      if (!mounted) return;
-      await bed.setLoopMode(LoopMode.one);
-      await bed.setVolume(bedEnabled ? bedVolume : 0);
-      if (wasPlaying) {
-        await bed.play();
+      await bed.setVolume(startVolume);
+      if (!bed.playing) await bed.play();
+    } catch (_) {
+      /* ignore */
+    }
+
+    final started = DateTime.now();
+    _outroTimer = Timer.periodic(_outroTick, (timer) async {
+      final elapsed = DateTime.now().difference(started);
+      if (elapsed >= total) {
+        timer.cancel();
+        _outroTimer = null;
+        try {
+          await bed.setVolume(0);
+          await bed.pause();
+          await bed.setVolume(startVolume);
+        } catch (_) {
+          /* ignore */
+        }
+        if (mounted) {
+          setState(() {
+            _outroActive = false;
+            _outroEndsAt = null;
+          });
+        }
+        return;
       }
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => error = e.toString());
-    } finally {
-      if (mounted) setState(() => bedLoading = false);
+
+      if (elapsed < hold) {
+        if (mounted) setState(() {});
+        return;
+      }
+
+      final fadeElapsed = elapsed - hold;
+      final t = fade.inMilliseconds <= 0
+          ? 1.0
+          : (fadeElapsed.inMilliseconds / fade.inMilliseconds).clamp(0.0, 1.0);
+      final vol = startVolume * (1.0 - t);
+      try {
+        await bed.setVolume(vol);
+      } catch (_) {
+        /* ignore */
+      }
+      if (mounted) setState(() {});
+    });
+  }
+
+  Future<void> _cancelBedOutro({bool restoreVolume = true}) async {
+    _outroTimer?.cancel();
+    _outroTimer = null;
+    final wasActive = _outroActive;
+    if (mounted && wasActive) {
+      setState(() {
+        _outroActive = false;
+        _outroEndsAt = null;
+      });
+    } else {
+      _outroActive = false;
+      _outroEndsAt = null;
+    }
+    if (restoreVolume && bedEnabled) {
+      try {
+        await bed.setVolume(bedVolume);
+      } catch (_) {
+        /* ignore */
+      }
+    }
+  }
+
+  Future<void> _setOutroMinutes(int minutes) async {
+    if (minutes == outroMinutes) return;
+    setState(() => outroMinutes = minutes);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_outroPrefsKey, minutes);
+    if (_outroActive) {
+      await _startBedOutro(Duration(minutes: minutes));
     }
   }
 
   Future<void> _togglePlayPause(bool playing) async {
     if (playing) {
+      await _cancelBedOutro();
       await Future.wait([narration.pause(), bed.pause()]);
-    } else {
-      await Future.wait([
-        narration.play(),
-        if (bedEnabled) bed.play(),
-      ]);
+      return;
     }
+
+    await _cancelBedOutro();
+    if (narration.processingState == ProcessingState.completed) {
+      await narration.seek(Duration.zero);
+    }
+    await Future.wait([
+      narration.play(),
+      if (bedEnabled) bed.play(),
+    ]);
   }
 
   Future<void> _seekBy(Duration delta) async {
@@ -153,25 +249,36 @@ class _PlayerScreenState extends State<PlayerScreen> {
     var next = pos + delta;
     if (next < Duration.zero) next = Duration.zero;
     if (total > Duration.zero && next > total) next = total;
+    if (narration.processingState == ProcessingState.completed) {
+      await _cancelBedOutro();
+    }
     await narration.seek(next);
+    if (!narration.playing &&
+        narration.processingState != ProcessingState.completed) {
+      await Future.wait([
+        narration.play(),
+        if (bedEnabled) bed.play(),
+      ]);
+    }
   }
 
   Future<void> _setBedEnabled(bool enabled) async {
     setState(() => bedEnabled = enabled);
     if (!enabled) {
+      await _cancelBedOutro(restoreVolume: false);
       await bed.setVolume(0);
       await bed.pause();
       return;
     }
     await bed.setVolume(bedVolume);
-    if (narration.playing) {
+    if (narration.playing || _outroActive) {
       await bed.play();
     }
   }
 
   Future<void> _setBedVolume(double v) async {
     setState(() => bedVolume = v);
-    if (bedEnabled) {
+    if (bedEnabled && !_outroActive) {
       await bed.setVolume(v);
     }
   }
@@ -182,8 +289,16 @@ class _PlayerScreenState extends State<PlayerScreen> {
     return '$m:$s';
   }
 
+  String _fmtOutroRemain(Duration d) {
+    final totalSec = d.inSeconds.clamp(0, 3600);
+    final m = totalSec ~/ 60;
+    final s = totalSec % 60;
+    return '$m:${s.toString().padLeft(2, '0')}';
+  }
+
   @override
   void dispose() {
+    _outroTimer?.cancel();
     _narrationStateSub?.cancel();
     narration.dispose();
     bed.dispose();
@@ -193,6 +308,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
   @override
   Widget build(BuildContext context) {
     final tt = Theme.of(context).textTheme;
+    final outroRemain = _outroEndsAt?.difference(DateTime.now());
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -343,7 +459,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
               ),
               _MetaChip(
                 icon: Icons.music_note,
-                label: bedEnabled ? _currentBed.label : '无垫乐',
+                label: bedEnabled ? _bedTrack.label : '无垫乐',
               ),
             ],
           ),
@@ -405,12 +521,16 @@ class _PlayerScreenState extends State<PlayerScreen> {
           StreamBuilder<Duration>(
             stream: narration.positionStream,
             builder: (context, snap) {
-              final pos = snap.data ?? Duration.zero;
+              final streamPos = snap.data ?? Duration.zero;
               final total = narration.duration ?? Duration.zero;
               final maxMs = total.inMilliseconds <= 0
                   ? 1.0
                   : total.inMilliseconds.toDouble();
-              final value = pos.inMilliseconds.toDouble().clamp(0.0, maxMs);
+              final pos = _scrubbing
+                  ? Duration(milliseconds: _scrubMs.round())
+                  : streamPos;
+              final value = (_scrubbing ? _scrubMs : streamPos.inMilliseconds.toDouble())
+                  .clamp(0.0, maxMs);
               final remain = total > pos ? total - pos : Duration.zero;
               return Column(
                 children: [
@@ -444,7 +564,24 @@ class _PlayerScreenState extends State<PlayerScreen> {
                       value: value,
                       min: 0,
                       max: maxMs,
-                      onChanged: (v) => narration.seek(Duration(milliseconds: v.round())),
+                      onChangeStart: (v) {
+                        setState(() {
+                          _scrubbing = true;
+                          _scrubMs = v;
+                        });
+                      },
+                      onChanged: (v) {
+                        setState(() => _scrubMs = v);
+                      },
+                      onChangeEnd: (v) async {
+                        if (_outroActive) await _cancelBedOutro();
+                        await narration.seek(Duration(milliseconds: v.round()));
+                        if (!mounted) return;
+                        setState(() {
+                          _scrubbing = false;
+                          _scrubMs = v;
+                        });
+                      },
                     ),
                   ),
                 ],
@@ -456,7 +593,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
           StreamBuilder<PlayerState>(
             stream: narration.playerStateStream,
             builder: (context, snap) {
-              final playing = snap.data?.playing ?? false;
+              final playing =
+                  (snap.data?.playing ?? false) || _outroActive;
               return Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
@@ -533,7 +671,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
                     Expanded(
                       child: Text(
                         bedEnabled
-                            ? '摇篮背景音 · ${_currentBed.label}'
+                            ? '摇篮背景音 · ${_bedTrack.label}'
                             : '摇篮背景音 · 已关闭',
                         style: tt.labelLarge?.copyWith(color: AppColors.onSurface),
                       ),
@@ -545,19 +683,6 @@ class _PlayerScreenState extends State<PlayerScreen> {
                   ],
                 ),
                 if (bedEnabled) ...[
-                  const SizedBox(height: 8),
-                  SegmentedButton<int>(
-                    segments: [
-                      for (var i = 0; i < _bedTracks.length; i++)
-                        ButtonSegment<int>(
-                          value: i,
-                          label: Text(_bedTracks[i].label),
-                          enabled: !bedLoading,
-                        ),
-                    ],
-                    selected: {bedIndex},
-                    onSelectionChanged: (set) => _selectBed(set.first),
-                  ),
                   const SizedBox(height: 8),
                   Row(
                     children: [
@@ -580,6 +705,45 @@ class _PlayerScreenState extends State<PlayerScreen> {
                         ),
                       ),
                     ],
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Text(
+                        '故事结束后',
+                        style: tt.bodySmall?.copyWith(color: AppColors.onSurfaceDim),
+                      ),
+                      if (_outroActive &&
+                          outroRemain != null &&
+                          !outroRemain.isNegative) ...[
+                        const SizedBox(width: 8),
+                        Text(
+                          '余 ${_fmtOutroRemain(outroRemain)}',
+                          style: tt.bodySmall?.copyWith(
+                            color: AppColors.secondary,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        for (final m in _outroMinutesOptions) ...[
+                          Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: ChoiceChip(
+                              label: Text('$m 分钟'),
+                              selected: outroMinutes == m,
+                              onSelected: (_) => _setOutroMinutes(m),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
                   ),
                 ],
               ],
