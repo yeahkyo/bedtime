@@ -19,6 +19,9 @@ class StoryRequest:
     interests: list[str] | None = None
     # Recent people / things / events (manual now; photo-extracted later).
     keywords: list[str] | None = None
+    # Profile extras for casting / personalization (optional).
+    child_gender: str | None = None  # girl|boy|other|unspecified
+    child_intro: str | None = None
     require_emotional_closure: bool = True
     forbid_hard_cliffhanger: bool = True
     recap: str | None = None

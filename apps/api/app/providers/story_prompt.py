@@ -64,26 +64,31 @@ STYLE_DIALS: dict[str, dict[str, dict[str, str]]] = {
     "lead_in": {
         "none": {
             "label": "直接开讲",
-            "instruction": "不要单独开场总领；第一句就进入故事里的人与事。",
+            "instruction": "不要单独听前开场白；第一句就进入故事里的人与事。",
         },
         "soft": {
-            "label": "轻轻总领",
+            "label": "听前开场白",
             "instruction": (
-                "正文开头用很短的口述总领（约2～4句，约占全文5%～10%），"
-                "帮孩子把注意力转到今晚的故事；然后自然接进正叙。"
-                "形态每次自选其一并换着写，禁止固定套话："
-                "轻好奇、今晚要弄清的一件小事、把人带进场景的短邀请；"
-                "若有 recap/连续故事可加一句上回回顾。"
-                "禁止主题宣讲、道德点题、课堂提问腔、吓人硬悬念。"
+                "正文开头先写一段「听前开场白」（像播客/口述讲故事的开场），"
+                "用口语把听者从日常安顿进今晚故事，再逐渐进入正叙——"
+                "禁止第一句就进书本式情节或主冲突。"
+                "开场白约占全文 12%～20%（常见约 5～8 句，可分两小段），旁白可对听者轻声说话；"
+                "自然点到若干：今晚会遇见谁、在怎样的小地方、有什么轻轻值得期待的小事"
+                "（软好奇，非硬悬念）；可轻提人物小特点或场景触感。"
+                "再用一两句过渡，才进入 wish/动作主线。"
+                "若有 recap/连续故事，开场白里一两句接住上回，再讲今晚。"
+                "形态要多样，禁止固定套话、主题宣讲、道德点题、课堂提问腔、剧透 try/turn 结局。"
             ),
         },
         "curious": {
-            "label": "好奇开场",
+            "label": "好奇开场白",
             "instruction": (
-                "正文开头用短口述总领（约2～4句），偏轻好奇或今晚要弄明白的小事；"
-                "问句不必要求孩子回答；随后马上进入故事动作。"
-                "形态要多样，禁止每篇同一句式；禁止说教点题与硬悬念。"
-                "若有 recap/连续故事，可先一句回顾再抛出今晚好奇。"
+                "正文开头先写听前开场白（约占全文 12%～20%，约 5～8 句），偏轻好奇："
+                "可抛一个低风险小疑问或「今晚要弄明白的小事」，并带出人物/背景，"
+                "让听者安下心再进故事；问句不必要求回答。"
+                "之后逐渐过渡进正叙，禁止开场白一两句就切进冲突。"
+                "若有 recap/连续故事，可先接住上回再抛出今晚好奇。"
+                "禁止说教点题、吓人硬悬念、剧透结局。"
             ),
         },
     },
@@ -219,108 +224,217 @@ MOTIF_WHITELIST = [
     "好奇但不吓人的小期待",
 ]
 
-# Internal beat menus (not shown in App). Algorithm picks; LLM fills slots.
+# Rhythm frames from fairy / fable / folk / drama (bedtime-soft). Algorithm picks by theme+focus.
+# Shared slots stay wish/snag/try_1/try_2/turn_ok so draft pipeline stays stable.
+_BEAT_SLOTS = "wish, snag, try_1, try_2, turn_ok"
+_ESCALATION_RULE = (
+    "try_2 相对 try_1 必须升级或转变：换方法、换视角、换工具、或先收再放；"
+    "禁止「同一动作更用力/再试一次」；禁止 try_2 只是被旁人直接解决。"
+)
+
 BEAT_PATTERNS: dict[str, dict[str, Any]] = {
-    "approach_retry": {
-        "label": "靠近再试",
-        "slots": "wish, snag, try_1, try_2, turn_ok",
+    "two_gates": {
+        "label": "两道小门槛",
+        "lineage": "fairy",
+        "theme_tags": (
+            "找", "寻", "路", "门", "桥", "洞", "森林", "冒险", "火车", "旅行",
+            "河", "山", "宝藏", "地图",
+        ),
+        "slots": _BEAT_SLOTS,
         "instruction": (
-            "角色主动靠近或试一次；第一次不够；第二次才更接近成功。"
-            "禁止「一露面就被完全安抚、没有主动尝试」。"
+            "童话式小旅程：愿望前有两道轻门槛。"
+            "try_1：直冲/催促/硬闯 → 被挡住或弄僵；"
+            "try_2：观察、绕道、问路、或借一件具体小物 → 才过第二道。"
+            f"{_ESCALATION_RULE}"
         ),
     },
-    "wait_signal": {
-        "label": "等待约定",
-        "slots": "wish, snag, try_1, try_2, turn_ok",
+    "misused_gift": {
+        "label": "礼物先用错",
+        "lineage": "fable",
+        "theme_tags": (
+            "礼物", "灯", "钥匙", "种子", "伞", "碗", "帽", "鞋", "魔", "工具",
+            "箱子", "瓶",
+        ),
+        "slots": _BEAT_SLOTS,
         "instruction": (
-            "小目标依赖一个约定信号（风、光、声音等）。"
-            "try_1 可以是等待/张望；try_2 是守住约定或轻轻提醒；今晚只推进，不提前兑现季终信号。"
+            "寓言式：一件具体小物/能力先用错方向。"
+            "try_1：用它求快/显摆/吓人 → 反而更糟或没用；"
+            "try_2：改用它安抚、照路、分享、或修好一件小事 → 才贴合愿望。"
+            f"{_ESCALATION_RULE}"
         ),
     },
-    "make_and_fix": {
-        "label": "动手修好",
-        "slots": "wish, snag, try_1, try_2, turn_ok",
+    "home_and_back": {
+        "label": "出门再回家",
+        "lineage": "fairy",
+        "theme_tags": (
+            "家", "床", "出门", "回来", "月亮", "夜", "窗", "院子", "散步",
+        ),
+        "slots": _BEAT_SLOTS,
         "instruction": (
-            "动手布置或制作；第一次弄歪/摆不齐；第二次用角色标志动作修好。"
+            "童话环状：离开熟悉处一点 → 遇见轻巧事 → 带着一点变化回家。"
+            "try_1：想离开或想抓住什么却慌/急；"
+            "try_2：用新发现的小办法（带回一件声响/触感/约定）安稳返回。"
+            "turn_ok 要写清「回家后多了一点什么」。"
+            f"{_ESCALATION_RULE}"
         ),
     },
-    "lost_and_held": {
-        "label": "走散被接住",
-        "slots": "wish, snag, try_1, try_2, turn_ok",
+    "helper_earned": {
+        "label": "帮忙要换来",
+        "lineage": "fairy",
+        "theme_tags": (
+            "朋友", "帮", "一起", "猫", "狗", "羊", "兔", "鸟", "伙伴", "哥哥",
+            "姐姐",
+        ),
+        "slots": _BEAT_SLOTS,
         "instruction": (
-            "有一点点走丢或担心；角色先自己找/叫；再被温柔接住（触感要写到）。"
-            "接住是结果，不能替代前面的主动试。"
+            "童话求助：帮助不是白送。"
+            "try_1：只喊/只催/只抢 → 对方不理或帮不上；"
+            "try_2：先做一件具体小事（让位、递物、轻声问、等一等）→ 才换来协作。"
+            f"{_ESCALATION_RULE}"
         ),
     },
-    "share_turn": {
-        "label": "让一点地方",
-        "slots": "wish, snag, try_1, try_2, turn_ok",
+    "soft_rule": {
+        "label": "轻轻破规矩",
+        "lineage": "fable",
+        "theme_tags": (
+            "分享", "轮流", "排队", "等待", "规矩", "先", "抢", "独享", "公平",
+        ),
+        "slots": _BEAT_SLOTS,
         "instruction": (
-            "想独占或抢先；第一次不太会让；第二次轻轻让出一点空间或轮流。"
+            "寓言式轻规矩：想抢先或独占。"
+            "try_1：抢/占 → 卡住或两人都不开心；"
+            "try_2：主动让一点、轮流、或立一个可执行的小约定 → 才顺。"
+            "禁止说教点题「要学会分享」。"
+            f"{_ESCALATION_RULE}"
         ),
     },
-    "settle_after_play": {
-        "label": "玩过再静",
-        "slots": "wish, snag, try_1, try_2, turn_ok",
+    "reframe_reveal": {
+        "label": "误会翻面",
+        "lineage": "drama",
+        "theme_tags": (
+            "怕", "暗", "影", "怪声", "躲", "误会", "怪", "空", "静", "风声",
+        ),
+        "slots": _BEAT_SLOTS,
         "instruction": (
-            "先有一小段轻玩；再慢慢收；两次收（如放下、盖上、说晚安）而不是突然睡倒。"
+            "戏剧翻面：把吓人的东西看清楚。"
+            "try_1：躲开/捂住/猜错 → 更紧；"
+            "try_2：靠近看/听/摸一下 → 发现是无理解的温和原因；安心来自「看懂了」。"
+            f"{_ESCALATION_RULE}"
+        ),
+    },
+    "echo_shift": {
+        "label": "重复变奏",
+        "lineage": "folk",
+        "theme_tags": (
+            "舞", "歌", "雨", "风", "脚步", "节奏", "敲", "摇", "重复", "铃",
+        ),
+        "slots": _BEAT_SLOTS,
+        "instruction": (
+            "民间反复式：同一母题做两次，第二次意义变了。"
+            "try_1：重复一个动作求结果（更快/更大声）→ 不够或乱；"
+            "try_2：同样母题改速度/力度/对象（更慢、更轻、对着某人）→ 才对上愿望。"
+            f"{_ESCALATION_RULE}"
+        ),
+    },
+    "threshold": {
+        "label": "跨过门槛",
+        "lineage": "drama",
+        "theme_tags": (
+            "第一次", "台阶", "岸", "水", "门缝", "高", "低", "敢", "试",
+        ),
+        "slots": _BEAT_SLOTS,
+        "instruction": (
+            "戏剧门槛：站在「差一点就跨过去」处。"
+            "try_1：犹豫或假动作 → 退回；"
+            "try_2：带着一件具体支撑（手、声、光、倒数）真正跨过一小步；"
+            "turn_ok 写跨过后的身体感，不要空喊勇敢。"
+            f"{_ESCALATION_RULE}"
+        ),
+    },
+    "settle_ladder": {
+        "label": "一级级静下来",
+        "lineage": "ritual",
+        "theme_tags": ("睡", "床", "枕", "被", "闭眼", "安静", "夜灯", "摇"),
+        "slots": _BEAT_SLOTS,
+        "instruction": (
+            "仪式收束：先有一点轻动，再两级减速。"
+            "try_1：还想玩/看/动 → 轻轻放下一样东西；"
+            "try_2：再收一层（盖上、关一点光、声音变小）→ 才真正静。"
+            "禁止突然睡着；禁止机械排比说晚安。"
+            f"{_ESCALATION_RULE}"
         ),
     },
 }
 
-# focus_id → preferred beat patterns (rotated by episode salt)
+# focus_id → preferred frames (theme match can override / widen)
 FOCUS_BEAT_MAP: dict[str, list[str]] = {
-    "tiny_brave": ["approach_retry", "lost_and_held"],
-    "emotion_held": ["lost_and_held", "approach_retry"],
-    "gentle_agency": ["make_and_fix", "share_turn"],
-    "share_space": ["share_turn", "make_and_fix"],
-    "wind_down": ["settle_after_play", "wait_signal"],
-    "secure_presence": ["lost_and_held", "settle_after_play"],
-    "body_rhythm": ["settle_after_play", "wait_signal"],
-    "name_feeling": ["lost_and_held", "settle_after_play"],
-    "try_persist": ["approach_retry", "make_and_fix"],
-    "friend_repair": ["share_turn", "lost_and_held"],
-    "fair_turn": ["share_turn", "make_and_fix"],
-    "mentalize_light": ["share_turn", "lost_and_held"],
+    "tiny_brave": ["two_gates", "threshold", "helper_earned"],
+    "emotion_held": ["reframe_reveal", "helper_earned", "home_and_back"],
+    "gentle_agency": ["misused_gift", "echo_shift", "two_gates"],
+    "share_space": ["soft_rule", "helper_earned", "echo_shift"],
+    "wind_down": ["settle_ladder", "home_and_back", "echo_shift"],
+    "secure_presence": ["home_and_back", "helper_earned", "reframe_reveal"],
+    "body_rhythm": ["settle_ladder", "echo_shift", "threshold"],
+    "name_feeling": ["reframe_reveal", "settle_ladder", "home_and_back"],
+    "try_persist": ["two_gates", "threshold", "misused_gift"],
+    "friend_repair": ["helper_earned", "soft_rule", "reframe_reveal"],
+    "fair_turn": ["soft_rule", "helper_earned", "echo_shift"],
+    "mentalize_light": ["reframe_reveal", "soft_rule", "helper_earned"],
 }
 
-# Internal opening menus (not shown in App).
+DEFAULT_BEAT_POOL = [
+    "two_gates",
+    "misused_gift",
+    "home_and_back",
+    "helper_earned",
+    "soft_rule",
+    "reframe_reveal",
+    "echo_shift",
+    "threshold",
+    "settle_ladder",
+]
+
+# Internal opening menus (not shown in App). Warm-up = host voice before plot.
 OPENING_PATTERNS: dict[str, dict[str, Any]] = {
     "none": {
         "label": "直接开讲",
         "opening_kind": "none",
-        "instruction": "不要单独总领段；第一句就进入故事里的人与事。",
+        "instruction": "不要单独听前开场白；第一句就进入故事里的人与事。",
     },
     "ritual_soft": {
         "label": "轻仪式",
         "opening_kind": "scene",
         "instruction": (
-            "用2～3句很软的睡前招呼作总领（可轻唤听者，但 child_cast_role=absent 时禁止点孩子名字）。"
-            "禁止每篇同一句「小朋友你一定……」；随后马上进正叙。"
+            "听前开场白用很软的睡前招呼（可轻唤听者，但 child_cast_role=absent 时禁止点孩子名字），"
+            "再慢慢点出今晚会遇见谁、在哪儿、有什么轻轻值得听下去的小事；"
+            "约 5～7 句后再过渡进正叙。禁止每篇同一句「小朋友你一定……」。"
         ),
     },
     "call_question": {
         "label": "呼叫提问",
         "opening_kind": "curiosity",
         "instruction": (
-            "总领用轻呼叫/提问拉注意，如「你见过……吗？」「你听……？」「今天……」。"
-            "不问课堂题、不要求回答；2～3句后进入故事动作。"
+            "听前开场白用轻呼叫/提问拉注意，如「你见过……吗？」「你听……？」「今晚……」；"
+            "顺带带出人物或场景触感；不问课堂题、不要求回答；"
+            "约 5～7 句后再过渡进故事动作，勿两句切冲突。"
         ),
     },
     "familiar_anomaly": {
         "label": "熟悉反常",
         "opening_kind": "scene",
         "instruction": (
-            "总领先点出一个具体小画面，再跟一个轻反常（如捂眼睛、停住脚、草穗歪了）。"
-            "2～3句，立刻让人知道「今晚有一点点不一样」。"
+            "听前开场白先安顿听者，再点出一个具体小画面与轻反常"
+            "（如捂眼睛、停住脚、草穗歪了），让人感到「今晚有一点点不一样」；"
+            "可轻提相关人物；约 5～7 句后过渡进正叙，勿剧透怎么解决。"
         ),
     },
     "gentle_wonder": {
         "label": "温柔疑问",
         "opening_kind": "curiosity",
         "instruction": (
-            "总领提出一个低风险小疑问（他们找得到吗？小羊会怎么做呢？），"
-            "不制造硬悬念；2～3句后进正叙。"
+            "听前开场白提出一个低风险小疑问（他们找得到吗？小羊会怎么做呢？），"
+            "并简介谁在场、在怎样的小地方；不制造硬悬念；"
+            "约 5～7 句后过渡进正叙。"
         ),
     },
 }
@@ -336,16 +450,17 @@ CAST_INTRO_MODES: dict[str, dict[str, str]] = {
     "full_intro": {
         "label": "完整建档",
         "instruction": (
-            "在总领之后、主冲突之前，用2～4句完成建档："
+            "听前开场白里或紧随其后、主冲突之前，用口语完成建档："
             "每个主要角色一句（名字+一个标志动作或喜好）；"
-            "再加一句说明今晚在哪儿、在做什么（接 throughline/本集一小步）。"
+            "再说明今晚在哪儿、在做什么（接 throughline/本集一小步）。"
+            "可与开场白融在同一段口播里，但须让听者先认识人/地方，再进 wish。"
             "禁止只扔名字不挂钩。"
         ),
     },
     "light_refresh": {
         "label": "轻点名",
         "instruction": (
-            "续集：用一两句带过熟悉角色（可点标志动作），不要重新开世界观；"
+            "续集：在开场白里用一两句带过熟悉角色（可点标志动作），不要重新开世界观；"
             "可接一句上回软期待/recap。"
         ),
     },
@@ -355,53 +470,25 @@ CAST_INTRO_MODES: dict[str, dict[str, str]] = {
     },
 }
 
-SYSTEM_PROMPT = """你是一位会讲睡前故事的家长旁白：写给幼儿**听**的晚安故事（口述朗读感），不是给大人默读的儿童散文。
+SYSTEM_PROMPT = """你是会讲睡前故事的家长旁白：写给幼儿**听**的口述晚安故事（像播客旁白，不是念书）。
 
-优先级：睡前安全 > 听感 > 跨集伏笔落地 > 文学辞藻。
-教育意义只能潜移默化，绝不能压过入睡。
+优先级：安全入睡 > 听感 > 文采。职责是把 story_plan 落成可听口语；wish/try/弧光等创意结构已在 plan 定好，不要改写节拍含义。
 
-用户消息里的 style_dials 是家长选择的风格档位：**必须遵守各档位的 instruction**，它们优先于你的默认文风。
+听感：一句一事；先名词后人/动作；短对话；可摸可听的细节；场景物要参与动作。
+可选稀疏标记（仅 body）：[pause:short] [pause:think] [pause:long] [slow] [soft] [warm]。
 
-口语听感（比「少形容词」更优先）：
-- 一句一事；先出现叫得出名字的东西/人，再跟动作。
-- 对话一句一个意思；禁止「不是A，是因为B所以C」式绕句。
-- 用可摸可听可指的细节（凉、刺一下、叮、沙沙）；少用抽象意境词。
-- 可用轻口语（后来、这下、可是、你瞧）；少用书面词：乍一、悬、接话、随着、上方、位置、起伏、耷拉。
-- 每段尽量不超过3句；信息别挤在长定语里。
-- 每隔几句可有拟声、短重复或呼唤（呼——、沙沙沙、等一等）；禁止用华丽描写凑字。
-- 场景里的东西必须参与动作，禁止只写风景观光。
+正文顺序：
+1) 听前开场白（若 opening 非 none）：对听者说话，安顿注意力；轻点人物/背景/今晚软期待；再过渡进故事。禁止第一句就进书本式情节。
+2) 角色/场景建档（若需要）可与开场白末尾自然衔接。
+3) 按 wish/snag/try_1/try_2/turn_ok 原样落地（两段 try 保持 plan 里的不同动作，勿揉成「再试一次」）。
+4) 系列 soft_hook（若有）→ 自然收束。
 
-朗读节奏标记（稀疏，全文约4～10个；勿用 markdown）：
-- 仅可用：[pause:short] [pause:think] [pause:long] [slow] [soft] [warm]
-- 标记只在 body；title/soft_hook 不要标记。没把握可不标。
+系列：plants 只埋；勿提前兑季终伏笔；soft_hook 与正文一致。
+child_cast_role=absent 时不要出现孩子昵称。遵守 child_profile_guidance（若有）。
 
-正文开头结构（必须按 story_plan 落地，顺序固定）：
-1) opening_pattern：若非 none，body 最前先写独立总领段（约2～3句），严格遵守 opening_pattern.instruction；再写后面。
-2) cast_intro_mode：full_intro 时紧接总领做角色+场景建档；light_refresh 时一两句点名即可；none 可省略。
-3) 再进入 wish/snag 与两次尝试。
-- lead_in=none 或 opening_pattern=none：不要单独总领。
-- 连续故事：recap 一两句即可；禁止冗长前情。
-- child_cast_role=absent：全文与总领都不要出现孩子昵称。
-
-若含 story_plan：**必须按计划写**，不要另起炉灶：
-- 兑现 wish / snag / try_1 / try_2 / turn_ok（若只有 try_beat 则当试一次，仍要有波折）。
-- 角色按 cast_use：每人的标志动作或口头禅至少出现一次并推动情节；首集/单集须让听者听清「谁是谁」。
-- places/scene_jobs 里的物要干活。
-- plants_tonight 只埋或轻碰；payoffs_tonight 之外不得提前兑现季终大伏笔。
-- sleep_beat 必须在正文末段落地：对今晚出现过的2～4个名物/角色说晚安（渐弱），不要只写「睡着了」。
-- soft_series_mode 时：正文末段（晚安前）必须有一句可朗读的软期待，语义等于 soft_hook 字段；soft_hook 与正文一致。
-
-底线：
-1) 单线；今晚情绪闭环；禁止硬悬念。
-2) 安全：禁止暴力、恐怖、抛弃、惩罚恐吓、医疗创伤。
-3) 角色按 cast_hint；keywords 不必用尽。
-4) 勿默认全篇卧室，也勿景点巡礼。
-5) 禁止说教总结与心理学术语；禁止照搬知名作品专有角色名。
-6) soft_hook：仅 soft_series_mode=true 时为下一集温和期待一句；否则 null。
-7) tonight_focus / beat_pattern 只通过动作体现，不要点题说教。
-8) language 以 zh 开头用口语中文；以 en 开头用温柔简单英语。
-9) 尽量达到 length_target（朗读约等于 duration_minutes）。
-10) 只输出 JSON（不要 markdown）：{"title": string, "body": string, "soft_hook": null 或 string}
+底线：单线今晚闭环；禁止暴力恐怖抛弃恐吓；禁止说教与照搬名著角色名；勿景点巡礼。
+soft_hook 仅 soft_series_mode=true 时有一句，否则 null。
+尽量达到 length_target。只输出 JSON：{"title","body","soft_hook"}
 """
 
 SERIES_OUTLINE_SYSTEM_PROMPT = """你是睡前「软系列」叙事策划（不是写正文）。为幼儿设计一小季温和连载大纲。
@@ -435,20 +522,21 @@ episodes 长度必须等于 episode_count；episode_no 从 1 连续编号。
 字符串内勿用未转义双引号；输出必须是完整可解析 JSON。
 """
 
-PLAN_SYSTEM_PROMPT = """你是睡前故事的单集构思助手（不是写正文）。根据用户设定与 beat_pattern / opening_pattern / cast_intro_mode 产出今晚可执行的短构思 JSON。
+PLAN_SYSTEM_PROMPT = """你是睡前故事的单集构思助手（不写正文）。负责创意与结构：动机、节拍、弧光、听前开场白要点。按 beat_pattern 设计今晚可执行短构思。
 
-规则：
-1) 动作级、具体；禁止道德点题与书面空话。
-2) 单线；今晚情绪闭环；禁止硬悬念。弱冲突可以，但不能没有节拍：禁止「露面→立刻圆满→睡」。
-3) 必须遵守 beat_pattern.instruction，填满其 slots。
-4) try_1 与 try_2 都要有：两次具体尝试/等待/收拾；第二次才更接近 turn_ok。禁止只用「被安抚」代替主动试。
-5) 必须遵守 opening_pattern：把 opening_kind 设为与其一致；写出 opening_lines（2～3句可朗读总领提纲）。opening_pattern=none 时 opening_lines 为空、opening_kind=none。
-6) 必须遵守 cast_intro_mode：full_intro 时 setting_line 写清「今晚在哪儿干什么」，cast_use 每人 how_tonight 含一句身份介绍；light_refresh 时 setting_line 可短；none 时可空。
-7) soft_promise：有总领时供总领使用；lead_in/opening 为 none 时 soft_promise 为空。
-8) 若有 series_context：wish 对齐 throughline 一小步；plants 只埋/轻碰；非终集不兑季终大伏笔。
-9) cast_use：至少两个角色（name, signature_move, line, how_tonight）。
-10) sleep_beat：2～4个名物/角色的晚安点名；系列时 soft_hook_hint 必填可朗读句。
-11) 只输出 JSON（不要 markdown）：
+要求：
+- 严格遵守 beat_pattern.instruction（含 lineage 节奏）；填满 wish / snag / try_1 / try_2 / turn_ok。
+- try_2 必须相对 try_1 有升级或转变（方法/视角/工具/节奏变了），禁止同动作加力，禁止旁人直接替做。创意决策在本阶段完成。
+- 遵守 opening_pattern 与 cast_intro_mode。opening 非 none 时：
+  opening_lines 写「听前开场白」提纲（4～6句要点）：安顿听者、点人物/背景、轻提今晚值得期待的小事；
+  soft_promise 是那句软期待（可朗读）；opening_lines 不是第一句情节动作，勿剧透 try/turn。
+- cast_use 至少两个角色，每人有 signature_move 与 how_tonight。
+- 动作具体、单线、今晚安心收束；禁止说教与硬悬念。
+- 有 series_context 时：wish 对齐 throughline 一小步；plants 只埋；soft_hook_hint 必填可朗读句。
+- 遵守 child_profile_guidance（若有）：性别只轻轻影响称谓/倾向；intro 轻点即可。
+- sleep_beat 一句自然收束即可，勿排比点名套话。
+
+只输出 JSON（不要 markdown）：
 {
   "beat_pattern": string,
   "opening_pattern": string,
@@ -473,7 +561,6 @@ PLAN_SYSTEM_PROMPT = """你是睡前故事的单集构思助手（不是写正�
   "title_hint": string,
   "soft_hook_hint": string
 }
-try_beat 可等于 try_1+试2 的合并短句；以 try_1/try_2 为准。
 """
 
 DEFAULT_EPISODE_COUNT = 4
@@ -656,11 +743,11 @@ def resolve_style_dials(request: StoryRequest) -> dict[str, dict[str, str]]:
         if name == "lead_in" and level != "none":
             band = normalize_age_band(request.age_band)
             if band == "2-3":
-                instruction += "此年龄总领更短（约1～2句），词语更具体。"
+                instruction += "此年龄开场白略短（约4～5句），词语具体、可摸可听。"
             if wind == "deep":
-                instruction += "安眠档偏静：总领声音更轻、更短。"
+                instruction += "安眠档偏静：开场白声音更轻，仍须先安顿听者再进情节。"
             if (request.duration_minutes or 5) <= 3:
-                instruction += "时长较短：总领最多两句。"
+                instruction += "时长较短：开场白约4～5句，仍须与正叙分开，勿压缩成一句就进冲突。"
         resolved[name] = {
             "level": level,
             "label": meta["label"],
@@ -670,19 +757,52 @@ def resolve_style_dials(request: StoryRequest) -> dict[str, dict[str, str]]:
 
 
 def build_series_opening_note(request: StoryRequest) -> str | None:
-    """Extra opening guidance when continuing a soft series / recap is present."""
+    """Extra warm-up guidance when continuing a soft series / recap is present."""
     recap = (request.recap or "").strip()
     if recap:
         return (
-            "开场总领（若 lead_in 非 none）请用一两句自然回顾 recap 里的事，"
-            "再接到今晚；不要复述成长段前情提要。"
+            "听前开场白（若 lead_in 非 none）请用一两句自然回顾 recap 里的事，"
+            "再接到今晚值得期待的小事；不要复述成长段前情提要。"
         )
     if request.soft_series_mode:
         return (
-            "这是连续故事模式：若记忆中有上次温和期待，开场可轻轻接住；"
+            "这是连续故事模式：若记忆中有上次温和期待，开场白可轻轻接住；"
             "没有 recap 就不要编造具体前情。"
         )
     return None
+
+
+def build_child_profile_guidance(
+    *,
+    gender: str,
+    intro: str | None,
+    nickname: str | None = None,
+) -> str:
+    """Soft instructions so gender/intro tilt language without stereotypes."""
+    g = (gender or "unspecified").strip().lower()
+    parts: list[str] = []
+    if g == "girl":
+        parts.append(
+            "孩子偏女孩：代词/称谓自然一致；兴趣与细节可略贴女孩日常或 intro，"
+            "禁止公主/粉裙等刻板堆砌。"
+        )
+    elif g == "boy":
+        parts.append(
+            "孩子偏男孩：代词/称谓自然一致；兴趣与细节可略贴男孩日常或 intro，"
+            "禁止「男孩就该勇敢」等刻板堆砌。"
+        )
+    else:
+        parts.append(
+            "性别不指定或多元：保持中性称谓与兴趣倾向，勿强加性别刻板印象。"
+        )
+    text = (intro or "").strip()
+    if text:
+        who = f"「{nickname}」" if nickname else "孩子"
+        parts.append(
+            f"child_intro 是{who}的可选背景，全文自然轻点 1～2 处即可，"
+            "勿整段复述、勿说教。"
+        )
+    return " ".join(parts)
 
 
 def _focus_compatible(focus_id: str, theme: str | None) -> bool:
@@ -718,24 +838,82 @@ def choose_development_focus(
     return candidates[idx]
 
 
+def _active_beat_catalog() -> tuple[dict[str, dict[str, Any]], dict[str, list[str]], list[str]]:
+    """Prefer DB-backed runtime catalog; fall back to code constants."""
+    try:
+        from app.services.beat_patterns import (
+            get_runtime_default_pool,
+            get_runtime_focus_map,
+            get_runtime_patterns,
+        )
+
+        patterns = get_runtime_patterns()
+        if patterns:
+            return patterns, get_runtime_focus_map(), get_runtime_default_pool()
+    except Exception:
+        pass
+    return BEAT_PATTERNS, FOCUS_BEAT_MAP, list(DEFAULT_BEAT_POOL)
+
+
+def _theme_matched_beats(
+    theme: str | None, patterns: dict[str, dict[str, Any]]
+) -> list[str]:
+    """Beat ids whose theme_tags appear as substrings in the theme text."""
+    text = (theme or "").strip().lower()
+    if not text:
+        return []
+    hits: list[str] = []
+    for pid, meta in patterns.items():
+        tags = meta.get("theme_tags") or ()
+        if any(str(tag).lower() in text for tag in tags):
+            hits.append(pid)
+    return hits
+
+
 def select_beat_pattern(
     focus_id: str | None,
     *,
+    theme: str | None = None,
     episode_no: int = 1,
     salt: str = "",
 ) -> dict[str, Any]:
-    """Pick an internal beat pattern from the menu (stable for same inputs)."""
+    """Pick a rhythm frame by theme + focus (stable for same inputs).
+
+    Catalog comes from DB (admin-editable) when seeded; otherwise code constants.
+    """
+    patterns, focus_map, default_pool = _active_beat_catalog()
     fid = (focus_id or "").strip()
-    options = FOCUS_BEAT_MAP.get(fid) or ["approach_retry", "make_and_fix"]
-    digest = hashlib.sha256(f"beat|{fid}|{episode_no}|{salt}".encode()).hexdigest()
+    focus_opts = list(focus_map.get(fid) or default_pool)
+    theme_hits = [p for p in _theme_matched_beats(theme, patterns) if p in patterns]
+
+    if theme_hits:
+        # Prefer theme ∩ focus; else theme hits; always keep a spare for variety.
+        overlap = [p for p in theme_hits if p in focus_opts]
+        options = overlap or theme_hits
+        for pid in focus_opts:
+            if pid not in options:
+                options.append(pid)
+                if len(options) >= 4:
+                    break
+    else:
+        options = focus_opts
+
+    options = [p for p in options if p in patterns] or list(default_pool)
+    digest = hashlib.sha256(
+        f"beat|{fid}|{theme or ''}|{episode_no}|{salt}".encode()
+    ).hexdigest()
     idx = int(digest[:8], 16) % len(options)
     pid = options[idx]
-    meta = BEAT_PATTERNS.get(pid) or BEAT_PATTERNS["approach_retry"]
+    fallback_id = next(iter(patterns), "two_gates")
+    meta = patterns.get(pid) or patterns.get(fallback_id) or BEAT_PATTERNS["two_gates"]
+    resolved = pid if pid in patterns else fallback_id
     return {
-        "id": pid if pid in BEAT_PATTERNS else "approach_retry",
+        "id": resolved,
         "label": meta["label"],
-        "slots": meta["slots"],
-        "instruction": meta["instruction"],
+        "lineage": meta.get("lineage") or "",
+        "slots": meta.get("slots") or _BEAT_SLOTS,
+        "instruction": meta.get("instruction") or "",
+        "escalation": meta.get("escalation") or _ESCALATION_RULE,
     }
 
 
@@ -877,11 +1055,25 @@ def build_user_payload(request: StoryRequest) -> dict:
     dials = resolve_style_dials(request)
     length_target = estimate_length_target(request.language, minutes)
 
+    from app.services.child_profile import GENDER_LABELS_ZH, normalize_gender
+
+    gender = normalize_gender(request.child_gender)
+    intro = (request.child_intro or "").strip() or None
+    profile_guidance = build_child_profile_guidance(
+        gender=gender,
+        intro=intro,
+        nickname=request.child_nickname,
+    )
+
     return {
         "child_nickname": request.child_nickname,
         "age_band": spec.band,
         "age_label": spec.label_zh,
         "age_guidance": spec.guidance,
+        "child_gender": gender,
+        "child_gender_label": GENDER_LABELS_ZH.get(gender, "不指定"),
+        "child_intro": intro,
+        "child_profile_guidance": profile_guidance,
         "language": request.language,
         "theme": request.theme,
         "duration_minutes": minutes,
@@ -903,14 +1095,9 @@ def build_user_payload(request: StoryRequest) -> dict:
         "tonight_focus": {"id": focus_id, "how": focus_desc},
         "allowed_motif": MOTIF_WHITELIST[motif_idx],
         "style_reminders": [
-            "严格遵循 style_dials 与 length_target.instruction",
-            "听感：一句一事；对话一句一意；场景物要干活；可有拟声/短重复",
-            "有节拍：小目标+延迟+两次尝试+今晚小兑现；禁止露面即圆满",
-            "系列时正文末段落地 soft_hook，并有点名晚安仪式",
-            "跨集伏笔只埋不兑（除非本集 payoffs 允许）",
-            "开场总领遵守 lead_in；勿说教点题",
-            "禁止照搬知名童话情节或角色名",
-            "安心入睡优先于教育意义",
+            "听感优先：口语旁白，一句一事；遵守 length_target",
+            "先听前开场白安顿听者，再渐入正文；勿像翻书开念",
+            "忠实落地 story_plan；结尾自然收束；系列才写 soft_hook；勿说教",
         ],
     }
 
@@ -1012,8 +1199,7 @@ def validate_episode_plan(
     else:
         # Prefer pattern-forced kind so lead_in and draft stay aligned.
         plan["opening_kind"] = forced_kind if forced_kind != "none" else kind
-        if not str(plan.get("opening_lines") or "").strip():
-            plan["opening_lines"] = str(plan.get("soft_promise") or "").strip()
+        # Do not copy soft_promise into opening_lines — that injects the wrong beat as spoken prose.
 
     if cast_intro_mode:
         plan["cast_intro_mode"] = cast_intro_mode.get("id") or "full_intro"
@@ -1034,24 +1220,25 @@ def validate_episode_plan(
         # Legacy single beat → split lightly if model used "；" / "。再"
         parts = re.split(r"[；;]|。再|，再", try_beat, maxsplit=1)
         try_1 = parts[0].strip() or try_beat
-        try_2 = (parts[1].strip() if len(parts) > 1 else "") or try_beat
+        try_2 = (parts[1].strip() if len(parts) > 1 else "") or ""
+    # Prefer model text; fall back to other plan fields only — never invent canned spoken lines.
     if not try_1:
-        try_1 = try_beat or str(plan.get("wish") or "试一试")
+        try_1 = try_beat or str(plan.get("wish") or "").strip()
     if not try_2:
-        try_2 = try_beat or str(plan.get("turn_ok") or "再轻轻试一次")
+        try_2 = str(plan.get("turn_ok") or "").strip() or try_beat
     plan["try_1"] = try_1
     plan["try_2"] = try_2
-    plan["try_beat"] = try_beat or f"{try_1}；{try_2}"
+    plan["try_beat"] = try_beat or ("；".join(p for p in (try_1, try_2) if p))
 
     if beat_pattern:
-        plan["beat_pattern"] = beat_pattern.get("id") or plan.get("beat_pattern") or "approach_retry"
+        plan["beat_pattern"] = beat_pattern.get("id") or plan.get("beat_pattern") or "two_gates"
         plan["beat_pattern_meta"] = {
             "id": beat_pattern.get("id"),
             "label": beat_pattern.get("label"),
             "instruction": beat_pattern.get("instruction"),
         }
     else:
-        plan.setdefault("beat_pattern", "approach_retry")
+        plan.setdefault("beat_pattern", "two_gates")
 
     plan.setdefault("plants_tonight", [])
     plan.setdefault("payoffs_tonight", [])
@@ -1063,9 +1250,8 @@ def validate_episode_plan(
     if soft_series_mode and not str(plan.get("soft_hook_hint") or "").strip():
         # Fall back to soft_promise so draft still has a hook line.
         plan["soft_hook_hint"] = str(plan.get("soft_promise") or "").strip()
-    sleep = str(plan.get("sleep_beat") or "")
-    if "晚安" not in sleep:
-        plan["sleep_beat"] = (sleep + " 晚安，一点点；晚安，今晚。").strip()
+    # Keep model sleep_beat as-is. Never inject canned spoken templates into the plan.
+    plan["sleep_beat"] = str(plan.get("sleep_beat") or "").strip()
     return plan
 
 
@@ -1109,7 +1295,12 @@ def build_plan_user_message(
     ep_no = int(request.episode_no or 1)
     salt = request.child_nickname or ""
     cast_absent = (request.child_cast_role or "").strip().lower() == "absent"
-    beat = beat_pattern or select_beat_pattern(focus_id, episode_no=ep_no, salt=salt)
+    beat = beat_pattern or select_beat_pattern(
+        focus_id,
+        theme=request.theme,
+        episode_no=ep_no,
+        salt=salt,
+    )
     opening = opening_pattern or select_opening_pattern(
         lead_level,
         episode_no=ep_no,
@@ -1127,6 +1318,10 @@ def build_plan_user_message(
             "child_nickname",
             "age_band",
             "age_guidance",
+            "child_gender",
+            "child_gender_label",
+            "child_intro",
+            "child_profile_guidance",
             "language",
             "theme",
             "duration_minutes",
@@ -1137,7 +1332,6 @@ def build_plan_user_message(
             "recap",
             "soft_series_mode",
             "tonight_focus",
-            "allowed_motif",
         )},
         "lead_in_level": lead_level,
         "episode_no": request.episode_no,
@@ -1156,11 +1350,13 @@ def build_plan_user_message(
         )
     lead = (
         "请只输出今晚单集构思 JSON（不要正文）。"
-        "必须遵守 beat_pattern、opening_pattern、cast_intro_mode。\n"
+        "负责创意与结构；必须遵守 beat_pattern、opening_pattern、cast_intro_mode；"
+        "opening 非 none 时 opening_lines 须是听前开场白提纲（非第一句情节）。\n"
         if not (request.language or "zh").lower().startswith("en")
         else (
             "Output tonight's episode plan JSON only (no prose). "
-            "Obey beat_pattern, opening_pattern, and cast_intro_mode.\n"
+            "Own creative structure; obey beat_pattern, opening_pattern, cast_intro_mode; "
+            "if opening is not none, opening_lines must be a host warm-up outline, not plot beat one.\n"
         )
     )
     return lead + json.dumps(plan_payload, ensure_ascii=False)
@@ -1173,22 +1369,26 @@ def build_user_message(request: StoryRequest, plan: dict | None = None) -> str:
         need_opening = (plan.get("opening_pattern") or "none") != "none"
         payload["draft_checklist"] = {
             "body_order": [
-                "opening_lines (own paragraph)" if need_opening else "skip_opening",
-                "cast_intro / setting_line",
+                "warm_up_host_voice (own paragraphs)" if need_opening else "skip_opening",
+                "cast_intro / setting_line (may blend end of warm-up)",
                 "wish_snag_tries",
                 "soft_hook then goodnight" if request.soft_series_mode else "goodnight",
             ],
-            "must_land_opening_paragraph": need_opening,
+            "must_land_warm_up_before_plot": need_opening,
+            "forbid_book_like_cold_open": need_opening,
             "opening_lines": plan.get("opening_lines") or None,
+            "soft_promise": plan.get("soft_promise") or None,
             "opening_pattern": plan.get("opening_pattern"),
             "cast_intro_mode": plan.get("cast_intro_mode"),
             "setting_line": plan.get("setting_line") or None,
             "must_include_try_1": plan.get("try_1"),
             "must_include_try_2": plan.get("try_2"),
+            "land_try_beats_as_planned": True,
             "must_land_soft_hook_in_body": bool(request.soft_series_mode),
             "soft_hook_line": plan.get("soft_hook_hint") or None,
-            "must_land_goodnight_ritual": True,
-            "sleep_beat": plan.get("sleep_beat"),
+            "prefer_gentle_sleep_close": True,
+            "forbid_parallel_goodnight_list": True,
+            "sleep_beat": plan.get("sleep_beat") or None,
             "cast_use": plan.get("cast_use") or [],
             "no_early_thread_payoff": True,
             "forbid_child_nickname": (request.child_cast_role or "").lower() == "absent",
@@ -1202,17 +1402,19 @@ def build_user_message(request: StoryRequest, plan: dict | None = None) -> str:
         lead = (
             "请按系统规则、style_dials"
             + ("与 story_plan/draft_checklist" if plan is not None else "")
-            + "写今晚的睡前故事。"
-            "正文顺序：总领段（若需要）→ 角色/场景建档（若需要）→ 情节 → 软期待（系列）→ 晚安。"
+            + "写今晚的睡前故事（口语旁白，不是念书）。"
+            "正文顺序：听前开场白（若需要）→ 角色/场景建档（若需要）→ 情节 → 软期待（系列）→ 晚安。"
+            "开场白须先安顿听者并轻点人物/背景/软期待，再渐入正文。"
             "系列时正文末段（晚安前）必须出现 soft_hook 那句软期待。"
             "只输出 JSON 对象（不要 markdown）："
             '{"title","body","soft_hook"}。\n'
         )
     else:
         lead = (
-            "Write tonight's bedtime story per the system rules, style_dials"
+            "Write tonight's bedtime story as spoken host narration (not reading a book), "
+            "per the system rules, style_dials"
             + (", story_plan, and draft_checklist" if plan is not None else "")
-            + ". Order: opening → cast intro → plot → soft_hook (series) → goodnight. "
+            + ". Order: warm-up → cast intro → plot → soft_hook (series) → goodnight. "
             'Reply with ONLY a JSON object (no markdown): {"title","body","soft_hook"}.\n'
         )
     return lead + json.dumps(payload, ensure_ascii=False)

@@ -1,17 +1,20 @@
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import get_settings
 from app.core.db import get_db
 from app.core.security import get_current_user
 from app.models.user import User
 from app.models.voice import Voice
 from app.providers.factory import get_clone_provider
 from app.schemas.common import VoiceOut, VoiceUpdate
+from app.services.provider_settings import resolve_speech_provider_name
 from app.services.quota import check_and_increment
 from app.services.retention import raw_voice_purge_at
 from app.services.storage import storage_service
+from app.services.system_voice import ensure_system_voice
 
 
 router = APIRouter(prefix="/voices", tags=["voices"])
@@ -47,39 +50,10 @@ async def update_voice(
 
 
 @router.post("/system-default", response_model=VoiceOut)
-async def ensure_system_voice(
+async def ensure_system_voice_route(
     user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
 ) -> Voice:
-    settings = get_settings()
-    if settings.provider_profile.lower() in ("volc", "doubao", "ark"):
-        provider = "volc"
-        voice_id = settings.volc_default_speaker
-    else:
-        provider = "elevenlabs"
-        voice_id = settings.elevenlabs_default_voice_id
-
-    existing = (
-        await db.execute(select(Voice).where(Voice.user_id == user.id, Voice.kind == "system"))
-    ).scalar_one_or_none()
-    if existing:
-        if existing.provider != provider or existing.provider_voice_id != voice_id:
-            existing.provider = provider
-            existing.provider_voice_id = voice_id
-            await db.commit()
-            await db.refresh(existing)
-        return existing
-    voice = Voice(
-        user_id=user.id,
-        name="Gentle System",
-        kind="system",
-        provider=provider,
-        provider_voice_id=voice_id,
-        language="zh",
-    )
-    db.add(voice)
-    await db.commit()
-    await db.refresh(voice)
-    return voice
+    return await ensure_system_voice(db, user)
 
 
 @router.post("/clone", response_model=VoiceOut)
@@ -99,11 +73,13 @@ async def clone_voice(
     if len(audio) < 1000:
         raise HTTPException(status_code=400, detail="Audio sample too short")
 
+    speech_provider = await resolve_speech_provider_name()
+
     # Ephemeral store then purge ASAP after clone
     raw_key = storage_service.new_key(f"ephemeral/voices/{user.id}", f"_{file.filename or 'sample.wav'}")
     await storage_service.put_bytes(raw_key, audio, file.content_type or "audio/wav")
 
-    clone = get_clone_provider()
+    clone = get_clone_provider(speech_provider)
     try:
         provider_voice_id = await clone.clone(name, audio, file.filename or "sample.wav", language)
     except Exception:
@@ -113,22 +89,14 @@ async def clone_voice(
     # Delete raw immediately after successful clone (retention job is backup)
     await storage_service.delete(raw_key)
 
-    settings = get_settings()
-    if settings.provider_profile.lower() in ("volc", "doubao", "ark"):
-        provider = "volc"
-    elif settings.provider_profile.lower() == "openai":
-        provider = "elevenlabs"
-    else:
-        provider = settings.provider_profile.lower()
-
     voice = Voice(
         user_id=user.id,
         name=name,
         kind="clone",
-        provider=provider,
+        provider=speech_provider,
         provider_voice_id=provider_voice_id,
         language=language,
-        consent_at=__import__("datetime").datetime.now(__import__("datetime").timezone.utc),
+        consent_at=datetime.now(timezone.utc),
         raw_object_key=None,
         raw_purge_after=raw_voice_purge_at(),
     )
@@ -147,7 +115,7 @@ async def delete_voice(
         raise HTTPException(status_code=404, detail="Voice not found")
     if voice.kind == "clone":
         try:
-            await get_clone_provider().delete(voice.provider_voice_id)
+            await get_clone_provider(voice.provider).delete(voice.provider_voice_id)
         except Exception:
             pass
     if voice.raw_object_key:

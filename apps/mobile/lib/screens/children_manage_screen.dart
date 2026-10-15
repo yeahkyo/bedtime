@@ -18,10 +18,11 @@ class _ChildrenManageScreenState extends State<ChildrenManageScreen> {
   List<Map<String, dynamic>> children = [];
   bool loading = true;
 
-  static const ageBands = [
-    ('2-3', '2–3岁'),
-    ('3-5', '3–5岁'),
-    ('6-8', '6–8岁'),
+  static const genders = [
+    ('girl', '女孩'),
+    ('boy', '男孩'),
+    ('other', '其他'),
+    ('unspecified', '不指定'),
   ];
 
   @override
@@ -44,12 +45,32 @@ class _ChildrenManageScreenState extends State<ChildrenManageScreen> {
     }
   }
 
+  String _genderLabel(String? id) {
+    for (final (gid, label) in genders) {
+      if (gid == id) return label;
+    }
+    return '不指定';
+  }
+
+  DateTime _parseBirth(String? raw) {
+    if (raw == null || raw.isEmpty) {
+      return DateTime(DateTime.now().year - 4, DateTime.now().month, DateTime.now().day);
+    }
+    return DateTime.tryParse(raw) ??
+        DateTime(DateTime.now().year - 4, DateTime.now().month, DateTime.now().day);
+  }
+
+  String _fmtDate(DateTime d) =>
+      '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
   Future<void> _editChild({Map<String, dynamic>? existing}) async {
     final nickCtrl = TextEditingController(text: existing?['nickname'] as String? ?? '');
+    final introCtrl = TextEditingController(text: existing?['intro'] as String? ?? '');
     final interestsCtrl = TextEditingController(
       text: ((existing?['interests'] as List<dynamic>?) ?? []).cast<String>().join(', '),
     );
-    var ageBand = existing?['age_band'] as String? ?? '3-5';
+    var gender = existing?['gender'] as String? ?? 'unspecified';
+    var birth = _parseBirth(existing?['birth_date'] as String?);
 
     final saved = await showModalBottomSheet<bool>(
       context: context,
@@ -65,80 +86,111 @@ class _ChildrenManageScreenState extends State<ChildrenManageScreen> {
           ),
           child: StatefulBuilder(
             builder: (ctx, setModal) {
-              return Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text(
-                    existing == null ? '添加角色' : '编辑角色',
-                    style: Theme.of(ctx).textTheme.titleLarge,
-                  ),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: nickCtrl,
-                    decoration: const InputDecoration(labelText: '昵称'),
-                  ),
-                  const SizedBox(height: 12),
-                  Text('年龄档', style: Theme.of(ctx).textTheme.labelLarge),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8,
-                    children: [
-                      for (final (id, label) in ageBands)
-                        ChoiceChip(
-                          label: Text(label),
-                          selected: ageBand == id,
-                          onSelected: (_) => setModal(() => ageBand = id),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: interestsCtrl,
-                    decoration: const InputDecoration(labelText: '兴趣（逗号分隔，可选）'),
-                  ),
-                  const SizedBox(height: 20),
-                  FilledButton(
-                    onPressed: () async {
-                      final nick = nickCtrl.text.trim();
-                      if (nick.isEmpty) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('请填写昵称')),
+              return SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      existing == null ? '添加角色' : '编辑角色',
+                      style: Theme.of(ctx).textTheme.titleLarge,
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: nickCtrl,
+                      decoration: const InputDecoration(labelText: '昵称'),
+                    ),
+                    const SizedBox(height: 12),
+                    Text('性别', style: Theme.of(ctx).textTheme.labelLarge),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      children: [
+                        for (final (id, label) in genders)
+                          ChoiceChip(
+                            label: Text(label),
+                            selected: gender == id,
+                            onSelected: (_) => setModal(() => gender = id),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('出生日期'),
+                      subtitle: Text(_fmtDate(birth)),
+                      trailing: const Icon(Icons.calendar_today_outlined),
+                      onTap: () async {
+                        final picked = await showDatePicker(
+                          context: ctx,
+                          initialDate: birth,
+                          firstDate: DateTime(DateTime.now().year - 12),
+                          lastDate: DateTime.now(),
                         );
-                        return;
-                      }
-                      final interests = interestsCtrl.text
-                          .split(RegExp(r'[,，、\n]+'))
-                          .map((s) => s.trim())
-                          .where((s) => s.isNotEmpty)
-                          .toList();
-                      try {
-                        if (existing == null) {
-                          await widget.api.createChild(
-                            nickname: nick,
-                            ageBand: ageBand,
-                            interests: interests,
-                          );
-                        } else {
-                          await widget.api.updateChild(
-                            childId: existing['id'] as int,
-                            nickname: nick,
-                            ageBand: ageBand,
-                            interests: interests,
-                          );
-                        }
-                        if (ctx.mounted) Navigator.of(ctx).pop(true);
-                      } catch (e) {
-                        if (mounted) {
+                        if (picked != null) setModal(() => birth = picked);
+                      },
+                    ),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: introCtrl,
+                      maxLines: 3,
+                      decoration: const InputDecoration(
+                        labelText: '介绍（可选）',
+                        hintText: '性格、近期小事、喜欢的称呼…写给故事参考',
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: interestsCtrl,
+                      decoration: const InputDecoration(labelText: '兴趣（逗号分隔，可选）'),
+                    ),
+                    const SizedBox(height: 20),
+                    FilledButton(
+                      onPressed: () async {
+                        final nick = nickCtrl.text.trim();
+                        if (nick.isEmpty) {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('$e')),
+                            const SnackBar(content: Text('请填写昵称')),
                           );
+                          return;
                         }
-                      }
-                    },
-                    child: const Text('保存'),
-                  ),
-                ],
+                        final interests = interestsCtrl.text
+                            .split(RegExp(r'[,，、\n]+'))
+                            .map((s) => s.trim())
+                            .where((s) => s.isNotEmpty)
+                            .toList();
+                        try {
+                          if (existing == null) {
+                            await widget.api.createChild(
+                              nickname: nick,
+                              birthDate: _fmtDate(birth),
+                              gender: gender,
+                              intro: introCtrl.text.trim(),
+                              interests: interests,
+                            );
+                          } else {
+                            await widget.api.updateChild(
+                              childId: existing['id'] as int,
+                              nickname: nick,
+                              birthDate: _fmtDate(birth),
+                              gender: gender,
+                              intro: introCtrl.text.trim(),
+                              interests: interests,
+                            );
+                          }
+                          if (ctx.mounted) Navigator.of(ctx).pop(true);
+                        } catch (e) {
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('$e')),
+                            );
+                          }
+                        }
+                      },
+                      child: const Text('保存'),
+                    ),
+                  ],
+                ),
               );
             },
           ),
@@ -147,6 +199,7 @@ class _ChildrenManageScreenState extends State<ChildrenManageScreen> {
     );
 
     nickCtrl.dispose();
+    introCtrl.dispose();
     interestsCtrl.dispose();
     if (saved == true) await _load();
   }
@@ -216,9 +269,20 @@ class _ChildrenManageScreenState extends State<ChildrenManageScreen> {
                                         style: Theme.of(context).textTheme.titleMedium,
                                       ),
                                       Text(
-                                        '年龄档 ${c['age_band'] ?? '-'}',
+                                        '${_genderLabel(c['gender'] as String?)} · '
+                                        '${c['birth_date'] ?? '-'} · '
+                                        '档 ${c['age_band'] ?? '-'}',
                                         style: Theme.of(context).textTheme.bodySmall,
                                       ),
+                                      if ((c['intro'] as String?)?.trim().isNotEmpty == true)
+                                        Text(
+                                          c['intro'] as String,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                                color: AppColors.onSurfaceDim,
+                                              ),
+                                        ),
                                     ],
                                   ),
                                 ),

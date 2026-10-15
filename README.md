@@ -8,7 +8,8 @@ Personalized bilingual bedtime stories with natural TTS and parent voice cloning
 - **FastAPI** (`apps/api`) — **默认 Docker Compose 容器内 uvicorn**
 - **MariaDB + Redis**（Compose；生产复用 Linode 同机栈）
 - **Object storage**：本地 `.data` / MinIO profile / Cloudflare R2（线上用 R2）
-- Providers：豆包 Ark + 火山语音（或 `MOCK_PROVIDERS=1` / `openai` profile）
+- Providers：豆包 Ark + Fish Audio（默认；可混用 `STORY_PROVIDER` / `SPEECH_PROVIDER`，见 [docs/providers.md](docs/providers.md)）
+- **Admin**：`apps/admin`（Vue；Compose `--profile admin` → :8083）
 
 ## Quick start（默认：全容器）
 
@@ -18,6 +19,8 @@ docker compose up --build
 
 # API: http://127.0.0.1:8000/docs
 # MariaDB host port 3307 · Redis host port 6380
+# Admin (optional): docker compose --profile admin up --build
+#   → http://127.0.0.1:8083
 # (Dockerfile 默认用 DaoCloud python 镜像源，避免 Docker Hub 超时；可在 compose 改 BASE_IMAGE)
 ```
 

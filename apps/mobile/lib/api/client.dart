@@ -62,18 +62,28 @@ class ApiClient {
 
   Future<Map<String, dynamic>> createChild({
     required String nickname,
-    String ageBand = '3-5',
+    String? birthDate,
+    String? ageBand,
+    String gender = 'unspecified',
+    String? intro,
     List<String> interests = const [],
   }) async {
+    final payload = <String, dynamic>{
+      'nickname': nickname,
+      'gender': gender,
+      'interests': interests,
+    };
+    if (birthDate != null && birthDate.isNotEmpty) {
+      payload['birth_date'] = birthDate;
+    } else if (ageBand != null && ageBand.isNotEmpty) {
+      payload['age_band'] = ageBand;
+    }
+    if (intro != null) payload['intro'] = intro;
     final res = await http
         .post(
           _u('/v1/children'),
           headers: _headers,
-          body: jsonEncode({
-            'nickname': nickname,
-            'age_band': ageBand,
-            'interests': interests,
-          }),
+          body: jsonEncode(payload),
         )
         .timeout(_timeout);
     _ensure(res);
@@ -83,12 +93,18 @@ class ApiClient {
   Future<Map<String, dynamic>> updateChild({
     required int childId,
     String? nickname,
+    String? birthDate,
     String? ageBand,
+    String? gender,
+    String? intro,
     List<String>? interests,
   }) async {
     final body = <String, dynamic>{};
     if (nickname != null) body['nickname'] = nickname;
+    if (birthDate != null) body['birth_date'] = birthDate;
     if (ageBand != null) body['age_band'] = ageBand;
+    if (gender != null) body['gender'] = gender;
+    if (intro != null) body['intro'] = intro;
     if (interests != null) body['interests'] = interests;
     final res = await http
         .patch(

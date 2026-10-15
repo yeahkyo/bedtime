@@ -45,12 +45,11 @@ async def purge_expired_stories(db: AsyncSession) -> int:
 
 
 async def cascade_delete_user(db: AsyncSession, user_id: int) -> None:
-    clone = get_clone_provider()
     voices = (await db.execute(select(Voice).where(Voice.user_id == user_id))).scalars().all()
     for voice in voices:
         if voice.kind == "clone":
             try:
-                await clone.delete(voice.provider_voice_id)
+                await get_clone_provider(voice.provider).delete(voice.provider_voice_id)
             except Exception:
                 pass
         if voice.raw_object_key:

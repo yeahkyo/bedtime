@@ -23,7 +23,9 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
   final recapCtrl = TextEditingController();
 
   String language = 'zh';
-  String ageBand = '3-5';
+  String ageBand = '3-5'; // derived from birthDate for focus dials
+  String gender = 'unspecified';
+  DateTime birthDate = DateTime(DateTime.now().year - 4, DateTime.now().month, DateTime.now().day);
   String? developmentFocus;
   String childCastRole = 'auto';
   String plotDrive = 'light';
@@ -46,10 +48,11 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
   int? voiceId;
   List<Map<String, dynamic>> voices = [];
 
-  static const ageBands = [
-    ('2-3', '2–3岁'),
-    ('3-5', '3–5岁'),
-    ('6-8', '6–8岁'),
+  static const genders = [
+    ('girl', '女孩'),
+    ('boy', '男孩'),
+    ('other', '其他'),
+    ('unspecified', '不指定'),
   ];
 
   static const castRoles = [
@@ -86,8 +89,8 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
   ];
   static const leadIns = [
     ('none', '直接开讲'),
-    ('soft', '轻轻总领'),
-    ('curious', '好奇开场'),
+    ('soft', '听前开场白'),
+    ('curious', '好奇开场白'),
   ];
 
   static const focusOptions = <String, List<(String, String)>>{
@@ -123,6 +126,17 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
     return int.tryParse('$value');
   }
 
+  String _fmtDate(DateTime d) =>
+      '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+  DateTime _parseBirth(String? raw) {
+    if (raw == null || raw.isEmpty) {
+      return DateTime(DateTime.now().year - 4, DateTime.now().month, DateTime.now().day);
+    }
+    return DateTime.tryParse(raw) ??
+        DateTime(DateTime.now().year - 4, DateTime.now().month, DateTime.now().day);
+  }
+
   Future<void> _prepare() async {
     setState(() => preparing = true);
     try {
@@ -130,15 +144,20 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
       if (children.isEmpty) {
         final child = await widget.api.createChild(
           nickname: nicknameCtrl.text.trim().isEmpty ? '豆豆' : nicknameCtrl.text.trim(),
-          ageBand: ageBand,
+          birthDate: _fmtDate(birthDate),
+          gender: gender,
         );
         childId = _asId(child['id']);
         ageBand = child['age_band'] as String? ?? ageBand;
+        gender = child['gender'] as String? ?? gender;
+        birthDate = _parseBirth(child['birth_date'] as String?);
       } else {
         final c = children.first as Map<String, dynamic>;
         childId = _asId(c['id']);
         nicknameCtrl.text = c['nickname'] as String? ?? nicknameCtrl.text;
         ageBand = c['age_band'] as String? ?? ageBand;
+        gender = c['gender'] as String? ?? gender;
+        birthDate = _parseBirth(c['birth_date'] as String?);
         final interests = (c['interests'] as List<dynamic>? ?? []).cast<String>();
         interestsCtrl.text = interests.join(', ');
       }
@@ -206,7 +225,8 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
       await widget.api.updateChild(
         childId: childId!,
         nickname: nick,
-        ageBand: ageBand,
+        birthDate: _fmtDate(birthDate),
+        gender: gender,
         interests: _parseList(interestsCtrl.text),
       );
       await widget.api.updateVoicePrefs(
@@ -432,20 +452,42 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
                       decoration: const InputDecoration(labelText: '孩子昵称'),
                     ),
                     const SizedBox(height: 14),
-                    Text('年龄档', style: Theme.of(context).textTheme.labelLarge),
+                    Text('性别', style: Theme.of(context).textTheme.labelLarge),
                     const SizedBox(height: 8),
-                    _softChipRow(
-                      ageBands,
-                      ageBand,
-                      (id) => setState(() {
-                        ageBand = id;
-                        final ids = focusOptions[id]!.map((e) => e.$1).toSet();
-                        if (developmentFocus != null && !ids.contains(developmentFocus)) {
-                          developmentFocus = null;
-                        }
-                      }),
-                    ),
+                    _softChipRow(genders, gender, (id) => setState(() => gender = id)),
                     const SizedBox(height: 12),
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('出生日期'),
+                      subtitle: Text('${_fmtDate(birthDate)} · 故事档 $ageBand'),
+                      trailing: const Icon(Icons.calendar_today_outlined),
+                      onTap: () async {
+                        final picked = await showDatePicker(
+                          context: context,
+                          initialDate: birthDate,
+                          firstDate: DateTime(DateTime.now().year - 12),
+                          lastDate: DateTime.now(),
+                        );
+                        if (picked == null) return;
+                        setState(() {
+                          birthDate = picked;
+                          // Approximate local age band for focus chips before save.
+                          final years = DateTime.now().difference(picked).inDays / 365.25;
+                          if (years < 3) {
+                            ageBand = '2-3';
+                          } else if (years < 6) {
+                            ageBand = '3-5';
+                          } else {
+                            ageBand = '6-8';
+                          }
+                          final ids = focusOptions[ageBand]!.map((e) => e.$1).toSet();
+                          if (developmentFocus != null && !ids.contains(developmentFocus)) {
+                            developmentFocus = null;
+                          }
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 8),
                     TextField(
                       controller: interestsCtrl,
                       decoration: const InputDecoration(
@@ -524,7 +566,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
                     _labeledChips('奇幻度', wonders, wonder, (v) => wonder = v),
                     _labeledChips('安眠节奏', windDowns, windDown, (v) => windDown = v),
                     _labeledChips('对话多少', dialogues, dialogue, (v) => dialogue = v),
-                    _labeledChips('开场总领', leadIns, leadIn, (v) => leadIn = v),
+                    _labeledChips('听前开场白', leadIns, leadIn, (v) => leadIn = v),
                     const SizedBox(height: 8),
                     Text('语言', style: Theme.of(context).textTheme.labelLarge),
                     const SizedBox(height: 8),

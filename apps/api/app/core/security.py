@@ -19,6 +19,7 @@ def create_access_token(subject: str, extra: dict[str, Any] | None = None) -> st
     settings = get_settings()
     payload: dict[str, Any] = {
         "sub": subject,
+        "aud": "app",
         "exp": datetime.now(timezone.utc) + timedelta(days=settings.jwt_expire_days),
     }
     if extra:
@@ -26,9 +27,27 @@ def create_access_token(subject: str, extra: dict[str, Any] | None = None) -> st
     return jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
 
 
+def create_admin_token(username: str) -> tuple[str, datetime]:
+    settings = get_settings()
+    expires = datetime.now(timezone.utc) + timedelta(hours=settings.admin_jwt_expire_hours)
+    payload: dict[str, Any] = {
+        "sub": username,
+        "aud": "admin",
+        "typ": "admin",
+        "exp": expires,
+    }
+    token = jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
+    return token, expires
+
+
 def decode_token(token: str) -> dict[str, Any]:
     settings = get_settings()
-    return jwt.decode(token, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
+    return jwt.decode(
+        token,
+        settings.jwt_secret,
+        algorithms=[settings.jwt_algorithm],
+        options={"verify_aud": False},
+    )
 
 
 async def get_current_user(
@@ -50,6 +69,8 @@ async def get_current_user(
 
     try:
         payload = decode_token(credentials.credentials)
+        if payload.get("aud") == "admin" or payload.get("typ") == "admin":
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
         sub = payload.get("sub")
         if not sub:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
@@ -61,3 +82,21 @@ async def get_current_user(
     if user is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
     return user
+
+
+async def require_admin(
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer),
+) -> str:
+    """Return admin username from Bearer admin JWT."""
+    if credentials is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
+    try:
+        payload = decode_token(credentials.credentials)
+    except JWTError as exc:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token") from exc
+    if payload.get("aud") != "admin" and payload.get("typ") != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin token required")
+    sub = payload.get("sub")
+    if not sub:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+    return str(sub)

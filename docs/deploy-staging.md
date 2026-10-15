@@ -42,14 +42,15 @@ Override SSH target: `DEPLOY_SSH=root@lullvale01 REMOTE_REPO_ROOT=/srv/bedtime .
 
 ## Checklist
 
-1. Fill local `apps/api/.env.staging` (DB passwords, JWT, R2, Ark/Volc, `RETENTION_ADMIN_TOKEN`, `PUBLIC_API_BASE_URL`).
+1. Fill local `apps/api/.env.staging` (DB passwords, JWT, R2, Ark/Fish, `RETENTION_ADMIN_TOKEN`, `ADMIN_BOOTSTRAP_PASSWORD`, `PUBLIC_API_BASE_URL`).
 2. Private R2 bucket; leave `S3_PUBLIC_BASE_URL` empty.
 3. Cloudflare DNS: `bedtime-api.lullvale.com` → VPS IP, **Proxied**, SSL **Full**.
 4. Cloudflare **Origin Rule**: that hostname → **destination port 8080** (skip if you use `API_HOST_PORT=80` alone on the box).
 5. Firewall: allow **8080** (and **22**); do not publish MariaDB/Redis.
 6. `./deploy.sh`
-7. App: `flutter run --dart-define=API_BASE_URL=https://bedtime-api.lullvale.com`
-8. Retention cron on the VPS (see below).
+7. Optional Admin UI: `docker compose -p bedtime -f docker-compose.staging.yml --profile admin up -d --build` → host **:8083**
+8. App: `flutter run --dart-define=API_BASE_URL=https://bedtime-api.lullvale.com`
+9. Retention cron on the VPS (see below).
 
 ## Fill these in `.env.staging` before first deploy
 
@@ -59,9 +60,12 @@ Override SSH target: `DEPLOY_SSH=root@lullvale01 REMOTE_REPO_ROOT=/srv/bedtime .
 | `JWT_SECRET`, `RETENTION_ADMIN_TOKEN` | yes |
 | `S3_ENDPOINT_URL`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_BUCKET` | yes |
 | `ARK_API_KEY` | yes (stories) |
-| `VOLC_SPEECH_API_KEY` | yes if different from Ark; else Ark fallback |
+| `FISH_AUDIO_API_KEY` | yes (default speech; Volc paused) |
+| `FISH_AUDIO_DEFAULT_VOICE_ID` | yes for system TTS voice |
+| `ADMIN_BOOTSTRAP_PASSWORD` | yes for Admin UI / when ENV≠dev |
 | `PUBLIC_API_BASE_URL` | yes (`https://bedtime-api.lullvale.com`) |
 | `API_HOST_PORT` | optional (default **8080** in compose) |
+| `ADMIN_UI_PORT` | optional (default **8083**) |
 
 ## Port conflicts (same VPS as Bandage)
 
@@ -69,7 +73,8 @@ Override SSH target: `DEPLOY_SSH=root@lullvale01 REMOTE_REPO_ROOT=/srv/bedtime .
 |-----------|--------|
 | 80 | Bandage API — **do not reuse** |
 | 8081 / 8082 | Bandage admin / web |
-| **8080** | Bedtime staging (default) |
+| **8080** | Bedtime staging API (default) |
+| **8083** | Bedtime admin UI (`--profile admin`) |
 | 3307 / 6390 | Bandage DB/Redis published — bedtime staging does **not** publish DB/Redis |
 
 Use a separate Compose project (`-p bedtime` via `deploy.sh`).

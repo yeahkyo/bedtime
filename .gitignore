@@ -23,3 +23,6 @@ ios/Pods/
 .vscode/
 *.iml
 coverage/
+apps/admin/node_modules/
+apps/admin/dist/
+apps/admin/.env

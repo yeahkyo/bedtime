@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+import time
 from collections.abc import Awaitable, Callable
 from typing import Any
 
@@ -23,6 +25,8 @@ from app.providers.story_prompt import (
     story_http_timeout_seconds,
     validate_episode_plan,
 )
+
+logger = logging.getLogger(__name__)
 
 # Reasoning models often exceed 60s even for short JSON plans/outlines.
 OUTLINE_TIMEOUT_SECONDS = 180.0
@@ -58,17 +62,37 @@ async def _chat_json(
     last_err: Exception | None = None
     tokens = max_tokens
     for attempt in range(retries + 1):
-        raw = await chat(
-            system,
-            user,
-            max_tokens=tokens,
-            timeout=timeout,
-            stage=stage,
-        )
+        t0 = time.perf_counter()
         try:
-            return _parse_stage_json(stage, raw)
+            raw = await chat(
+                system,
+                user,
+                max_tokens=tokens,
+                timeout=timeout,
+                stage=stage,
+            )
+            data = _parse_stage_json(stage, raw)
+            ms = int((time.perf_counter() - t0) * 1000)
+            logger.info(
+                "story_timing stage=%s attempt=%s ok ms=%s max_tokens=%s chars=%s",
+                stage,
+                attempt + 1,
+                ms,
+                tokens,
+                len(raw or ""),
+            )
+            return data
         except Exception as exc:
+            ms = int((time.perf_counter() - t0) * 1000)
             last_err = exc
+            logger.warning(
+                "story_timing stage=%s attempt=%s fail ms=%s max_tokens=%s err=%s",
+                stage,
+                attempt + 1,
+                ms,
+                tokens,
+                type(exc).__name__,
+            )
             tokens = min(8192, int(tokens * 1.5))
     assert last_err is not None
     raise last_err
@@ -84,6 +108,8 @@ async def run_story_pipeline(
     chat(system, user, *, max_tokens, timeout, stage) -> content str
     on_progress(stage) optional DB/UI progress hook
     """
+    pipeline_t0 = time.perf_counter()
+
     async def _progress(stage: str) -> None:
         if on_progress is not None:
             await on_progress(stage)
@@ -122,6 +148,7 @@ async def run_story_pipeline(
     salt = request.child_nickname or ""
     beat = select_beat_pattern(
         request.development_focus,
+        theme=request.theme,
         episode_no=episode_no,
         salt=salt,
     )
@@ -133,7 +160,12 @@ async def run_story_pipeline(
             outline, episode_no, age_band=request.age_band
         )
         if oid:
-            beat = select_beat_pattern(oid, episode_no=episode_no, salt=salt)
+            beat = select_beat_pattern(
+                oid,
+                theme=request.theme,
+                episode_no=episode_no,
+                salt=salt,
+            )
             request.development_focus = oid
 
     lead = _lead_level(request)
@@ -195,6 +227,16 @@ async def run_story_pipeline(
     body = data.get("body") or ""
     if request.soft_series_mode and soft_hook:
         body = ensure_soft_hook_in_body(body, soft_hook)
+
+    pipeline_ms = int((time.perf_counter() - pipeline_t0) * 1000)
+    logger.info(
+        "story_timing stage=llm_pipeline ok ms=%s duration_min=%s soft_series=%s outline=%s body_chars=%s",
+        pipeline_ms,
+        request.duration_minutes,
+        bool(request.soft_series_mode),
+        should_build_outline,
+        len(body or ""),
+    )
 
     return StoryResult(
         title=data.get("title") or plan.get("title_hint") or "Bedtime Story",

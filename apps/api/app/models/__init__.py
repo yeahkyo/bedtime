@@ -1,3 +1,4 @@
+from app.models.beat_pattern import StoryBeatPattern
 from app.models.child import Child
 from app.models.memory import Memory, MemoryAsset, MemoryElement
 from app.models.story import Story, StoryAudio
@@ -18,4 +19,5 @@ __all__ = [
     "Memory",
     "MemoryAsset",
     "MemoryElement",
+    "StoryBeatPattern",
 ]

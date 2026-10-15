@@ -63,6 +63,13 @@ def test_clone_voice_no_ssml_flag():
     assert voice_supports_ssml("S_123") is False
 
 
+def test_non_volc_speech_provider_no_ssml():
+    assert voice_supports_ssml("zh_female_vv", speech_provider="fishaudio") is False
+    assert voice_supports_ssml("zh_female_vv", speech_provider="elevenlabs") is False
+    prepared = prepare_narration("晚安。", voice_id="zh_female_vv", speech_provider="fishaudio")
+    assert prepared.ssml is None
+
+
 def test_prepare_empty():
     prepared = prepare_narration("")
     assert prepared.display == ""

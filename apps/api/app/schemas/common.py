@@ -1,4 +1,6 @@
-from pydantic import BaseModel, Field
+from datetime import date
+
+from pydantic import BaseModel, Field, field_validator
 
 
 class TokenResponse(BaseModel):
@@ -19,20 +21,46 @@ class AppleLoginRequest(BaseModel):
 
 class ChildCreate(BaseModel):
     nickname: str = Field(min_length=1, max_length=64)
-    age_band: str = "3-5"
+    birth_date: date | None = None
+    # Deprecated: accepted for old clients; ignored when birth_date is set.
+    age_band: str | None = None
+    gender: str = "unspecified"
+    intro: str | None = Field(default=None, max_length=2000)
     interests: list[str] = []
+
+    @field_validator("gender")
+    @classmethod
+    def _gender(cls, v: str) -> str:
+        from app.services.child_profile import normalize_gender
+
+        return normalize_gender(v)
 
 
 class ChildUpdate(BaseModel):
     nickname: str | None = Field(default=None, min_length=1, max_length=64)
-    age_band: str | None = None
+    birth_date: date | None = None
+    age_band: str | None = None  # deprecated
+    gender: str | None = None
+    intro: str | None = Field(default=None, max_length=2000)
     interests: list[str] | None = None
+
+    @field_validator("gender")
+    @classmethod
+    def _gender(cls, v: str | None) -> str | None:
+        if v is None:
+            return None
+        from app.services.child_profile import normalize_gender
+
+        return normalize_gender(v)
 
 
 class ChildOut(BaseModel):
     id: int
     nickname: str
-    age_band: str
+    birth_date: date | None = None
+    age_band: str  # derived from birth_date for story dials
+    gender: str = "unspecified"
+    intro: str | None = None
     interests: list[str] = []
 
     model_config = {"from_attributes": True}
@@ -50,6 +78,7 @@ class VoiceOut(BaseModel):
     name: str
     kind: str
     language: str
+    provider: str = "fishaudio"
     provider_voice_id: str
 
     model_config = {"from_attributes": True}
@@ -106,6 +135,8 @@ class StoryOut(BaseModel):
     error_message: str | None = None
     voice_name: str | None = None
     development_focus_label: str | None = None
+    story_provider: str | None = None
+    speech_provider: str | None = None
 
     model_config = {"from_attributes": True}
 

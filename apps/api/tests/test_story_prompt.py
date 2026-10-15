@@ -1,5 +1,6 @@
 from app.providers.base import StoryRequest
 from app.providers.story_prompt import (
+    BEAT_PATTERNS,
     PLAN_SYSTEM_PROMPT,
     SERIES_OUTLINE_SYSTEM_PROMPT,
     SYSTEM_PROMPT,
@@ -64,21 +65,20 @@ def test_normalize_dial_defaults():
 
 
 def test_oral_and_lead_in_in_system_prompt():
-    assert "口语听感" in SYSTEM_PROMPT or "听感" in SYSTEM_PROMPT
-    assert "正文开头结构" in SYSTEM_PROMPT or "opening_pattern" in SYSTEM_PROMPT
+    assert "听感" in SYSTEM_PROMPT
     assert "一句一事" in SYSTEM_PROMPT
     assert "story_plan" in SYSTEM_PROMPT
+    assert "听前开场白" in SYSTEM_PROMPT
+    assert "播客" in SYSTEM_PROMPT
     assert "[pause:short]" in SYSTEM_PROMPT
-    assert "晚安" in SYSTEM_PROMPT
     assert "cast_spine" in SERIES_OUTLINE_SYSTEM_PROMPT
     assert "catchphrase" in SERIES_OUTLINE_SYSTEM_PROMPT
     assert "禁止把终集 focus_id 设为 wind_down" in SERIES_OUTLINE_SYSTEM_PROMPT
     assert "beat_pattern" in PLAN_SYSTEM_PROMPT
-    assert "opening_pattern" in PLAN_SYSTEM_PROMPT
-    assert "cast_intro_mode" in PLAN_SYSTEM_PROMPT
+    assert "升级或转变" in PLAN_SYSTEM_PROMPT
+    assert "听前开场白" in PLAN_SYSTEM_PROMPT
     assert "try_1" in PLAN_SYSTEM_PROMPT
     assert "cast_use" in PLAN_SYSTEM_PROMPT
-    assert "正文开头结构" in SYSTEM_PROMPT or "opening_pattern" in SYSTEM_PROMPT
 
 
 def test_focus_from_series_outline():
@@ -98,10 +98,32 @@ def test_select_beat_pattern_stable_and_mapped():
     a = select_beat_pattern("tiny_brave", episode_no=1, salt="豆豆")
     b = select_beat_pattern("tiny_brave", episode_no=1, salt="豆豆")
     assert a == b
-    assert a["id"] in ("approach_retry", "lost_and_held")
-    assert "instruction" in a
+    assert a["id"] in ("two_gates", "threshold", "helper_earned")
+    assert a.get("lineage")
+    assert "升级或转变" in a["instruction"]
     settle = select_beat_pattern("wind_down", episode_no=2, salt="x")
-    assert settle["id"] in ("settle_after_play", "wait_signal")
+    assert settle["id"] in ("settle_ladder", "home_and_back", "echo_shift")
+
+
+def test_select_beat_pattern_prefers_theme_tags():
+    # 「钥匙」应偏向 misused_gift（寓言礼物框）
+    picked = select_beat_pattern(
+        "gentle_agency",
+        theme="一把会发光的小钥匙",
+        episode_no=1,
+        salt="theme-key",
+    )
+    assert picked["id"] in BEAT_PATTERNS
+    # theme-matched pool for 钥匙 includes misused_gift; selection may still rotate
+    # among options that include theme hits — assert lineage variety exists
+    assert picked["lineage"] in ("fairy", "fable", "folk", "drama", "ritual")
+    forest = select_beat_pattern(
+        "tiny_brave",
+        theme="黑森林里的小火车",
+        episode_no=1,
+        salt="forest-train",
+    )
+    assert forest["id"] in ("two_gates", "threshold", "helper_earned", "home_and_back")
 
 
 def test_select_opening_and_cast_intro():
@@ -210,8 +232,11 @@ def test_user_payload_includes_style_dials_and_length():
     assert "障碍" in payload["style_dials"]["plot_drive"]["instruction"]
     assert payload["style_dials"]["dialogue"]["level"] == "more"
     assert payload["style_dials"]["lead_in"]["level"] == "curious"
-    assert "总领" in payload["style_dials"]["lead_in"]["instruction"]
+    assert "开场白" in payload["style_dials"]["lead_in"]["instruction"]
+    assert "12%" in payload["style_dials"]["lead_in"]["instruction"]
+    assert any("开场白" in r for r in payload["style_reminders"])
     assert any("听感" in r or "口语" in r for r in payload["style_reminders"])
+    assert "child_profile_guidance" in payload
     assert payload["length_target"]["target"] == 3 * 230
     assert "汉字" in payload["length_target"]["instruction"]
     assert "length_target" in SYSTEM_PROMPT
@@ -282,7 +307,36 @@ def test_lead_in_none_forces_empty_promise():
     assert plan["soft_promise"] == ""
     assert plan["try_1"]
     assert plan["try_2"]
-    assert "晚安" in plan["sleep_beat"]
+    # Do not inject canned goodnight prose when model omits 晚安.
+    assert plan["sleep_beat"] == "睡"
+    assert "晚安，一点点" not in plan["sleep_beat"]
+
+
+def test_validate_plan_never_injects_canned_spoken_lines():
+    plan = validate_episode_plan(
+        {
+            "wish": "找碗",
+            "snag": "太暗",
+            "try_1": "",
+            "try_2": "",
+            "try_beat": "",
+            "turn_ok": "摸到了",
+            "soft_promise": "今晚想弄明白小猫在找什么",
+            "opening_kind": "curiosity",
+            "sleep_beat": "慢慢闭上眼",
+            "title_hint": "小猫",
+            "opening_lines": "",
+        },
+        lead_in="curious",
+    )
+    assert "晚安，一点点" not in plan["sleep_beat"]
+    assert "晚安，今晚" not in plan["sleep_beat"]
+    assert plan["sleep_beat"] == "慢慢闭上眼"
+    assert plan["opening_lines"] == ""
+    assert "试一试" not in plan["try_1"]
+    assert "再轻轻试一次" not in plan["try_2"]
+    assert plan["try_1"] == "找碗"  # from wish, not a canned filler
+    assert plan["try_2"] == "摸到了"
 
 
 def test_validate_plan_series_soft_hook_fallback():
@@ -327,7 +381,8 @@ def test_validate_forces_opening_kind_from_pattern():
         cast_intro_mode=select_cast_intro_mode(soft_series_mode=True, episode_no=1),
     )
     assert plan["opening_kind"] == opening["opening_kind"]
-    assert plan["opening_lines"]
+    # opening_lines stay empty if model omitted them — do not copy soft_promise in.
+    assert plan["opening_lines"] == ""
     assert plan["cast_intro_mode"] == "full_intro"
 
 
@@ -338,6 +393,8 @@ def test_draft_message_includes_story_plan():
         language="zh",
         theme="月亮",
         duration_minutes=5,
+        child_gender="girl",
+        child_intro="喜欢小兔子",
     )
     plan = {
         "wish": "摸月亮",
@@ -346,6 +403,8 @@ def test_draft_message_includes_story_plan():
         "turn_ok": "看见倒影",
         "soft_promise": "月亮会怎样",
         "opening_kind": "curiosity",
+        "opening_pattern": "gentle_wonder",
+        "opening_lines": "安顿听者；点出月亮窗边；轻提今晚会看见什么",
         "plants_tonight": [],
         "payoffs_tonight": [],
         "places": ["窗边"],
@@ -357,6 +416,24 @@ def test_draft_message_includes_story_plan():
     msg = build_user_message(req, plan)
     assert "story_plan" in msg
     assert "摸月亮" in msg
+    assert "听前开场白" in msg
+    assert "warm_up_host_voice" in msg
+    assert "must_land_warm_up_before_plot" in msg
+    assert "land_try_beats_as_planned" in msg
+    assert "try_escalation_required" not in msg
+    assert "child_profile_guidance" in msg
+    assert "女孩" in msg or "偏女孩" in msg
+
+
+def test_child_profile_guidance_in_payload():
+    from app.providers.story_prompt import build_child_profile_guidance
+
+    g = build_child_profile_guidance(
+        gender="boy", intro="爱挖机", nickname="悠悠"
+    )
+    assert "男孩" in g
+    assert "轻点" in g
+    assert "悠悠" in g
 
 
 def test_outline_user_message_has_count():

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 from dataclasses import asdict, fields
 from typing import Any
 
@@ -18,6 +19,7 @@ from app.providers.factory import get_story_provider, get_tts_provider
 from app.providers.story_prompt import clamp_episode_count
 from app.services.errors import safe_error_message
 from app.services.narration_prosody import strip_performance_markers, synthesize_with_prosody
+from app.services.provider_settings import resolve_speech_provider_name, resolve_story_provider_name
 from app.services.storage import storage_service
 
 logger = logging.getLogger(__name__)
@@ -62,8 +64,11 @@ async def process_story_job(
     user_id: int,
     episode_count: int,
     continuing_series_id: int | None,
+    story_provider: str | None = None,
+    speech_provider: str | None = None,
 ) -> None:
     """Run outside the request lifecycle; opens its own DB session."""
+    job_t0 = time.perf_counter()
     async with SessionLocal() as db:
         try:
             await _set_story_progress(db, story_id, progress="queued", status="generating")
@@ -74,11 +79,36 @@ async def process_story_job(
                 if k in voice_settings
             })
 
+            story_name = (story_provider or await resolve_story_provider_name()).strip().lower()
+            speech_name = (speech_provider or await resolve_speech_provider_name()).strip().lower()
+
+            story = await db.get(Story, story_id)
+            if story is not None:
+                story.story_provider = story_name
+                story.speech_provider = speech_name
+                await db.commit()
+
+            logger.info(
+                "story_timing story_id=%s stage=job_start story=%s speech=%s duration_min=%s",
+                story_id,
+                story_name,
+                speech_name,
+                req.duration_minutes,
+            )
+
             async def on_progress(stage: str) -> None:
                 await _set_story_progress(db, story_id, progress=stage)
 
-            provider = get_story_provider()
+            provider = get_story_provider(story_name)
+            llm_t0 = time.perf_counter()
             result = await provider.generate(req, on_progress=on_progress)
+            llm_ms = int((time.perf_counter() - llm_t0) * 1000)
+            logger.info(
+                "story_timing story_id=%s stage=llm_total ok ms=%s body_chars=%s",
+                story_id,
+                llm_ms,
+                len(result.body or ""),
+            )
 
             story = await db.get(Story, story_id)
             if story is None:
@@ -89,6 +119,14 @@ async def process_story_job(
             story.body = strip_performance_markers(result.body)
             story.soft_hook = result.soft_hook
             story.error_message = None
+            story.story_provider = story_name
+            story.speech_provider = speech_name
+            if result.episode_plan is not None:
+                story.episode_plan_json = json.dumps(
+                    result.episode_plan, ensure_ascii=False
+                )
+            else:
+                story.episode_plan_json = None
 
             if result.series_outline is not None:
                 series = StorySeries(
@@ -115,9 +153,21 @@ async def process_story_job(
             await db.commit()
 
             await _set_story_progress(db, story_id, progress="tts")
-            tts = get_tts_provider()
+            tts = get_tts_provider(speech_name)
+            tts_t0 = time.perf_counter()
             audio_bytes, display_body = await synthesize_with_prosody(
-                tts, result.body, provider_voice_id, vs
+                tts,
+                result.body,
+                provider_voice_id,
+                vs,
+                speech_provider=speech_name,
+            )
+            tts_ms = int((time.perf_counter() - tts_t0) * 1000)
+            logger.info(
+                "story_timing story_id=%s stage=tts ok ms=%s audio_bytes=%s",
+                story_id,
+                tts_ms,
+                len(audio_bytes),
             )
             story = await db.get(Story, story_id)
             if story is None:
@@ -127,7 +177,14 @@ async def process_story_job(
             await db.commit()
 
             key = storage_service.new_key(f"stories/{user_id}", ".mp3")
+            storage_t0 = time.perf_counter()
             await storage_service.put_bytes(key, audio_bytes, "audio/mpeg")
+            storage_ms = int((time.perf_counter() - storage_t0) * 1000)
+            logger.info(
+                "story_timing story_id=%s stage=storage ok ms=%s",
+                story_id,
+                storage_ms,
+            )
 
             story = (
                 await db.execute(
@@ -143,11 +200,24 @@ async def process_story_job(
             story.progress = "ready"
             story.error_message = None
             await db.commit()
+            total_ms = int((time.perf_counter() - job_t0) * 1000)
+            logger.info(
+                "story_timing story_id=%s stage=job_total ok ms=%s llm_ms=%s tts_ms=%s storage_ms=%s audio_bytes=%s",
+                story_id,
+                total_ms,
+                llm_ms,
+                tts_ms,
+                storage_ms,
+                len(audio_bytes),
+            )
             logger.info(
                 "story_job ready story_id=%s audio_bytes=%s", story_id, len(audio_bytes)
             )
         except Exception as exc:
-            logger.exception("story_job failed story_id=%s", story_id)
+            total_ms = int((time.perf_counter() - job_t0) * 1000)
+            logger.exception(
+                "story_job failed story_id=%s after_ms=%s", story_id, total_ms
+            )
             try:
                 await _set_story_progress(
                     db,

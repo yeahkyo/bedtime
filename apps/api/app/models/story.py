@@ -34,6 +34,11 @@ class Story(Base):
     recap: Mapped[str | None] = mapped_column(Text, nullable=True)
     soft_hook: Mapped[str | None] = mapped_column(Text, nullable=True)
     voice_settings_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Generation meta for admin comparison (not chosen by App clients).
+    story_provider: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    speech_provider: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    # LLM episode_plan JSON (admin quality tooling); null for older rows / failures before plan.
+    episode_plan_json: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

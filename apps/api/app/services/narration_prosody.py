@@ -113,11 +113,19 @@ def is_clone_voice(voice_id: str) -> bool:
     return voice_id.startswith("S_") or voice_id.startswith("custom_")
 
 
-def voice_supports_ssml(voice_id: str) -> bool:
+def voice_supports_ssml(
+    voice_id: str,
+    *,
+    speech_provider: str | None = None,
+) -> bool:
     """
+    Only Volc system voices may use SSML. Fish / ElevenLabs / mock → punctuation path.
     Volc docs: seed-tts-2.0 / seed-icl-2.0 currently do not take SSML.
     Enable with VOLC_TTS_ENABLE_SSML=1 for system voices when the resource supports it.
     """
+    provider = (speech_provider or "").strip().lower()
+    if provider and provider != "volc":
+        return False
     if is_clone_voice(voice_id):
         return False
     cfg = get_settings()
@@ -126,7 +134,8 @@ def voice_supports_ssml(voice_id: str) -> bool:
     resource = (cfg.volc_tts_resource_id or "").lower()
     if "2.0" in resource or "icl" in resource:
         return False
-    return True
+    # Without an explicit speech_provider, keep legacy Volc heuristics.
+    return provider == "volc" or not provider
 
 
 def _style_deltas(marked: str) -> tuple[int, int]:
@@ -237,14 +246,19 @@ def markers_to_ssml(marked: str) -> str:
     return "".join(parts)
 
 
-def prepare_narration(body: str, *, voice_id: str = "") -> PreparedNarration:
+def prepare_narration(
+    body: str,
+    *,
+    voice_id: str = "",
+    speech_provider: str | None = None,
+) -> PreparedNarration:
     """Build display text + TTS payload (SSML when supported, else punctuated plain)."""
     marked = apply_performance_heuristics(body)
     display = strip_performance_markers(marked)
     rate, loud = _style_deltas(marked)
     speak = markers_to_punctuated_text(marked) or display
     ssml = None
-    if voice_id and voice_supports_ssml(voice_id):
+    if voice_id and voice_supports_ssml(voice_id, speech_provider=speech_provider):
         ssml = markers_to_ssml(marked)
         # Mid-phrase prosody is in SSML; keep mild global nudge only if styles present.
     return PreparedNarration(
@@ -261,12 +275,16 @@ async def synthesize_with_prosody(
     text: str,
     voice_id: str,
     settings: VoiceSettings,
+    *,
+    speech_provider: str | None = None,
 ) -> tuple[bytes, str]:
     """
     Single TTS call with SSML breaks (system, non-2.0) or punctuation breaths.
     Returns (audio_mp3, display_body without markers).
     """
-    prepared = prepare_narration(text, voice_id=voice_id)
+    prepared = prepare_narration(
+        text, voice_id=voice_id, speech_provider=speech_provider
+    )
     display = prepared.display or strip_performance_markers(text)
 
     if prepared.ssml:

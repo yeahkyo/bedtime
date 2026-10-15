@@ -24,6 +24,11 @@ class Settings(BaseSettings):
     # Header X-Retention-Admin-Token must match for POST /v1/account/retention/run outside is_dev.
     retention_admin_token: str | None = None
 
+    # Admin UI bootstrap (Bandage-style). Empty password disables login.
+    admin_bootstrap_username: str = "admin"
+    admin_bootstrap_password: str | None = None
+    admin_jwt_expire_hours: int = 12
+
     s3_endpoint_url: str | None = "http://127.0.0.1:9000"
     s3_access_key: str = "minioadmin"
     s3_secret_key: str = "minioadmin"
@@ -32,11 +37,19 @@ class Settings(BaseSettings):
     s3_public_base_url: str | None = None
     storage_backend: str = "s3"  # s3 | local
 
-    # mock | volc (豆包+火山语音) | openai (OpenAI+ElevenLabs)
-    provider_profile: str = "volc"
+    # Compat preset: volc | openai | fish (doubao+fishaudio). Overridden by story/speech knobs.
+    provider_profile: str = "fish"
+
+    # Independent knobs (empty = derive from provider_profile).
+    story_provider: str = ""
+    speech_provider: str = ""
 
     openai_api_key: str | None = None
     openai_model: str = "gpt-4o-mini"
+
+    deepseek_api_key: str | None = None
+    deepseek_base_url: str = "https://api.deepseek.com"
+    deepseek_model: str = "deepseek-flash"
 
     ark_api_key: str | None = None
     ark_base_url: str = "https://ark.cn-beijing.volces.com/api/v3"
@@ -53,6 +66,11 @@ class Settings(BaseSettings):
     elevenlabs_api_key: str | None = None
     elevenlabs_default_voice_id: str = "21m00Tcm4TlvDq8ikWAM"
     elevenlabs_model_id: str = "eleven_multilingual_v2"
+
+    fish_audio_api_key: str | None = None
+    fish_audio_default_voice_id: str = ""
+    fish_audio_tts_model: str = "s2-pro"
+    fish_audio_base_url: str = "https://api.fish.audio"
 
     story_retention_months: int = 24
     raw_voice_retention_hours: int = 24
@@ -88,6 +106,8 @@ def validate_settings_for_runtime(settings: Settings | None = None) -> None:
         errors.append("STORAGE_BACKEND must be s3 when ENV is not dev")
     if not (s.retention_admin_token or "").strip():
         errors.append("RETENTION_ADMIN_TOKEN must be set when ENV is not dev")
+    if not (s.admin_bootstrap_password or "").strip():
+        errors.append("ADMIN_BOOTSTRAP_PASSWORD must be set when ENV is not dev")
     if errors:
         raise SettingsValidationError("; ".join(errors))
 

@@ -5,6 +5,9 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.db import Base
 
+# Per-user default TTS voice display name (created via system-default).
+SYSTEM_VOICE_NAME = "枕边柔声"
+
 
 class Voice(Base):
     __tablename__ = "voices"
@@ -13,7 +16,7 @@ class Voice(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     name: Mapped[str] = mapped_column(String(64))
     kind: Mapped[str] = mapped_column(String(32), default="system")  # system | clone
-    provider: Mapped[str] = mapped_column(String(32), default="elevenlabs")
+    provider: Mapped[str] = mapped_column(String(32), default="fishaudio")
     provider_voice_id: Mapped[str] = mapped_column(String(128))
     language: Mapped[str] = mapped_column(String(8), default="zh")
     consent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
