@@ -12,7 +12,10 @@ from app.models.user import User
 from app.models.voice import Voice
 from app.providers.factory import get_clone_provider
 from app.schemas.common import VoiceOut, VoiceUpdate
-from app.services.provider_settings import resolve_speech_model, resolve_speech_provider_name
+from app.services.provider_settings import (
+    first_configured_speech_provider,
+    resolve_speech_model,
+)
 from app.services.quota import check_and_increment
 from app.services.retention import raw_voice_purge_at
 from app.services.storage import storage_service
@@ -45,6 +48,7 @@ async def _to_voice_out(voice: Voice) -> VoiceOut:
         speed_tier=getattr(voice, "speed_tier", None) or "medium",
         enabled=bool(getattr(voice, "enabled", True)),
         description=desc,
+        sort_order=int(getattr(voice, "sort_order", 0) or 0),
         preview_audio_url=preview_url,
     )
 
@@ -78,7 +82,7 @@ async def list_voices(
                 or_(Voice.user_id.is_(None), Voice.user_id == user.id),
                 Voice.enabled.is_(True),
             )
-            .order_by(Voice.id.asc())
+            .order_by(Voice.sort_order.asc(), Voice.id.asc())
         )
     ).scalars().all()
     return [await _to_voice_out(v) for v in _filter_visible_voices(list(rows))]
@@ -157,7 +161,22 @@ async def clone_voice(
     if len(audio) < 1000:
         raise HTTPException(status_code=400, detail="Audio sample too short")
 
-    speech_provider = await resolve_speech_provider_name()
+    # Clone backend follows an enabled catalog voice when present; else first configured key.
+    catalog = (
+        await db.execute(
+            select(Voice)
+            .where(
+                Voice.user_id.is_(None),
+                Voice.kind == "system",
+                Voice.enabled.is_(True),
+            )
+            .order_by(Voice.sort_order.asc(), Voice.id.asc())
+            .limit(1)
+        )
+    ).scalar_one_or_none()
+    speech_provider = (
+        (catalog.provider if catalog else None) or first_configured_speech_provider()
+    ).strip().lower()
     speech_model = (await resolve_speech_model(speech_provider) or "").strip() or None
 
     # Ephemeral store then purge ASAP after clone
@@ -187,6 +206,7 @@ async def clone_voice(
         raw_object_key=None,
         raw_purge_after=raw_voice_purge_at(),
         enabled=True,
+        sort_order=1000,
     )
     db.add(voice)
     await db.commit()

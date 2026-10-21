@@ -68,14 +68,8 @@ async def test_resolve_speech_model_falls_back_env():
 
 
 @pytest.mark.asyncio
-async def test_resolve_speech_model_voice_beats_runtime():
+async def test_resolve_speech_model_voice_beats_env():
     s = Settings(aliyun_tts_model="cosyvoice-v3-flash", mock_providers=False)
-    with (
-        patch(
-            "app.services.provider_settings.get_runtime_overrides",
-            AsyncMock(return_value={"speech_model": "runtime-model"}),
-        ),
-        patch("app.services.provider_settings.get_settings", return_value=s),
-    ):
+    with patch("app.services.provider_settings.get_settings", return_value=s):
         assert await resolve_speech_model("aliyun", voice_model="voice-model") == "voice-model"
-        assert await resolve_speech_model("aliyun") == "runtime-model"
+        assert await resolve_speech_model("aliyun") == "cosyvoice-v3-flash"

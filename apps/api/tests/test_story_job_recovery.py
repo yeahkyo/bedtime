@@ -241,11 +241,7 @@ async def test_reclaim_skips_live_resumes_orphan_tts_fails_draft():
         async def commit(self):
             return None
 
-    with patch(
-        "app.services.story_job_recovery.resolve_speech_provider_name",
-        AsyncMock(return_value="fishaudio"),
-    ):
-        jobs, failed = await reclaim_orphaned_story_jobs(_Db())
+    jobs, failed = await reclaim_orphaned_story_jobs(_Db())
 
     assert failed == 1
     assert len(jobs) == 1

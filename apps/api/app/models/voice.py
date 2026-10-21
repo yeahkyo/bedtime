@@ -29,6 +29,8 @@ class Voice(Base):
     speed_tier: Mapped[str] = mapped_column(String(16), default="medium")
     # Disabled voices are hidden from the app catalog (admin can still edit).
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    # App picker order: lower first (admin-editable).
+    sort_order: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     # Persisted TTS sample for admin/app preview playback.
     preview_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     preview_object_key: Mapped[str | None] = mapped_column(String(512), nullable=True)

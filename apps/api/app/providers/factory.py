@@ -8,7 +8,7 @@ from app.providers.fish_tts import FishAudioTtsProvider, FishAudioVoiceCloneProv
 from app.providers.mock import MockStoryProvider, MockTtsProvider, MockVoiceCloneProvider
 from app.providers.openai_story import OpenAIStoryProvider
 from app.providers.volc_tts import VolcTtsProvider, VolcVoiceCloneProvider
-from app.services.provider_settings import env_speech_provider, env_story_provider
+from app.services.provider_settings import first_configured_speech_provider, env_story_provider
 
 
 def _normalize(name: str | None) -> str | None:
@@ -34,7 +34,7 @@ def get_story_provider(name: str | None = None) -> StoryProvider:
 
 def get_tts_provider(name: str | None = None) -> TtsProvider:
     settings = get_settings()
-    resolved = _normalize(name) or env_speech_provider(settings)
+    resolved = _normalize(name) or first_configured_speech_provider(settings)
     if settings.mock_providers or resolved == "mock":
         return MockTtsProvider()
     if resolved in ("volc", "doubao", "ark"):
@@ -50,7 +50,7 @@ def get_tts_provider(name: str | None = None) -> TtsProvider:
 
 def get_clone_provider(name: str | None = None) -> VoiceCloneProvider:
     settings = get_settings()
-    resolved = _normalize(name) or env_speech_provider(settings)
+    resolved = _normalize(name) or first_configured_speech_provider(settings)
     if settings.mock_providers or resolved == "mock":
         return MockVoiceCloneProvider()
     if resolved in ("volc", "doubao", "ark"):

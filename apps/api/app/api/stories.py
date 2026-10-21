@@ -32,8 +32,8 @@ from app.services.child_profile import (
 )
 from app.services.narration_prosody import prepare_narration, synthesize_with_prosody
 from app.services.provider_settings import (
+    first_configured_speech_provider,
     resolve_speech_model,
-    resolve_speech_provider_name,
     resolve_story_provider_name,
 )
 from app.services.storage import storage_service
@@ -272,8 +272,7 @@ async def _resolve_voice_and_settings(
         ):
             raise HTTPException(status_code=404, detail="Voice not found")
     else:
-        speech = await resolve_speech_provider_name()
-        voice = await ensure_system_voice(db, user, speech)
+        voice = await ensure_system_voice(db, user)
 
     if prefs:
         vs = VoiceSettings(
@@ -362,7 +361,9 @@ async def create_story_batch(
     await check_and_increment(db, user.id, "story")
 
     story_provider = await resolve_story_provider_name()
-    speech_provider = (voice.provider or await resolve_speech_provider_name()).strip().lower()
+    speech_provider = (
+        voice.provider or first_configured_speech_provider()
+    ).strip().lower()
     speech_model = await resolve_speech_model(
         speech_provider, voice_model=voice.speech_model
     )
@@ -564,7 +565,9 @@ async def retry_failed_story(
         retry_params["story_kernel_id"] = kernel_id or prev_kernel
 
     story_provider = await resolve_story_provider_name()
-    speech_provider = (voice.provider or await resolve_speech_provider_name()).strip().lower()
+    speech_provider = (
+        voice.provider or first_configured_speech_provider()
+    ).strip().lower()
     speech_model = await resolve_speech_model(
         speech_provider, voice_model=voice.speech_model
     )
@@ -695,7 +698,7 @@ async def create_story_streaming(
     await check_and_increment(db, user.id, "story")
 
     story_name = await resolve_story_provider_name()
-    speech_name = (voice.provider or await resolve_speech_provider_name()).strip().lower()
+    speech_name = (voice.provider or first_configured_speech_provider()).strip().lower()
     speech_model = await resolve_speech_model(
         speech_name, voice_model=voice.speech_model
     )

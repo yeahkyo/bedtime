@@ -1,32 +1,31 @@
 # Providers
 
-Text (story LLM) and speech (TTS + voice clone) are **independent**. App clients do not pick providers; story LLM defaults come from env / admin runtime override. TTS for a request follows the selected **Voice**: `Voice.provider` + optional `Voice.speech_model` (empty → Admin/env speech model for that provider).
+Text (story LLM) and speech (TTS + voice clone) are **independent**. App clients do not pick providers.
 
-## Selection order
+- **Story LLM** defaults: Admin runtime override → `STORY_PROVIDER` → `PROVIDER_PROFILE` → mock.
+- **TTS / clone** follow the selected **Voice**: `Voice.provider` + optional `Voice.speech_model` (empty → env default for that provider). There is **no global Speech Provider** setting.
+
+## Story selection order
 
 1. Redis runtime override (`PATCH /admin/settings/providers`) — if set
-2. `STORY_PROVIDER` / `SPEECH_PROVIDER` env — if non-empty
-3. `PROVIDER_PROFILE` preset
-4. `MOCK_PROVIDERS=1` → all mock
+2. `STORY_PROVIDER` env — if non-empty
+3. `PROVIDER_PROFILE` preset (story LLM only)
+4. `MOCK_PROVIDERS=1` → mock
 
-| Profile | Story LLM | TTS / Clone |
-|---------|-----------|-------------|
-| `fish`（默认） | 豆包 Ark | Fish Audio |
-| `volc` | 豆包 Ark | 火山豆包语音（槽位暂停时可不用） |
-| `aliyun` | 豆包 Ark | 阿里云百炼 CosyVoice |
-| `openai` | OpenAI | ElevenLabs |
-| `deepseek` | DeepSeek | Fish Audio |
-| （`MOCK_PROVIDERS=1`） | Mock | Mock |
-
-Independent knobs:
+| Profile | Story LLM |
+|---------|-----------|
+| `fish`（默认） | 豆包 Ark |
+| `volc` / `aliyun` / `cosyvoice` | 豆包 Ark |
+| `openai` | OpenAI |
+| `deepseek` | DeepSeek |
+| （`MOCK_PROVIDERS=1`） | Mock |
 
 ```bash
 STORY_PROVIDER=doubao          # doubao | openai | deepseek | mock
-SPEECH_PROVIDER=fishaudio      # fishaudio | volc | elevenlabs | aliyun | mock
 STORY_SKIP_TTS=0               # optional: 1 = skip TTS after LLM (text-only ready)
 ```
 
-Admin **Provider 设置**可在运行时覆盖供应商与模型（Redis 文本字段，无固定模型列表）：`story_model` / `speech_model`，优先于 env 默认。其中 `speech_model` 仅作 **音色未设置 model 时的全局回退**。Admin **音色**页可编辑每条 `Voice.provider` / `Voice.speech_model` / `provider_voice_id`。LLM Agent 行上填写的 `provider` / `model` 仅对该 agent 阶段生效，并优先于 Provider 设置页。
+Admin **Provider 设置**只覆盖 Story Provider / Model。TTS 在 **音色**页配置每条 `Voice.provider` / `Voice.speech_model` / `provider_voice_id`。克隆默认跟随一条已启用的全局系统音色的 `provider`（否则探测已配置 key 的 speech 后端）。LLM Agent 行上的 `provider` / `model` 仅对该 agent 阶段生效。
 
 When `STORY_SKIP_TTS=1`, the job finishes after outline/plan/draft with `status=ready` and no audio. Default is off (`0`).
 
@@ -64,8 +63,7 @@ VOLC_DEFAULT_SPEAKER=zh_female_vv_uranus_bigtts
 ## Aliyun / 百炼 CosyVoice
 
 ```bash
-SPEECH_PROVIDER=aliyun
-# 或 PROVIDER_PROFILE=aliyun
+# Create/enable an Admin Voice with provider=aliyun (no global SPEECH_PROVIDER).
 
 ALIYUN_DASHSCOPE_API_KEY=...    # 或 DASHSCOPE_API_KEY
 ALIYUN_TTS_WORKSPACE_ID=...     # 业务空间 ID（专属域名）；空则回退 dashscope.aliyuncs.com
@@ -91,7 +89,7 @@ DEEPSEEK_THINKING=true
 DEEPSEEK_REASONING_EFFORT=low   # ceiling: low | medium | high | max
 ```
 
-设 `STORY_PROVIDER=deepseek` 或 Admin「Provider 设置」切换；语音仍跟 `SPEECH_PROVIDER` / `Voice.provider`。
+设 `STORY_PROVIDER=deepseek` 或 Admin「Provider 设置」切换；语音跟所选 `Voice.provider`。
 
 故事请求默认开 thinking；`reasoning_effort` 按 stage 取低值（outline / plan / draft 均为 `low`），`DEEPSEEK_REASONING_EFFORT` 只作上限不能再抬高。API 的 `max_tokens` = **可见 JSON 预算**（agent / `max_tokens_for_story`）+ **该 effort 的 CoT 预留**（共用一个桶）。截断时优先 **关掉 thinking 重试**，而不是胀额度再跑一轮长 CoT。Admin 目录编撰仍关 thinking。
 

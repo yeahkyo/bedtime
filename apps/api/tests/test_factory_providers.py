@@ -11,21 +11,20 @@ from app.providers.mock import MockStoryProvider, MockTtsProvider, MockVoiceClon
 from app.providers.openai_story import OpenAIStoryProvider
 from app.providers.volc_tts import VolcTtsProvider, VolcVoiceCloneProvider
 from app.services.provider_settings import (
-    env_speech_provider,
     env_story_provider,
+    first_configured_speech_provider,
     profile_defaults,
     speech_default_voice_id,
 )
 
 
-def test_profile_fish_defaults():
+def test_profile_fish_defaults_story_only():
     s = Settings(provider_profile="fish", story_provider="", speech_provider="", mock_providers=False)
-    assert profile_defaults(s) == ("doubao", "fishaudio")
+    assert profile_defaults(s) == "doubao"
     assert env_story_provider(s) == "doubao"
-    assert env_speech_provider(s) == "fishaudio"
 
 
-def test_explicit_knobs_override_profile():
+def test_explicit_story_knob_overrides_profile():
     s = Settings(
         provider_profile="volc",
         story_provider="openai",
@@ -33,7 +32,15 @@ def test_explicit_knobs_override_profile():
         mock_providers=False,
     )
     assert env_story_provider(s) == "openai"
-    assert env_speech_provider(s) == "fishaudio"
+
+
+def test_first_configured_speech_prefers_aliyun_when_keyed():
+    s = Settings(
+        mock_providers=False,
+        aliyun_dashscope_api_key="ak",
+        fish_audio_api_key="fk",
+    )
+    assert first_configured_speech_provider(s) == "aliyun"
 
 
 def test_factory_by_name():

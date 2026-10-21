@@ -20,7 +20,7 @@ from sqlalchemy.orm import selectinload
 from app.models.story import Story
 from app.models.voice import Voice
 from app.providers.base import VoiceSettings
-from app.services.provider_settings import resolve_speech_provider_name
+from app.services.provider_settings import first_configured_speech_provider
 
 logger = logging.getLogger(__name__)
 
@@ -189,7 +189,9 @@ async def build_resume_tts_job(
     if voice is None or not (voice.provider_voice_id or "").strip():
         return None
     vs = await _voice_settings_from_story(story)
-    speech = (story.speech_provider or voice.provider or await resolve_speech_provider_name())
+    speech = (
+        story.speech_provider or voice.provider or first_configured_speech_provider()
+    )
     return ResumeTtsJob(
         story_id=story.id,
         user_id=story.user_id,

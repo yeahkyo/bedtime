@@ -29,7 +29,10 @@ from app.providers.story_pipeline import merge_submitted_prompts
 from app.providers.story_prompt import clamp_episode_count
 from app.services.errors import safe_error_message
 from app.services.narration_prosody import strip_performance_markers, synthesize_with_prosody
-from app.services.provider_settings import resolve_speech_provider_name, resolve_story_provider_name
+from app.services.provider_settings import (
+    first_configured_speech_provider,
+    resolve_story_provider_name,
+)
 from app.services.storage import storage_service
 from app.services.story_elements import resolve_story_element_for_job
 from app.services.story_job_recovery import (
@@ -339,7 +342,7 @@ async def process_story_tts_resume(
     async with SessionLocal() as db:
         try:
             speech_name = (
-                speech_provider or await resolve_speech_provider_name()
+                speech_provider or first_configured_speech_provider()
             ).strip().lower()
             story = await db.get(Story, story_id)
             if story is None:
@@ -418,7 +421,7 @@ async def process_story_job(
                 )
             ).scalar_one_or_none()
             speech_name = (
-                speech_provider or await resolve_speech_provider_name()
+                speech_provider or first_configured_speech_provider()
             ).strip().lower()
             # Prefer TTS-only when asked or when body was checkpointed at TTS.
             want_tts_only = resume_tts_only or (

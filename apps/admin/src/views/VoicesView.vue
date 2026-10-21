@@ -17,6 +17,7 @@ export interface AdminVoiceRow {
   speech_model: string | null
   speed_tier: string
   enabled: boolean
+  sort_order: number
   preview_text: string | null
   preview_audio_url: string | null
   preview_generated_at: string | null
@@ -68,6 +69,7 @@ const form = ref({
   speech_model: '',
   speed_tier: 'medium',
   enabled: true,
+  sort_order: 0,
   preview_text: DEFAULT_PREVIEW_ZH,
   preview_audio_url: null as string | null,
   preview_generated_at: null as string | null,
@@ -237,6 +239,22 @@ async function toggleEnabled(row: AdminVoiceRow, enabled: boolean) {
   }
 }
 
+async function saveSortOrder(row: AdminVoiceRow, value: number | undefined) {
+  const next = Number.isFinite(value) ? Math.trunc(value as number) : 0
+  if (next === (row.sort_order ?? 0)) return
+  try {
+    const { data } = await api.patch<AdminVoiceRow>(`/admin/voices/${row.id}`, {
+      sort_order: next,
+    })
+    const idx = items.value.findIndex((x) => x.id === row.id)
+    if (idx >= 0) items.value[idx] = { ...items.value[idx], ...data }
+    ElMessage.success('排序已更新')
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '排序更新失败')
+    await load()
+  }
+}
+
 async function previewFormLive() {
   if (!form.value.provider || !form.value.provider_voice_id.trim()) {
     ElMessage.error('请先填写 Provider 与 Provider Voice ID')
@@ -351,6 +369,7 @@ function openCreate() {
     speech_model: '',
     speed_tier: 'medium',
     enabled: true,
+    sort_order: 0,
     preview_text: DEFAULT_PREVIEW_ZH,
     preview_audio_url: null,
     preview_generated_at: null,
@@ -372,6 +391,7 @@ function openEdit(row: AdminVoiceRow) {
     speech_model: row.speech_model || '',
     speed_tier: row.speed_tier || 'medium',
     enabled: row.enabled !== false,
+    sort_order: row.sort_order ?? 0,
     preview_text: row.preview_text || DEFAULT_PREVIEW_ZH,
     preview_audio_url: row.preview_audio_url,
     preview_generated_at: row.preview_generated_at,
@@ -398,6 +418,7 @@ async function save() {
         speech_model: form.value.speech_model.trim() || null,
         speed_tier: form.value.speed_tier || 'medium',
         enabled: form.value.enabled,
+        sort_order: form.value.sort_order ?? 0,
       })
       ElMessage.success('已创建')
     } else {
@@ -411,6 +432,7 @@ async function save() {
         speech_model: form.value.speech_model.trim(),
         speed_tier: form.value.speed_tier || 'medium',
         enabled: form.value.enabled,
+        sort_order: form.value.sort_order ?? 0,
       })
       ElMessage.success('已保存')
     }
@@ -464,6 +486,7 @@ onMounted(() => {
     <h2>音色管理</h2>
     <p class="hint">
       <code>system</code> 音色为全局共享目录。关闭「启用」后 App 不可见。
+      「排序」数字越小越靠前（App 列表与选择弹窗）；用户克隆默认 1000。
       试听音频落库后可直接播放；可改示例文本后重新生成覆盖。
     </p>
     <el-form inline class="toolbar" @submit.prevent>
@@ -501,6 +524,18 @@ onMounted(() => {
 
     <el-table v-loading="loading" :data="items" stripe>
       <el-table-column prop="id" label="ID" width="70" />
+      <el-table-column label="排序" width="100">
+        <template #default="{ row }">
+          <el-input-number
+            :model-value="row.sort_order ?? 0"
+            :step="1"
+            :controls="false"
+            size="small"
+            style="width: 72px"
+            @change="(v: number | undefined) => saveSortOrder(row, v)"
+          />
+        </template>
+      </el-table-column>
       <el-table-column label="启用" width="80">
         <template #default="{ row }">
           <el-switch
@@ -590,6 +625,10 @@ onMounted(() => {
         </el-form-item>
         <el-form-item label="启用">
           <el-switch v-model="form.enabled" />
+        </el-form-item>
+        <el-form-item label="排序">
+          <el-input-number v-model="form.sort_order" :step="1" controls-position="right" />
+          <div class="field-hint">数字越小 App 列表越靠前</div>
         </el-form-item>
         <el-form-item label="类型">
           <el-select v-model="form.kind" style="width: 100%" :disabled="!isCreate">

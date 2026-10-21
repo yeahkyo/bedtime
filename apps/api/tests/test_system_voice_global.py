@@ -4,10 +4,10 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from fastapi import HTTPException
 
 from app.models.voice import SYSTEM_VOICE_NAME, Voice
 from app.services.system_voice import (
-    _pick_catalog_voice,
     ensure_system_voice,
     voice_accessible_to_user,
 )
@@ -36,103 +36,72 @@ def test_voice_accessible_global_and_owned():
     assert voice_accessible_to_user(other, 7) is False
 
 
-def test_pick_catalog_prefers_configured_voice_id():
-    a = SimpleNamespace(id=1, provider_voice_id="other")
-    b = SimpleNamespace(id=2, provider_voice_id="longanyang")
-    assert _pick_catalog_voice([a, b], configured_id="longanyang") is b
-    assert _pick_catalog_voice([a, b], configured_id="") is a
-
-
 @pytest.mark.asyncio
-async def test_ensure_system_voice_creates_global_row():
-    session = MagicMock()
-    session.execute = AsyncMock(
-        side_effect=[
-            _exec_all([]),  # no global catalog
-            _exec_one(None),  # no legacy
-        ]
-    )
-    session.add = MagicMock()
-    session.commit = AsyncMock()
-    session.refresh = AsyncMock()
-
-    user = SimpleNamespace(id=3)
-
-    with (
-        patch(
-            "app.services.system_voice.resolve_speech_provider_name",
-            AsyncMock(return_value="aliyun"),
-        ),
-        patch(
-            "app.services.system_voice.speech_default_voice_id",
-            return_value="longanyang",
-        ),
-        patch(
-            "app.services.system_voice.resolve_speech_model",
-            AsyncMock(return_value="cosyvoice-v3-flash"),
-        ),
-        patch(
-            "app.services.system_voice.env_speech_model",
-            return_value="cosyvoice-v3-flash",
-        ),
-    ):
-        voice = await ensure_system_voice(session, user, "aliyun")
-
-    assert isinstance(voice, Voice)
-    assert voice.user_id is None
-    assert voice.kind == "system"
-    assert voice.provider == "aliyun"
-    assert voice.provider_voice_id == "longanyang"
-    assert voice.name == SYSTEM_VOICE_NAME
-    session.add.assert_called_once()
-    session.commit.assert_awaited()
-
-
-@pytest.mark.asyncio
-async def test_ensure_system_voice_tolerates_multiple_globals():
+async def test_ensure_system_voice_picks_enabled_catalog_any_provider():
     keep = SimpleNamespace(
-        id=2,
+        id=5,
         user_id=None,
         kind="system",
         provider="aliyun",
-        provider_voice_id="longanyang",
+        provider_voice_id="longhuhu_v3",
         speech_model="cosyvoice-v3-flash",
-        name=SYSTEM_VOICE_NAME,
+        name="呼呼",
+        enabled=True,
     )
-    other = SimpleNamespace(
+    disabled = SimpleNamespace(
+        id=1,
+        user_id=None,
+        kind="system",
+        provider="volc",
+        provider_voice_id="zh_female_vv",
+        speech_model=None,
+        name="Gentle System",
+        enabled=False,
+    )
+    session = MagicMock()
+    session.execute = AsyncMock(return_value=_exec_all([disabled, keep]))
+    session.commit = AsyncMock()
+    session.refresh = AsyncMock()
+
+    voice = await ensure_system_voice(session, SimpleNamespace(id=1), "volc")
+    assert voice is keep
+    session.add.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_ensure_system_voice_503_when_catalog_all_disabled():
+    """Disabled global catalog must not promote legacy per-user system rows."""
+    disabled = SimpleNamespace(
         id=1,
         user_id=None,
         kind="system",
         provider="aliyun",
-        provider_voice_id="other-voice",
-        speech_model="cosyvoice-v3.5-flash",
-        name="别的柔声",
+        provider_voice_id="x",
+        speech_model=None,
+        name="off",
+        enabled=False,
+    )
+    legacy = SimpleNamespace(
+        id=2,
+        user_id=9,
+        kind="system",
+        provider="volc",
+        provider_voice_id="legacy",
+        speech_model=None,
+        name="legacy",
+        enabled=True,
     )
     session = MagicMock()
-    session.execute = AsyncMock(return_value=_exec_all([other, keep]))
+    session.execute = AsyncMock(return_value=_exec_all([disabled]))
+    session.add = MagicMock()
     session.commit = AsyncMock()
-    session.refresh = AsyncMock()
 
-    with (
-        patch(
-            "app.services.system_voice.speech_default_voice_id",
-            return_value="longanyang",
-        ),
-        patch(
-            "app.services.system_voice.resolve_speech_model",
-            AsyncMock(return_value="cosyvoice-v3-flash"),
-        ),
-        patch(
-            "app.services.system_voice.env_speech_model",
-            return_value="cosyvoice-v3-flash",
-        ),
-    ):
-        voice = await ensure_system_voice(session, SimpleNamespace(id=1), "aliyun")
-
-    assert voice is keep
-    # Must not rewrite the other catalog voice id onto the chosen row.
-    assert keep.provider_voice_id == "longanyang"
-    session.add.assert_not_called()
+    with pytest.raises(HTTPException) as ei:
+        await ensure_system_voice(session, SimpleNamespace(id=1))
+    assert ei.value.status_code == 503
+    assert "No enabled system voice" in ei.value.detail
+    assert legacy.user_id == 9
+    session.commit.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -144,6 +113,7 @@ async def test_ensure_system_voice_promotes_legacy_row():
         provider_voice_id="longanyang",
         speech_model=None,
         name=SYSTEM_VOICE_NAME,
+        enabled=True,
     )
     session = MagicMock()
     session.execute = AsyncMock(
@@ -155,21 +125,11 @@ async def test_ensure_system_voice_promotes_legacy_row():
     session.commit = AsyncMock()
     session.refresh = AsyncMock()
 
-    with (
-        patch(
-            "app.services.system_voice.speech_default_voice_id",
-            return_value="longanyang",
-        ),
-        patch(
-            "app.services.system_voice.resolve_speech_model",
-            AsyncMock(return_value=None),
-        ),
-        patch(
-            "app.services.system_voice.env_speech_model",
-            return_value="",
-        ),
+    with patch(
+        "app.services.system_voice.env_speech_model",
+        return_value="",
     ):
-        voice = await ensure_system_voice(session, SimpleNamespace(id=9), "aliyun")
+        voice = await ensure_system_voice(session, SimpleNamespace(id=9))
 
     assert voice is legacy
     assert legacy.user_id is None

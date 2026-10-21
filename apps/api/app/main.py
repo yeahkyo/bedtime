@@ -33,7 +33,7 @@ from app.models import (  # noqa: F401
     Voice,
     VoicePrefs,
 )
-from app.services.provider_settings import env_speech_provider, env_story_provider
+from app.services.provider_settings import first_configured_speech_provider, env_story_provider
 from app.services.story_elements import (
     enable_elements_if_none_enabled,
     seed_story_elements_if_empty,
@@ -80,6 +80,7 @@ async def _ensure_story_async_columns(conn) -> None:
         "ALTER TABLE voices ADD COLUMN IF NOT EXISTS preview_object_key VARCHAR(512) NULL",
         "ALTER TABLE voices ADD COLUMN IF NOT EXISTS preview_generated_at DATETIME NULL",
         "ALTER TABLE voices ADD COLUMN IF NOT EXISTS description VARCHAR(200) NULL",
+        "ALTER TABLE voices ADD COLUMN IF NOT EXISTS sort_order INT NOT NULL DEFAULT 0",
         # Global system voice catalog: user_id NULL = shared across all users.
         "ALTER TABLE voices MODIFY user_id INT NULL",
         # Default narration speed is medium (1.0); bump legacy slow defaults (no client speed UI).
@@ -276,7 +277,7 @@ async def health() -> dict:
         "mock_providers": s.mock_providers,
         "provider_profile": s.provider_profile,
         "story_provider": env_story_provider(s),
-        "speech_provider": env_speech_provider(s),
+        "speech_provider": first_configured_speech_provider(s),
         "ark_configured": bool(s.ark_api_key),
         "speech_configured": bool(
             s.fish_audio_api_key or s.volc_speech_api_key or s.ark_api_key or s.elevenlabs_api_key

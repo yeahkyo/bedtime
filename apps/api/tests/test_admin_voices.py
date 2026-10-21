@@ -25,6 +25,7 @@ def _voice(**kwargs):
         speech_model=None,
         speed_tier="medium",
         enabled=True,
+        sort_order=0,
         preview_text=None,
         preview_object_key=None,
         preview_generated_at=None,
@@ -47,13 +48,13 @@ async def test_resolve_speech_model_prefers_voice_model():
 
 
 @pytest.mark.asyncio
-async def test_resolve_speech_model_falls_back_to_runtime_when_voice_empty():
+async def test_resolve_speech_model_falls_back_to_env_when_voice_empty():
     with patch(
-        "app.services.provider_settings.get_runtime_overrides",
-        AsyncMock(return_value={"speech_model": "global-override"}),
+        "app.services.provider_settings.env_speech_model",
+        return_value="cosyvoice-v3-flash",
     ):
-        assert await resolve_speech_model("aliyun", voice_model="") == "global-override"
-        assert await resolve_speech_model("aliyun", voice_model=None) == "global-override"
+        assert await resolve_speech_model("aliyun", voice_model="") == "cosyvoice-v3-flash"
+        assert await resolve_speech_model("aliyun", voice_model=None) == "cosyvoice-v3-flash"
 
 
 @pytest.mark.asyncio
@@ -91,6 +92,7 @@ async def test_admin_voice_patch_updates_speech_model_and_enabled():
                     "name": "阿里云柔声",
                     "description": "温柔低语，适合哄睡",
                     "enabled": False,
+                    "sort_order": 10,
                 },
             )
             assert patched.status_code == 200, patched.text
@@ -98,8 +100,10 @@ async def test_admin_voice_patch_updates_speech_model_and_enabled():
             assert body["speech_model"] == "cosyvoice-v3-flash"
             assert body["description"] == "温柔低语，适合哄睡"
             assert body["enabled"] is False
+            assert body["sort_order"] == 10
             assert voice.enabled is False
             assert voice.description == "温柔低语，适合哄睡"
+            assert voice.sort_order == 10
 
             cleared = await client.patch("/admin/voices/1", json={"speech_model": ""})
             assert cleared.status_code == 200

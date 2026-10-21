@@ -1,4 +1,4 @@
-"""Resolve story/speech provider + model: runtime override → env knobs → profile preset."""
+"""Resolve story provider + models; speech follows Voice.provider (no global speech gate)."""
 
 from __future__ import annotations
 
@@ -13,32 +13,34 @@ RUNTIME_SETTINGS_KEY = "bedtime:runtime_settings"
 STORY_PROVIDERS = ("doubao", "openai", "deepseek", "mock")
 SPEECH_PROVIDERS = ("fishaudio", "volc", "elevenlabs", "aliyun", "mock")
 
+# Story-only runtime overrides (speech is per-Voice).
 _OVERRIDE_KEYS = (
     "story_provider",
-    "speech_provider",
     "story_model",
-    "speech_model",
 )
 
-# provider_profile → (story_provider, speech_provider)
-PROFILE_PRESETS: dict[str, tuple[str, str]] = {
-    "volc": ("doubao", "volc"),
-    "doubao": ("doubao", "volc"),
-    "ark": ("doubao", "volc"),
-    "openai": ("openai", "elevenlabs"),
-    "deepseek": ("deepseek", "fishaudio"),
-    "fish": ("doubao", "fishaudio"),
-    "fishaudio": ("doubao", "fishaudio"),
-    "aliyun": ("doubao", "aliyun"),
-    "dashscope": ("doubao", "aliyun"),
-    "cosyvoice": ("doubao", "aliyun"),
+# provider_profile → story_provider (speech is always Voice.provider)
+PROFILE_PRESETS: dict[str, str] = {
+    "volc": "doubao",
+    "doubao": "doubao",
+    "ark": "doubao",
+    "openai": "openai",
+    "deepseek": "deepseek",
+    "fish": "doubao",
+    "fishaudio": "doubao",
+    "aliyun": "doubao",
+    "dashscope": "doubao",
+    "cosyvoice": "doubao",
 }
 
+# Prefer order when cloning without a catalog voice to infer from.
+_SPEECH_PROBE_ORDER = ("aliyun", "fishaudio", "volc", "elevenlabs", "mock")
 
-def profile_defaults(settings: Settings | None = None) -> tuple[str, str]:
+
+def profile_defaults(settings: Settings | None = None) -> str:
     s = settings or get_settings()
     profile = (s.provider_profile or "fish").strip().lower()
-    return PROFILE_PRESETS.get(profile, ("doubao", "fishaudio"))
+    return PROFILE_PRESETS.get(profile, "doubao")
 
 
 def env_story_provider(settings: Settings | None = None) -> str:
@@ -48,17 +50,18 @@ def env_story_provider(settings: Settings | None = None) -> str:
     explicit = (s.story_provider or "").strip().lower()
     if explicit:
         return explicit
-    return profile_defaults(s)[0]
+    return profile_defaults(s)
 
 
-def env_speech_provider(settings: Settings | None = None) -> str:
+def first_configured_speech_provider(settings: Settings | None = None) -> str:
+    """Best-effort speech backend when no Voice row is available (e.g. clone bootstrap)."""
     s = settings or get_settings()
     if s.mock_providers:
         return "mock"
-    explicit = (s.speech_provider or "").strip().lower()
-    if explicit:
-        return explicit
-    return profile_defaults(s)[1]
+    for p in _SPEECH_PROBE_ORDER:
+        if provider_configured("speech", p, s):
+            return p
+    return "fishaudio"
 
 
 def env_story_model(
@@ -81,7 +84,7 @@ def env_speech_model(
     provider: str | None = None, settings: Settings | None = None
 ) -> str:
     s = settings or get_settings()
-    name = (provider or env_speech_provider(s)).strip().lower()
+    name = (provider or first_configured_speech_provider(s)).strip().lower()
     if name == "fishaudio":
         return (s.fish_audio_tts_model or "s2-pro").strip()
     if name == "elevenlabs":
@@ -114,8 +117,7 @@ async def get_runtime_overrides() -> dict[str, str]:
         val = data.get(key)
         if not isinstance(val, str) or not val.strip():
             continue
-        # Providers are lowercase ids; models keep original casing (endpoint ids).
-        if key in ("story_provider", "speech_provider"):
+        if key == "story_provider":
             out[key] = val.strip().lower()
         else:
             out[key] = val.strip()
@@ -125,9 +127,7 @@ async def get_runtime_overrides() -> dict[str, str]:
 async def set_runtime_overrides(
     *,
     story_provider: str | None = None,
-    speech_provider: str | None = None,
     story_model: str | None = None,
-    speech_model: str | None = None,
 ) -> dict[str, str]:
     current = await get_runtime_overrides()
     if story_provider is not None:
@@ -135,24 +135,14 @@ async def set_runtime_overrides(
         if name not in STORY_PROVIDERS:
             raise ValueError(f"Invalid story_provider: {story_provider}")
         current["story_provider"] = name
-    if speech_provider is not None:
-        name = speech_provider.strip().lower()
-        if name not in SPEECH_PROVIDERS:
-            raise ValueError(f"Invalid speech_provider: {speech_provider}")
-        current["speech_provider"] = name
     if story_model is not None:
         mid = story_model.strip()
         if mid:
             current["story_model"] = mid
         else:
             current.pop("story_model", None)
-    if speech_model is not None:
-        mid = speech_model.strip()
-        if mid:
-            current["speech_model"] = mid
-        else:
-            current.pop("speech_model", None)
     redis = await get_redis()
+    # Drop legacy speech_* keys if present in Redis.
     await redis.set(RUNTIME_SETTINGS_KEY, json.dumps(current))
     return current
 
@@ -162,13 +152,6 @@ async def resolve_story_provider_name() -> str:
     if "story_provider" in overrides:
         return overrides["story_provider"]
     return env_story_provider()
-
-
-async def resolve_speech_provider_name() -> str:
-    overrides = await get_runtime_overrides()
-    if "speech_provider" in overrides:
-        return overrides["speech_provider"]
-    return env_speech_provider()
 
 
 async def resolve_story_model(provider: str | None = None) -> str:
@@ -188,15 +171,12 @@ async def resolve_speech_model(
     """
     Resolve TTS model for a request.
 
-    Order: Voice.speech_model (if set) → runtime Admin speech_model → env default.
+    Order: Voice.speech_model (if set) → env default for Voice.provider.
     """
     vm = (voice_model or "").strip()
     if vm:
         return vm
-    name = (provider or await resolve_speech_provider_name()).strip().lower()
-    overrides = await get_runtime_overrides()
-    if overrides.get("speech_model"):
-        return overrides["speech_model"]
+    name = (provider or first_configured_speech_provider()).strip().lower()
     return env_speech_model(name)
 
 

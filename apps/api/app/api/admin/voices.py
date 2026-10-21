@@ -52,6 +52,7 @@ class AdminVoiceOut(BaseModel):
     speech_model: str | None = None
     speed_tier: str = "medium"
     enabled: bool = True
+    sort_order: int = 0
     preview_text: str | None = None
     preview_audio_url: str | None = None
     preview_generated_at: str | None = None
@@ -77,6 +78,7 @@ class AdminVoiceUpdate(BaseModel):
     speech_model: str | None = None  # empty string clears override
     speed_tier: str | None = None
     enabled: bool | None = None
+    sort_order: int | None = Field(default=None, ge=-9999, le=99999)
 
 
 class AdminVoiceCreate(BaseModel):
@@ -92,6 +94,7 @@ class AdminVoiceCreate(BaseModel):
     speech_model: str | None = None
     speed_tier: str = "medium"
     enabled: bool = True
+    sort_order: int = Field(default=0, ge=-9999, le=99999)
 
 
 class AdminVoicePreviewIn(BaseModel):
@@ -188,6 +191,7 @@ async def _to_out(voice: Voice, user: User | None = None) -> AdminVoiceOut:
         speech_model=voice.speech_model,
         speed_tier=normalize_speed_tier(getattr(voice, "speed_tier", None)),
         enabled=bool(getattr(voice, "enabled", True)),
+        sort_order=int(getattr(voice, "sort_order", 0) or 0),
         preview_text=voice.preview_text,
         preview_audio_url=preview_url,
         preview_generated_at=(
@@ -229,7 +233,7 @@ async def list_voices(
         )
 
     count_q = select(func.count()).select_from(Voice)
-    list_q = select(Voice).order_by(Voice.id.desc())
+    list_q = select(Voice).order_by(Voice.sort_order.asc(), Voice.id.asc())
     if filters:
         count_q = count_q.where(*filters)
         list_q = list_q.where(*filters)
@@ -405,6 +409,7 @@ async def create_voice(
         speech_model=mid,
         speed_tier=tier,
         enabled=bool(body.enabled),
+        sort_order=int(body.sort_order),
     )
     db.add(voice)
     await db.commit()
@@ -459,6 +464,8 @@ async def update_voice(
         voice.speed_tier = tier
     if body.enabled is not None:
         voice.enabled = bool(body.enabled)
+    if body.sort_order is not None:
+        voice.sort_order = int(body.sort_order)
     await db.commit()
     await db.refresh(voice)
     user = await db.get(User, voice.user_id) if voice.user_id is not None else None

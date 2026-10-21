@@ -40,8 +40,9 @@ class Settings(BaseSettings):
     # Compat preset: volc | openai | fish (doubao+fishaudio). Overridden by story/speech knobs.
     provider_profile: str = "fish"
 
-    # Independent knobs (empty = derive from provider_profile).
+    # Story knob (empty = derive from provider_profile). Speech is per-Voice.
     story_provider: str = ""
+    # Deprecated / unused: kept so old .env files still load.
     speech_provider: str = ""
     # When True, skip TTS after LLM (text-only ready). Prefer env STORY_SKIP_TTS=1 temporarily.
     story_skip_tts: bool = False

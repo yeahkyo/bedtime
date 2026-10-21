@@ -84,6 +84,7 @@ class VoiceOut(BaseModel):
     speed_tier: str = "medium"
     enabled: bool = True
     description: str | None = None
+    sort_order: int = 0
     # Persisted sample from admin; null until generated.
     preview_audio_url: str | None = None
 

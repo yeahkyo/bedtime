@@ -188,13 +188,9 @@ export interface ProviderOption {
 
 export interface ProvidersSettingsOut {
   story_provider: string
-  speech_provider: string
   story_model: string
-  speech_model: string
   env_story_provider: string
-  env_speech_provider: string
   env_story_model: string
-  env_speech_model: string
   overrides: Record<string, string>
   available: {
     story_providers: ProviderOption[]

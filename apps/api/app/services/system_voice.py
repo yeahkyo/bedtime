@@ -8,12 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.user import User
 from app.models.voice import SYSTEM_VOICE_NAME, Voice
-from app.services.provider_settings import (
-    env_speech_model,
-    resolve_speech_model,
-    resolve_speech_provider_name,
-    speech_default_voice_id,
-)
+from app.services.provider_settings import env_speech_model, speech_default_voice_id
 
 _BAD_PLACEHOLDER_VOICE_IDS = frozenset({"", "fishaudio-default"})
 
@@ -23,58 +18,29 @@ def voice_accessible_to_user(voice: Voice, user_id: int) -> bool:
     return voice.user_id is None or voice.user_id == user_id
 
 
-def _require_configured_voice_id(provider: str, voice_id: str) -> str:
-    cleaned = (voice_id or "").strip()
-    if cleaned and cleaned not in _BAD_PLACEHOLDER_VOICE_IDS:
-        return cleaned
-    if provider == "fishaudio":
-        raise HTTPException(
-            status_code=503,
-            detail="Fish Audio default voice id is not configured",
-        )
-    if provider in ("aliyun", "dashscope", "cosyvoice"):
-        raise HTTPException(
-            status_code=503,
-            detail="Aliyun CosyVoice default voice is not configured (ALIYUN_TTS_DEFAULT_VOICE)",
-        )
-    raise HTTPException(
-        status_code=503,
-        detail="Speech provider default voice is not configured",
-    )
+def _pick_enabled_catalog(rows: list[Voice]) -> Voice | None:
+    enabled = [r for r in rows if bool(getattr(r, "enabled", True))]
+    return enabled[0] if enabled else None
 
 
-def _pick_catalog_voice(rows: list[Voice], *, configured_id: str) -> Voice | None:
-    """Prefer env default voice id; otherwise oldest row. Allows many voices per provider."""
-    if not rows:
-        return None
-    want = (configured_id or "").strip()
-    if want:
-        for row in rows:
-            if (row.provider_voice_id or "").strip() == want:
-                return row
-    return rows[0]
-
-
-async def _sync_system_row(
-    db: AsyncSession,
-    row: Voice,
-    *,
-    configured_id: str,
-    default_model: str | None,
-    provider: str,
-) -> Voice:
-    """Light maintenance only — never rewrite a real provider_voice_id (multi-voice catalog)."""
+async def _sync_system_row(db: AsyncSession, row: Voice) -> Voice:
+    """Light maintenance only — never rewrite a real provider_voice_id."""
     dirty = False
+    provider = (row.provider or "").strip().lower()
     current = (row.provider_voice_id or "").strip()
-    if current in _BAD_PLACEHOLDER_VOICE_IDS:
-        row.provider_voice_id = _require_configured_voice_id(provider, configured_id)
-        dirty = True
+    if current in _BAD_PLACEHOLDER_VOICE_IDS and provider:
+        filled = speech_default_voice_id(provider)
+        if filled and filled not in _BAD_PLACEHOLDER_VOICE_IDS:
+            row.provider_voice_id = filled
+            dirty = True
     if row.name == "Gentle System":
         row.name = SYSTEM_VOICE_NAME
         dirty = True
-    if not (row.speech_model or "").strip() and default_model:
-        row.speech_model = default_model
-        dirty = True
+    if not (row.speech_model or "").strip() and provider:
+        mid = (env_speech_model(provider) or "").strip()
+        if mid:
+            row.speech_model = mid
+            dirty = True
     if dirty:
         await db.commit()
         await db.refresh(row)
@@ -86,58 +52,50 @@ async def ensure_system_voice(
     user: User,
     speech_provider: str | None = None,
 ) -> Voice:
-    """Return a shared system voice for the active speech provider.
+    """Return an enabled global system voice from the admin catalog.
 
-    Catalog may contain multiple global ``system`` rows per provider (different
-    voice ids / models). Picks the env default voice id when present, else the
-    oldest row. Creates one global row only when the catalog is empty.
+    TTS always uses ``Voice.provider`` on the chosen row. There is no global
+    speech-provider gate: any enabled catalog voice is eligible.
+
+    ``speech_provider`` is ignored (kept for call-site compat).
+
+    If the catalog is empty, promotes one enabled legacy per-user system row.
+    If the catalog has rows but none are enabled, returns 503 (no legacy promote).
+    Does not auto-create from env — admin must create/enable voices.
     """
     _ = user
-    provider = (speech_provider or await resolve_speech_provider_name()).strip().lower()
-    configured_id = speech_default_voice_id(provider)
-    default_model = (
-        await resolve_speech_model(provider)
-    ) or env_speech_model(provider) or None
+    _ = speech_provider
 
     catalog = list(
         (
             await db.execute(
                 select(Voice)
-                .where(
-                    Voice.user_id.is_(None),
-                    Voice.kind == "system",
-                    Voice.provider == provider,
-                )
-                .order_by(Voice.id.asc())
+                .where(Voice.user_id.is_(None), Voice.kind == "system")
+                .order_by(Voice.sort_order.asc(), Voice.id.asc())
             )
         ).scalars().all()
     )
-    enabled = [r for r in catalog if bool(getattr(r, "enabled", True))]
-    existing = _pick_catalog_voice(enabled, configured_id=configured_id)
+    existing = _pick_enabled_catalog(catalog)
     if existing:
-        return await _sync_system_row(
-            db,
-            existing,
-            configured_id=configured_id,
-            default_model=default_model,
-            provider=provider,
-        )
-    if catalog and not enabled:
+        return await _sync_system_row(db, existing)
+
+    # Catalog exists but every global system voice is disabled — do not promote
+    # legacy per-user rows (that would undo an intentional admin shutdown).
+    if catalog:
         raise HTTPException(
             status_code=503,
-            detail="No enabled system voice for this speech provider",
+            detail="No enabled system voice",
         )
 
-    # Promote one legacy per-user system row so older installs become shared.
     legacy = (
         await db.execute(
             select(Voice)
             .where(
                 Voice.user_id.is_not(None),
                 Voice.kind == "system",
-                Voice.provider == provider,
+                Voice.enabled.is_(True),
             )
-            .order_by(Voice.id.asc())
+            .order_by(Voice.sort_order.asc(), Voice.id.asc())
             .limit(1)
         )
     ).scalar_one_or_none()
@@ -145,27 +103,9 @@ async def ensure_system_voice(
         legacy.user_id = None
         await db.commit()
         await db.refresh(legacy)
-        return await _sync_system_row(
-            db,
-            legacy,
-            configured_id=configured_id,
-            default_model=default_model,
-            provider=provider,
-        )
+        return await _sync_system_row(db, legacy)
 
-    voice_id = _require_configured_voice_id(provider, configured_id)
-    voice = Voice(
-        user_id=None,
-        name=SYSTEM_VOICE_NAME,
-        kind="system",
-        provider=provider,
-        provider_voice_id=voice_id,
-        speech_model=default_model,
-        speed_tier="medium",
-        enabled=True,
-        language="zh",
+    raise HTTPException(
+        status_code=503,
+        detail="No enabled system voice",
     )
-    db.add(voice)
-    await db.commit()
-    await db.refresh(voice)
-    return voice
