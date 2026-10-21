@@ -5,6 +5,7 @@ Use with Cursor rules under `.cursor/rules/`. Depth: **baseline** (security, aut
 ## PR checklist
 
 - [ ] Non-dev config cannot ship with default `JWT_SECRET` or `DEV_AUTH_BYPASS=1`
+- [ ] Public staging: `DEV_AUTH_BYPASS=0`, `EXPOSE_API_DOCS=0` (no anonymous Dev Parent / no OpenAPI)
 - [ ] New/changed routes enforce `user_id` ownership (or admin gate)
 - [ ] Quota charged only after ownership / request validation
 - [ ] Failures expose stable messages; no stack traces / raw exceptions to clients

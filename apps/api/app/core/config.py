@@ -9,7 +9,10 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     env: str = "dev"
+    # Anonymous requests impersonate Dev Parent (local only). Staging: always false.
     dev_auth_bypass: bool = True
+    # /docs /redoc /openapi.json. Non-dev always off; staging with ENV=dev should set false.
+    expose_api_docs: bool = True
     mock_providers: bool = True
 
     database_url: str = "mysql+asyncmy://bedtime:bedtime@127.0.0.1:3307/bedtime"
@@ -99,6 +102,11 @@ class Settings(BaseSettings):
     @property
     def is_dev(self) -> bool:
         return self.env == "dev"
+
+    @property
+    def api_docs_enabled(self) -> bool:
+        """Swagger/OpenAPI only when ENV=dev and EXPOSE_API_DOCS is on."""
+        return self.is_dev and self.expose_api_docs
 
     def cors_origin_list(self) -> list[str]:
         if not self.cors_origins.strip():

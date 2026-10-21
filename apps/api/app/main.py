@@ -75,6 +75,9 @@ async def _ensure_story_async_columns(conn) -> None:
         "ALTER TABLE voices ADD COLUMN IF NOT EXISTS speech_model VARCHAR(128) NULL",
         "ALTER TABLE voices ADD COLUMN IF NOT EXISTS speed_tier VARCHAR(16) NULL",
         "UPDATE voices SET speed_tier = 'medium' WHERE speed_tier IS NULL OR speed_tier = ''",
+        "ALTER TABLE voices ADD COLUMN IF NOT EXISTS speed DOUBLE NOT NULL DEFAULT 1.0",
+        "UPDATE voices SET speed = 0.85 WHERE speed_tier = 'slow' AND ABS(speed - 1.0) < 0.001",
+        "UPDATE voices SET speed = 1.1 WHERE speed_tier = 'fast' AND ABS(speed - 1.0) < 0.001",
         "ALTER TABLE voices ADD COLUMN IF NOT EXISTS enabled TINYINT(1) NOT NULL DEFAULT 1",
         "ALTER TABLE voices ADD COLUMN IF NOT EXISTS preview_text TEXT NULL",
         "ALTER TABLE voices ADD COLUMN IF NOT EXISTS preview_object_key VARCHAR(512) NULL",
@@ -223,13 +226,17 @@ async def lifespan(_: FastAPI):
     await engine.dispose()
 
 
+_settings = get_settings()
+_docs = _settings.api_docs_enabled
 app = FastAPI(
     title="Lullvale Bedtime API",
     version="0.1.0",
     lifespan=lifespan,
+    docs_url="/docs" if _docs else None,
+    redoc_url="/redoc" if _docs else None,
+    openapi_url="/openapi.json" if _docs else None,
 )
 
-_settings = get_settings()
 if _settings.is_dev:
     app.add_middleware(
         CORSMiddleware,

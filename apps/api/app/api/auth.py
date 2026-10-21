@@ -25,8 +25,13 @@ def _decode_jwt_payload_unverified(token: str) -> dict:
 
 @router.post("/dev-login", response_model=TokenResponse)
 async def dev_login(body: DevLoginRequest, db: AsyncSession = Depends(get_db)) -> TokenResponse:
+    """Explicit token mint for internal App testing. Requires ENV=dev only.
+
+    Independent of DEV_AUTH_BYPASS: bypass is anonymous impersonation (dangerous on
+    public hosts). Staging should keep bypass off; prefer Cloudflare Access on the hostname.
+    """
     settings = get_settings()
-    if not (settings.is_dev and settings.dev_auth_bypass):
+    if not settings.is_dev:
         raise HTTPException(status_code=403, detail="Dev login disabled")
     result = await db.execute(select(User).where(User.apple_sub == "dev-parent"))
     user = result.scalar_one_or_none()

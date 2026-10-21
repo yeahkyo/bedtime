@@ -86,3 +86,10 @@ def test_non_dev_ok_with_safe_settings():
         admin_bootstrap_password="admin-pass",
     )
     validate_settings_for_runtime(s)
+
+
+def test_api_docs_enabled_only_in_dev_when_flag_on():
+    assert Settings(env="dev", expose_api_docs=True).api_docs_enabled is True
+    assert Settings(env="dev", expose_api_docs=False).api_docs_enabled is False
+    assert Settings(env="staging", expose_api_docs=True).api_docs_enabled is False
+    assert Settings(env="prod", expose_api_docs=True).api_docs_enabled is False

@@ -20,6 +20,6 @@ flutter run --dart-define=API_BASE_URL=https://bedtime-api.lullvale.com
 
 ## Auth (current)
 
-Boot uses `POST /v1/auth/dev-login`. That only works when the API has `ENV=dev` and `DEV_AUTH_BYPASS=1`. Edge/TLS: Cloudflare orange-cloud → origin **:8080** (Origin Rule; Bandage keeps `:80`). See [docs/deploy-staging.md](../../docs/deploy-staging.md).
+Boot uses `POST /v1/auth/dev-login`. That only works when the API has `ENV=dev` (independent of `DEV_AUTH_BYPASS`). Staging should keep `DEV_AUTH_BYPASS=0` and `EXPOSE_API_DOCS=0`. Edge/TLS: Cloudflare orange-cloud → origin **:8080** (Origin Rule; Bandage keeps `:80`). See [docs/deploy-staging.md](../../docs/deploy-staging.md).
 
 Apple Sign-In is not wired in this app yet.
