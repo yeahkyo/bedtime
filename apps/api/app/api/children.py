@@ -212,7 +212,11 @@ async def update_voice_prefs(
         db.add(prefs)
     if body.default_voice_id is not None:
         voice = await db.get(Voice, body.default_voice_id)
-        if voice is None or not voice_accessible_to_user(voice, user.id):
+        if (
+            voice is None
+            or not voice_accessible_to_user(voice, user.id)
+            or not bool(getattr(voice, "enabled", True))
+        ):
             raise HTTPException(status_code=404, detail="Voice not found")
     prefs.speed_tier = body.speed_tier
     prefs.tone_preset = body.tone_preset

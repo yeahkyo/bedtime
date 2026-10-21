@@ -7,6 +7,7 @@ import '../theme/app_theme.dart';
 import '../theme/widgets.dart';
 import 'children_manage_screen.dart';
 import 'player_screen.dart';
+import 'voice_picker_sheet.dart';
 
 class _ChipOpt {
   const _ChipOpt({
@@ -102,6 +103,24 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
     _prepare();
   }
 
+  Map<String, dynamic>? get _selectedVoice {
+    if (voiceId == null) return null;
+    for (final v in voices) {
+      if (_asId(v['id']) == voiceId) return v;
+    }
+    return null;
+  }
+
+  Future<void> _openVoicePicker() async {
+    final picked = await showVoicePickerSheet(
+      context: context,
+      voices: voices,
+      selectedId: voiceId,
+    );
+    if (picked == null || !mounted) return;
+    setState(() => voiceId = picked);
+  }
+
   int? _asId(dynamic value) {
     if (value is int) return value;
     if (value is num) return value.toInt();
@@ -158,10 +177,16 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
 
       await _loadSuggestionChips();
 
-      final system = await widget.api.ensureSystemVoice();
+      Map<String, dynamic>? system;
+      try {
+        system = await widget.api.ensureSystemVoice();
+      } catch (_) {
+        // All system voices may be disabled; still load clones / other enabled voices.
+        system = null;
+      }
       final voiceList = await widget.api.listVoices();
       voices = voiceList.cast<Map<String, dynamic>>();
-      if (voices.isEmpty) {
+      if (voices.isEmpty && system != null) {
         voices = [system];
       }
 
@@ -653,22 +678,69 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
                 SectionCard(
                   title: '声音电台',
                   subtitle: '默认记住你上次的音色',
-                  child: DropdownButtonFormField<int>(
-                    value: voiceId,
-                    decoration: const InputDecoration(labelText: '音色'),
-                    items: voices
-                        .map(
-                          (v) => DropdownMenuItem(
-                            value: _asId(v['id']),
-                            child: Text(
-                              '${v['name'] ?? '音色'}'
-                              '${v['kind'] == 'clone' ? ' · 克隆' : ' · 系统'}',
+                  child: Material(
+                    color: AppColors.inputWell,
+                    borderRadius: BorderRadius.circular(AppRadii.md),
+                    child: InkWell(
+                      onTap: voices.isEmpty ? null : _openVoicePicker,
+                      borderRadius: BorderRadius.circular(AppRadii.md),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 14,
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Builder(
+                                builder: (context) {
+                                  final v = _selectedVoice;
+                                  final tt = Theme.of(context).textTheme;
+                                  final name = (v?['name'] as String?)
+                                              ?.trim()
+                                              .isNotEmpty ==
+                                          true
+                                      ? v!['name'] as String
+                                      : (voices.isEmpty ? '暂无可用音色' : '请选择音色');
+                                  final desc =
+                                      (v?['description'] as String?)?.trim() ??
+                                          '';
+                                  return Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        '音色',
+                                        style: tt.labelSmall?.copyWith(
+                                          color: AppColors.onSurfaceDim,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(name, style: tt.titleMedium),
+                                      if (desc.isNotEmpty) ...[
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          desc,
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: tt.bodySmall?.copyWith(
+                                            color: AppColors.onSurfaceMuted,
+                                          ),
+                                        ),
+                                      ],
+                                    ],
+                                  );
+                                },
+                              ),
                             ),
-                          ),
-                        )
-                        .where((e) => e.value != null)
-                        .toList(),
-                    onChanged: (v) => setState(() => voiceId = v),
+                            const Icon(
+                              Icons.chevron_right,
+                              color: AppColors.primarySoft,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
                   ),
                 ),
               ],

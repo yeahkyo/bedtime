@@ -1,6 +1,8 @@
 from datetime import datetime, timezone
+import logging
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi.responses import Response
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -14,23 +16,40 @@ from app.services.provider_settings import resolve_speech_model, resolve_speech_
 from app.services.quota import check_and_increment
 from app.services.retention import raw_voice_purge_at
 from app.services.storage import storage_service
-from app.services.system_voice import ensure_system_voice
+from app.services.system_voice import ensure_system_voice, voice_accessible_to_user
 
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/voices", tags=["voices"])
 
 
-@router.get("", response_model=list[VoiceOut])
-async def list_voices(
-    user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
-) -> list[VoiceOut]:
-    rows = (
-        await db.execute(
-            select(Voice)
-            .where(or_(Voice.user_id.is_(None), Voice.user_id == user.id))
-            .order_by(Voice.id.asc())
-        )
-    ).scalars().all()
+async def _to_voice_out(voice: Voice) -> VoiceOut:
+    preview_url: str | None = None
+    key = (getattr(voice, "preview_object_key", None) or "").strip()
+    if key:
+        try:
+            preview_url = await storage_service.presigned_url(key)
+        except Exception:
+            logger.warning("preview url failed voice_id=%s key=%s", voice.id, key, exc_info=True)
+            preview_url = None
+    desc = (getattr(voice, "description", None) or "").strip() or None
+    return VoiceOut(
+        id=voice.id,
+        name=voice.name,
+        kind=voice.kind,
+        language=voice.language or "zh",
+        provider=voice.provider or "fishaudio",
+        provider_voice_id=voice.provider_voice_id or "",
+        speech_model=voice.speech_model,
+        speed_tier=getattr(voice, "speed_tier", None) or "medium",
+        enabled=bool(getattr(voice, "enabled", True)),
+        description=desc,
+        preview_audio_url=preview_url,
+    )
+
+
+def _filter_visible_voices(rows: list[Voice]) -> list[Voice]:
     # Hide legacy per-user system rows once a global catalog voice exists for that provider.
     global_providers = {
         (v.provider or "").strip().lower()
@@ -48,13 +67,57 @@ async def list_voices(
     ]
 
 
+@router.get("", response_model=list[VoiceOut])
+async def list_voices(
+    user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
+) -> list[VoiceOut]:
+    rows = (
+        await db.execute(
+            select(Voice)
+            .where(
+                or_(Voice.user_id.is_(None), Voice.user_id == user.id),
+                Voice.enabled.is_(True),
+            )
+            .order_by(Voice.id.asc())
+        )
+    ).scalars().all()
+    return [await _to_voice_out(v) for v in _filter_visible_voices(list(rows))]
+
+
+@router.get("/{voice_id}/preview")
+async def get_voice_preview(
+    voice_id: int,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    """Stream persisted preview mp3 for an accessible, enabled voice."""
+    voice = await db.get(Voice, voice_id)
+    if (
+        voice is None
+        or not voice_accessible_to_user(voice, user.id)
+        or not bool(getattr(voice, "enabled", True))
+    ):
+        raise HTTPException(status_code=404, detail="Voice not found")
+    key = (voice.preview_object_key or "").strip()
+    if not key:
+        raise HTTPException(status_code=404, detail="Preview audio not generated")
+    data = await storage_service.get_bytes(key)
+    if not data:
+        raise HTTPException(status_code=404, detail="Preview audio missing from storage")
+    return Response(
+        content=data,
+        media_type="audio/mpeg",
+        headers={"Cache-Control": "no-store"},
+    )
+
+
 @router.patch("/{voice_id}", response_model=VoiceOut)
 async def update_voice(
     voice_id: int,
     body: VoiceUpdate,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-) -> Voice:
+) -> VoiceOut:
     voice = await db.get(Voice, voice_id)
     # Users may only rename their own clones — global catalog is admin-only.
     # Provider / model / provider_voice_id are admin-managed (ignore client spoofing).
@@ -66,14 +129,15 @@ async def update_voice(
     voice.name = name
     await db.commit()
     await db.refresh(voice)
-    return voice
+    return await _to_voice_out(voice)
 
 
 @router.post("/system-default", response_model=VoiceOut)
 async def ensure_system_voice_route(
     user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
-) -> Voice:
-    return await ensure_system_voice(db, user)
+) -> VoiceOut:
+    voice = await ensure_system_voice(db, user)
+    return await _to_voice_out(voice)
 
 
 @router.post("/clone", response_model=VoiceOut)
@@ -84,7 +148,7 @@ async def clone_voice(
     file: UploadFile = File(...),
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-) -> Voice:
+) -> VoiceOut:
     if not consent:
         raise HTTPException(status_code=400, detail="Consent required to clone your voice")
 
@@ -122,11 +186,12 @@ async def clone_voice(
         consent_at=datetime.now(timezone.utc),
         raw_object_key=None,
         raw_purge_after=raw_voice_purge_at(),
+        enabled=True,
     )
     db.add(voice)
     await db.commit()
     await db.refresh(voice)
-    return voice
+    return await _to_voice_out(voice)
 
 
 @router.delete("/{voice_id}")
@@ -144,6 +209,11 @@ async def delete_voice(
             pass
     if voice.raw_object_key:
         await storage_service.delete(voice.raw_object_key)
+    if voice.preview_object_key:
+        try:
+            await storage_service.delete(voice.preview_object_key)
+        except Exception:
+            pass
     await db.delete(voice)
     await db.commit()
     return {"ok": True}

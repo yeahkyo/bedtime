@@ -75,6 +75,11 @@ async def _ensure_story_async_columns(conn) -> None:
         "ALTER TABLE voices ADD COLUMN IF NOT EXISTS speech_model VARCHAR(128) NULL",
         "ALTER TABLE voices ADD COLUMN IF NOT EXISTS speed_tier VARCHAR(16) NULL",
         "UPDATE voices SET speed_tier = 'medium' WHERE speed_tier IS NULL OR speed_tier = ''",
+        "ALTER TABLE voices ADD COLUMN IF NOT EXISTS enabled TINYINT(1) NOT NULL DEFAULT 1",
+        "ALTER TABLE voices ADD COLUMN IF NOT EXISTS preview_text TEXT NULL",
+        "ALTER TABLE voices ADD COLUMN IF NOT EXISTS preview_object_key VARCHAR(512) NULL",
+        "ALTER TABLE voices ADD COLUMN IF NOT EXISTS preview_generated_at DATETIME NULL",
+        "ALTER TABLE voices ADD COLUMN IF NOT EXISTS description VARCHAR(200) NULL",
         # Global system voice catalog: user_id NULL = shared across all users.
         "ALTER TABLE voices MODIFY user_id INT NULL",
         # Default narration speed is medium (1.0); bump legacy slow defaults (no client speed UI).

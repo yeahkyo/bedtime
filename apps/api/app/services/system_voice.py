@@ -99,18 +99,21 @@ async def ensure_system_voice(
         await resolve_speech_model(provider)
     ) or env_speech_model(provider) or None
 
-    catalog = (
-        await db.execute(
-            select(Voice)
-            .where(
-                Voice.user_id.is_(None),
-                Voice.kind == "system",
-                Voice.provider == provider,
+    catalog = list(
+        (
+            await db.execute(
+                select(Voice)
+                .where(
+                    Voice.user_id.is_(None),
+                    Voice.kind == "system",
+                    Voice.provider == provider,
+                )
+                .order_by(Voice.id.asc())
             )
-            .order_by(Voice.id.asc())
-        )
-    ).scalars().all()
-    existing = _pick_catalog_voice(list(catalog), configured_id=configured_id)
+        ).scalars().all()
+    )
+    enabled = [r for r in catalog if bool(getattr(r, "enabled", True))]
+    existing = _pick_catalog_voice(enabled, configured_id=configured_id)
     if existing:
         return await _sync_system_row(
             db,
@@ -118,6 +121,11 @@ async def ensure_system_voice(
             configured_id=configured_id,
             default_model=default_model,
             provider=provider,
+        )
+    if catalog and not enabled:
+        raise HTTPException(
+            status_code=503,
+            detail="No enabled system voice for this speech provider",
         )
 
     # Promote one legacy per-user system row so older installs become shared.
@@ -154,6 +162,7 @@ async def ensure_system_voice(
         provider_voice_id=voice_id,
         speech_model=default_model,
         speed_tier="medium",
+        enabled=True,
         language="zh",
     )
     db.add(voice)

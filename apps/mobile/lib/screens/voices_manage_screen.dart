@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:just_audio/just_audio.dart';
 
 import '../api/client.dart';
+import '../config.dart';
 import '../theme/app_theme.dart';
 import '../theme/widgets.dart';
 import 'voice_clone_screen.dart';
 
-/// List / rename voices; entry to clone flow.
+/// List / rename voices; entry to clone flow; play stored preview samples.
 class VoicesManageScreen extends StatefulWidget {
   const VoicesManageScreen({super.key, required this.api});
 
@@ -19,11 +21,29 @@ class _VoicesManageScreenState extends State<VoicesManageScreen> {
   List<dynamic> voices = [];
   bool loading = true;
   String? error;
+  final _preview = AudioPlayer();
+  int? _playingVoiceId;
+  /// Bumps on each preview request so an older load cannot resume after interrupt.
+  int _previewGen = 0;
 
   @override
   void initState() {
     super.initState();
+    _preview.playerStateStream.listen((state) {
+      if (!mounted) return;
+      if (state.processingState == ProcessingState.completed) {
+        setState(() => _playingVoiceId = null);
+      }
+    });
     _refresh();
+  }
+
+  @override
+  void dispose() {
+    _previewGen++;
+    _preview.stop();
+    _preview.dispose();
+    super.dispose();
   }
 
   Future<void> _refresh() async {
@@ -32,7 +52,11 @@ class _VoicesManageScreenState extends State<VoicesManageScreen> {
       error = null;
     });
     try {
-      await widget.api.ensureSystemVoice();
+      try {
+        await widget.api.ensureSystemVoice();
+      } catch (_) {
+        // Disabled system catalog must not block listing clones.
+      }
       voices = await widget.api.listVoices();
     } catch (e) {
       error = '$e';
@@ -47,6 +71,40 @@ class _VoicesManageScreenState extends State<VoicesManageScreen> {
     );
     if (created == true && mounted) {
       await _refresh();
+    }
+  }
+
+  Future<void> _togglePreview(Map<String, dynamic> voice) async {
+    final id = voice['id'] as int?;
+    if (id == null) return;
+    final url = resolveMediaUrl(voice['preview_audio_url'] as String?);
+    if (url == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('该音色暂无试听，请稍后再试')),
+      );
+      return;
+    }
+    if (_playingVoiceId == id && _preview.playing) {
+      _previewGen++;
+      await _preview.stop();
+      if (mounted) setState(() => _playingVoiceId = null);
+      return;
+    }
+    final gen = ++_previewGen;
+    if (mounted) setState(() => _playingVoiceId = id);
+    try {
+      await _preview.stop();
+      if (gen != _previewGen) return;
+      await _preview.setUrl(url);
+      if (gen != _previewGen) return;
+      await _preview.play();
+    } catch (_) {
+      if (gen != _previewGen || !mounted) return;
+      setState(() => _playingVoiceId = null);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('试听播放失败')),
+      );
     }
   }
 
@@ -153,7 +211,9 @@ class _VoicesManageScreenState extends State<VoicesManageScreen> {
                   const SizedBox(height: 18),
                   SectionCard(
                     title: '已有音色',
-                    subtitle: voices.isEmpty ? '暂无音色' : '共 ${voices.length} 个 · 点铅笔可改名',
+                    subtitle: voices.isEmpty
+                        ? '暂无音色'
+                        : '共 ${voices.length} 个 · 可试听 / 改名',
                     child: voices.isEmpty
                         ? Text(
                             '可先点上方按钮克隆家长声音。',
@@ -167,6 +227,20 @@ class _VoicesManageScreenState extends State<VoicesManageScreen> {
                                   builder: (context) {
                                     final m = voices[i] as Map<String, dynamic>;
                                     final kind = m['kind'] as String?;
+                                    final id = m['id'] as int?;
+                                    final hasPreview =
+                                        (m['preview_audio_url'] as String?)
+                                            ?.isNotEmpty ==
+                                        true;
+                                    final playing =
+                                        id != null && _playingVoiceId == id;
+                                    final desc =
+                                        (m['description'] as String?)?.trim();
+                                    final subtitle = (desc != null &&
+                                            desc.isNotEmpty)
+                                        ? desc
+                                        : '${_kindLabel(kind)} · ${m['language'] ?? 'zh'}'
+                                            '${hasPreview ? '' : ' · 暂无试听'}';
                                     return Row(
                                       children: [
                                         Container(
@@ -197,10 +271,29 @@ class _VoicesManageScreenState extends State<VoicesManageScreen> {
                                               ),
                                               const SizedBox(height: 2),
                                               Text(
-                                                '${_kindLabel(kind)} · ${m['language'] ?? 'zh'}',
+                                                subtitle,
+                                                maxLines: 2,
+                                                overflow: TextOverflow.ellipsis,
                                                 style: tt.bodySmall,
                                               ),
                                             ],
+                                          ),
+                                        ),
+                                        IconButton(
+                                          tooltip: hasPreview
+                                              ? (playing ? '停止试听' : '试听')
+                                              : '暂无试听',
+                                          onPressed: hasPreview
+                                              ? () => _togglePreview(m)
+                                              : null,
+                                          icon: Icon(
+                                            playing
+                                                ? Icons.stop_circle_outlined
+                                                : Icons.play_circle_outline,
+                                            color: hasPreview
+                                                ? AppColors.primary
+                                                : AppColors.primarySoft
+                                                    .withValues(alpha: 0.35),
                                           ),
                                         ),
                                         IconButton(

@@ -42,6 +42,25 @@ class StorageService:
         await asyncio.to_thread(_put)
         return key
 
+    async def get_bytes(self, key: str) -> bytes | None:
+        if self.settings.storage_backend == "local":
+            path = self.local_root / key
+            if not path.is_file():
+                return None
+            return path.read_bytes()
+
+        def _get() -> bytes | None:
+            try:
+                obj = self._s3().get_object(Bucket=self.settings.s3_bucket, Key=key)
+            except Exception:
+                return None
+            body = obj.get("Body")
+            if body is None:
+                return None
+            return body.read()
+
+        return await asyncio.to_thread(_get)
+
     async def delete(self, key: str) -> None:
         if self.settings.storage_backend == "local":
             path = self.local_root / key

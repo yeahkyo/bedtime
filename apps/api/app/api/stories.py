@@ -265,7 +265,11 @@ async def _resolve_voice_and_settings(
     voice: Voice | None = None
     if chosen_id:
         voice = await db.get(Voice, chosen_id)
-        if voice is None or not voice_accessible_to_user(voice, user.id):
+        if (
+            voice is None
+            or not voice_accessible_to_user(voice, user.id)
+            or not bool(getattr(voice, "enabled", True))
+        ):
             raise HTTPException(status_code=404, detail="Voice not found")
     else:
         speech = await resolve_speech_provider_name()

@@ -12,3 +12,10 @@ bool get apiBaseUrlLooksRemote {
   if (u.contains('127.0.0.1') || u.contains('localhost')) return false;
   return u.startsWith('https://') || u.startsWith('http://');
 }
+
+/// Resolve API-relative media paths (e.g. `/media/...`) against [apiBaseUrl].
+String? resolveMediaUrl(String? url) {
+  if (url == null || url.isEmpty) return null;
+  if (url.startsWith('http://') || url.startsWith('https://')) return url;
+  return '$apiBaseUrl$url';
+}

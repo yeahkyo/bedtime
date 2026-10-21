@@ -82,6 +82,10 @@ class VoiceOut(BaseModel):
     provider_voice_id: str
     speech_model: str | None = None
     speed_tier: str = "medium"
+    enabled: bool = True
+    description: str | None = None
+    # Persisted sample from admin; null until generated.
+    preview_audio_url: str | None = None
 
     model_config = {"from_attributes": True}
 

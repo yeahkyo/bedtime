@@ -18,6 +18,8 @@ class Voice(Base):
         ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=True
     )
     name: Mapped[str] = mapped_column(String(64))
+    # Short blurb for App picker (tone / character); admin-editable.
+    description: Mapped[str | None] = mapped_column(String(200), nullable=True)
     kind: Mapped[str] = mapped_column(String(32), default="system")  # system | clone
     provider: Mapped[str] = mapped_column(String(32), default="fishaudio")
     provider_voice_id: Mapped[str] = mapped_column(String(128))
@@ -25,6 +27,14 @@ class Voice(Base):
     speech_model: Mapped[str | None] = mapped_column(String(128), nullable=True)
     # Catalog default narration speed for all users: slow | medium | fast.
     speed_tier: Mapped[str] = mapped_column(String(16), default="medium")
+    # Disabled voices are hidden from the app catalog (admin can still edit).
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    # Persisted TTS sample for admin/app preview playback.
+    preview_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    preview_object_key: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    preview_generated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     language: Mapped[str] = mapped_column(String(8), default="zh")
     consent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     raw_object_key: Mapped[str | None] = mapped_column(String(512), nullable=True)

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response
@@ -22,6 +23,7 @@ from app.services.provider_settings import (
     env_speech_model,
     resolve_speech_model,
 )
+from app.services.storage import storage_service
 from app.services.voice_settings import (
     SPEED_TIERS,
     normalize_speed_tier,
@@ -42,12 +44,17 @@ class AdminVoiceOut(BaseModel):
     user_id: int | None = None
     user_display_name: str | None = None
     name: str
+    description: str | None = None
     kind: str
     language: str
     provider: str
     provider_voice_id: str
     speech_model: str | None = None
     speed_tier: str = "medium"
+    enabled: bool = True
+    preview_text: str | None = None
+    preview_audio_url: str | None = None
+    preview_generated_at: str | None = None
     created_at: str | None = None
 
 
@@ -62,12 +69,14 @@ class AdminVoiceListOut(BaseModel):
 
 class AdminVoiceUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=64)
+    description: str | None = None  # empty string clears
     kind: str | None = None
     language: str | None = Field(default=None, max_length=8)
     provider: str | None = None
     provider_voice_id: str | None = Field(default=None, max_length=128)
     speech_model: str | None = None  # empty string clears override
     speed_tier: str | None = None
+    enabled: bool | None = None
 
 
 class AdminVoiceCreate(BaseModel):
@@ -75,22 +84,30 @@ class AdminVoiceCreate(BaseModel):
 
     user_id: int | None = None
     name: str = Field(min_length=1, max_length=64)
+    description: str | None = Field(default=None, max_length=200)
     kind: str = "system"
     language: str = "zh"
     provider: str
     provider_voice_id: str = Field(min_length=1, max_length=128)
     speech_model: str | None = None
     speed_tier: str = "medium"
+    enabled: bool = True
 
 
 class AdminVoicePreviewIn(BaseModel):
-    """Ad-hoc preview (unsaved form) or optional text override for saved voice."""
+    """Ad-hoc live preview (unsaved form) or overrides for generate."""
 
     provider: str | None = None
     provider_voice_id: str | None = None
     speech_model: str | None = None
     language: str | None = None
     speed_tier: str | None = None
+    text: str | None = Field(default=None, max_length=_PREVIEW_TEXT_MAX)
+
+
+class AdminVoicePreviewGenerateIn(BaseModel):
+    """Generate and persist a preview clip for a saved voice."""
+
     text: str | None = Field(default=None, max_length=_PREVIEW_TEXT_MAX)
 
 
@@ -101,6 +118,10 @@ def _default_preview_text(language: str | None) -> str:
     return _PREVIEW_TEXT_ZH
 
 
+def _preview_storage_key(voice_id: int) -> str:
+    return f"voices/{voice_id}/preview.mp3"
+
+
 async def _synthesize_preview(
     *,
     provider: str,
@@ -109,7 +130,7 @@ async def _synthesize_preview(
     language: str | None,
     text: str | None,
     speed_tier: str | None = None,
-) -> bytes:
+) -> tuple[bytes, str]:
     name = (provider or "").strip().lower()
     if name not in SPEECH_PROVIDERS:
         raise HTTPException(status_code=400, detail=f"Invalid provider: {provider}")
@@ -141,21 +162,37 @@ async def _synthesize_preview(
         ) from exc
     if not audio:
         raise HTTPException(status_code=502, detail="Voice preview returned empty audio")
-    return audio
+    return audio, sample
 
 
-def _to_out(voice: Voice, user: User | None = None) -> AdminVoiceOut:
+async def _to_out(voice: Voice, user: User | None = None) -> AdminVoiceOut:
+    preview_url: str | None = None
+    key = (voice.preview_object_key or "").strip()
+    if key:
+        try:
+            preview_url = await storage_service.presigned_url(key)
+        except Exception:
+            logger.warning("preview url failed voice_id=%s key=%s", voice.id, key, exc_info=True)
+            preview_url = None
+    desc = (getattr(voice, "description", None) or "").strip() or None
     return AdminVoiceOut(
         id=voice.id,
         user_id=voice.user_id,
         user_display_name=user.display_name if user else None,
         name=voice.name,
+        description=desc,
         kind=voice.kind,
         language=voice.language or "zh",
         provider=voice.provider or "",
         provider_voice_id=voice.provider_voice_id or "",
         speech_model=voice.speech_model,
         speed_tier=normalize_speed_tier(getattr(voice, "speed_tier", None)),
+        enabled=bool(getattr(voice, "enabled", True)),
+        preview_text=voice.preview_text,
+        preview_audio_url=preview_url,
+        preview_generated_at=(
+            voice.preview_generated_at.isoformat() if voice.preview_generated_at else None
+        ),
         created_at=voice.created_at.isoformat() if voice.created_at else None,
     )
 
@@ -168,6 +205,7 @@ async def list_voices(
     user_id: int | None = None,
     provider: str | None = None,
     kind: str | None = None,
+    enabled: bool | None = None,
     _: str = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ) -> AdminVoiceListOut:
@@ -178,6 +216,8 @@ async def list_voices(
         filters.append(Voice.provider == provider.strip().lower())
     if kind and kind.strip():
         filters.append(Voice.kind == kind.strip().lower())
+    if enabled is not None:
+        filters.append(Voice.enabled.is_(enabled))
     if q and q.strip():
         like = f"%{q.strip()}%"
         filters.append(
@@ -210,11 +250,12 @@ async def list_voices(
     providers = [p for p in SPEECH_PROVIDERS if p != "mock"] + ["mock"]
     env_models = {p: env_speech_model(p) for p in providers}
 
+    items = [
+        await _to_out(v, users.get(v.user_id) if v.user_id is not None else None)
+        for v in rows
+    ]
     return AdminVoiceListOut(
-        items=[
-            _to_out(v, users.get(v.user_id) if v.user_id is not None else None)
-            for v in rows
-        ],
+        items=items,
         total=total,
         page=page,
         page_size=page_size,
@@ -228,13 +269,13 @@ async def preview_voice_adhoc(
     body: AdminVoicePreviewIn,
     _: str = Depends(require_admin),
 ) -> Response:
-    """Synthesize a short sample from form fields (no save required)."""
+    """Live synthesize from form fields (not persisted)."""
     if not body.provider or not body.provider_voice_id:
         raise HTTPException(
             status_code=400,
             detail="provider and provider_voice_id are required",
         )
-    audio = await _synthesize_preview(
+    audio, _ = await _synthesize_preview(
         provider=body.provider,
         provider_voice_id=body.provider_voice_id,
         speech_model=body.speech_model,
@@ -259,48 +300,62 @@ async def get_voice(
     if voice is None:
         raise HTTPException(status_code=404, detail="Voice not found")
     user = await db.get(User, voice.user_id) if voice.user_id is not None else None
-    return _to_out(voice, user)
+    return await _to_out(voice, user)
 
 
-@router.post("/{voice_id}/preview")
-async def preview_voice(
+@router.get("/{voice_id}/preview")
+async def get_stored_preview(
     voice_id: int,
-    body: AdminVoicePreviewIn | None = None,
     _: str = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ) -> Response:
-    """Synthesize a short sample with the saved voice binding."""
+    """Return the persisted preview mp3 (404 if none generated yet)."""
     voice = await db.get(Voice, voice_id)
     if voice is None:
         raise HTTPException(status_code=404, detail="Voice not found")
-    body = body or AdminVoicePreviewIn()
-    # Optional overrides let dialog preview edits before save.
-    provider = (body.provider or voice.provider or "").strip().lower()
-    provider_voice_id = (body.provider_voice_id or voice.provider_voice_id or "").strip()
-    speech_model = (
-        body.speech_model
-        if body.speech_model is not None
-        else voice.speech_model
-    )
-    language = body.language or voice.language
-    speed_tier = (
-        body.speed_tier
-        if body.speed_tier is not None
-        else getattr(voice, "speed_tier", None)
-    )
-    audio = await _synthesize_preview(
-        provider=provider,
-        provider_voice_id=provider_voice_id,
-        speech_model=speech_model,
-        language=language,
-        text=body.text,
-        speed_tier=speed_tier,
-    )
+    key = (voice.preview_object_key or "").strip()
+    if not key:
+        raise HTTPException(status_code=404, detail="Preview audio not generated")
+    data = await storage_service.get_bytes(key)
+    if not data:
+        raise HTTPException(status_code=404, detail="Preview audio missing from storage")
     return Response(
-        content=audio,
+        content=data,
         media_type="audio/mpeg",
         headers={"Cache-Control": "no-store"},
     )
+
+
+@router.post("/{voice_id}/preview/generate", response_model=AdminVoiceOut)
+async def generate_stored_preview(
+    voice_id: int,
+    body: AdminVoicePreviewGenerateIn | None = None,
+    _: str = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> AdminVoiceOut:
+    """Synthesize sample text with the saved voice binding and persist (overwrite)."""
+    voice = await db.get(Voice, voice_id)
+    if voice is None:
+        raise HTTPException(status_code=404, detail="Voice not found")
+    body = body or AdminVoicePreviewGenerateIn()
+    text = (body.text or "").strip() or voice.preview_text
+    audio, sample = await _synthesize_preview(
+        provider=voice.provider or "",
+        provider_voice_id=voice.provider_voice_id or "",
+        speech_model=voice.speech_model,
+        language=voice.language,
+        text=text,
+        speed_tier=getattr(voice, "speed_tier", None),
+    )
+    key = _preview_storage_key(voice.id)
+    await storage_service.put_bytes(key, audio, "audio/mpeg")
+    voice.preview_object_key = key
+    voice.preview_text = sample
+    voice.preview_generated_at = datetime.now(timezone.utc)
+    await db.commit()
+    await db.refresh(voice)
+    user = await db.get(User, voice.user_id) if voice.user_id is not None else None
+    return await _to_out(voice, user)
 
 
 @router.post("", response_model=AdminVoiceOut, status_code=201)
@@ -319,7 +374,6 @@ async def create_voice(
     owner: User | None = None
     owner_id: int | None = None
     if kind == "system":
-        # Shared catalog — ignore any client-provided user_id.
         owner_id = None
     else:
         if body.user_id is None:
@@ -337,20 +391,25 @@ async def create_voice(
     if raw_tier and raw_tier not in SPEED_TIERS:
         raise HTTPException(status_code=400, detail="speed_tier must be slow|medium|fast")
     tier = normalize_speed_tier(raw_tier or None)
+    desc = (body.description or "").strip() or None
+    if desc and len(desc) > 200:
+        desc = desc[:200]
     voice = Voice(
         user_id=owner_id,
         name=body.name.strip(),
+        description=desc,
         kind=kind,
         language=(body.language or "zh").strip() or "zh",
         provider=provider,
         provider_voice_id=body.provider_voice_id.strip(),
         speech_model=mid,
         speed_tier=tier,
+        enabled=bool(body.enabled),
     )
     db.add(voice)
     await db.commit()
     await db.refresh(voice)
-    return _to_out(voice, owner)
+    return await _to_out(voice, owner)
 
 
 @router.patch("/{voice_id}", response_model=AdminVoiceOut)
@@ -368,6 +427,11 @@ async def update_voice(
         if not name:
             raise HTTPException(status_code=400, detail="Name is required")
         voice.name = name
+    if body.description is not None:
+        desc = body.description.strip()
+        if len(desc) > 200:
+            desc = desc[:200]
+        voice.description = desc or None
     if body.kind is not None:
         kind = body.kind.strip().lower()
         if kind not in ("system", "clone"):
@@ -393,10 +457,12 @@ async def update_voice(
         if tier not in SPEED_TIERS:
             raise HTTPException(status_code=400, detail="speed_tier must be slow|medium|fast")
         voice.speed_tier = tier
+    if body.enabled is not None:
+        voice.enabled = bool(body.enabled)
     await db.commit()
     await db.refresh(voice)
     user = await db.get(User, voice.user_id) if voice.user_id is not None else None
-    return _to_out(voice, user)
+    return await _to_out(voice, user)
 
 
 @router.delete("/{voice_id}")
@@ -408,6 +474,12 @@ async def delete_voice(
     voice = await db.get(Voice, voice_id)
     if voice is None:
         raise HTTPException(status_code=404, detail="Voice not found")
+    key = (voice.preview_object_key or "").strip()
+    if key:
+        try:
+            await storage_service.delete(key)
+        except Exception:
+            logger.warning("preview delete failed voice_id=%s key=%s", voice_id, key, exc_info=True)
     await db.delete(voice)
     await db.commit()
     return {"ok": True}
