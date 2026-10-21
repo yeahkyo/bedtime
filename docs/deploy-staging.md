@@ -47,8 +47,9 @@ Override SSH target: `DEPLOY_SSH=root@lullvale01 REMOTE_REPO_ROOT=/srv/bedtime .
 3. Cloudflare DNS: `bedtime-api.lullvale.com` → VPS IP, **Proxied**, SSL **Full**.
 4. Cloudflare **Origin Rule**: that hostname → **destination port 8080** (skip if you use `API_HOST_PORT=80` alone on the box).
 5. Firewall: allow **8080** (and **22**); do not publish MariaDB/Redis.
-6. `./deploy.sh`
-7. Optional Admin UI: `docker compose -p bedtime -f docker-compose.staging.yml --profile admin up -d --build` → host **:8083**
+6. `./deploy.sh` (API **:8080** + Admin UI **:8083**)
+7. Admin UI: open `http://<VPS_IP>:8083` (or a Cloudflare hostname with Origin Rule → **8083**).  
+   SPA uses same-origin `/admin/*`; nginx proxies to the `api` container — leave `ADMIN_UI_API_BASE` empty.
 8. App: `flutter run --dart-define=API_BASE_URL=https://bedtime-api.lullvale.com`
 9. Retention cron on the VPS (see below).
 

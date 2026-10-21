@@ -58,7 +58,8 @@ services:
     restart: unless-stopped
 
   admin:
-    profiles: ["admin"]
+    # Browser talks to this nginx; /admin and /media are proxied to api:8000 on the
+    # Compose network (keep ADMIN_UI_API_BASE empty so the SPA uses same-origin).
     build:
       context: ./apps/admin
       dockerfile: Dockerfile
@@ -69,7 +70,8 @@ services:
       # Avoid Bandage admin :8081
       - "${ADMIN_UI_PORT:-8083}:80"
     depends_on:
-      - api
+      api:
+        condition: service_started
     restart: unless-stopped
 
 volumes:
