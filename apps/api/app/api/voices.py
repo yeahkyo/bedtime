@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_db
@@ -10,7 +10,7 @@ from app.models.user import User
 from app.models.voice import Voice
 from app.providers.factory import get_clone_provider
 from app.schemas.common import VoiceOut, VoiceUpdate
-from app.services.provider_settings import resolve_speech_provider_name
+from app.services.provider_settings import resolve_speech_model, resolve_speech_provider_name
 from app.services.quota import check_and_increment
 from app.services.retention import raw_voice_purge_at
 from app.services.storage import storage_service
@@ -24,10 +24,28 @@ router = APIRouter(prefix="/voices", tags=["voices"])
 async def list_voices(
     user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
 ) -> list[VoiceOut]:
-    rows = await db.execute(
-        select(Voice).where(Voice.user_id == user.id).order_by(Voice.id.asc())
-    )
-    return list(rows.scalars().all())
+    rows = (
+        await db.execute(
+            select(Voice)
+            .where(or_(Voice.user_id.is_(None), Voice.user_id == user.id))
+            .order_by(Voice.id.asc())
+        )
+    ).scalars().all()
+    # Hide legacy per-user system rows once a global catalog voice exists for that provider.
+    global_providers = {
+        (v.provider or "").strip().lower()
+        for v in rows
+        if v.user_id is None and v.kind == "system"
+    }
+    return [
+        v
+        for v in rows
+        if not (
+            v.user_id is not None
+            and v.kind == "system"
+            and (v.provider or "").strip().lower() in global_providers
+        )
+    ]
 
 
 @router.patch("/{voice_id}", response_model=VoiceOut)
@@ -38,6 +56,8 @@ async def update_voice(
     db: AsyncSession = Depends(get_db),
 ) -> Voice:
     voice = await db.get(Voice, voice_id)
+    # Users may only rename their own clones — global catalog is admin-only.
+    # Provider / model / provider_voice_id are admin-managed (ignore client spoofing).
     if voice is None or voice.user_id != user.id:
         raise HTTPException(status_code=404, detail="Voice not found")
     name = body.name.strip()
@@ -74,6 +94,7 @@ async def clone_voice(
         raise HTTPException(status_code=400, detail="Audio sample too short")
 
     speech_provider = await resolve_speech_provider_name()
+    speech_model = (await resolve_speech_model(speech_provider) or "").strip() or None
 
     # Ephemeral store then purge ASAP after clone
     raw_key = storage_service.new_key(f"ephemeral/voices/{user.id}", f"_{file.filename or 'sample.wav'}")
@@ -95,6 +116,8 @@ async def clone_voice(
         kind="clone",
         provider=speech_provider,
         provider_voice_id=provider_voice_id,
+        speech_model=speech_model,
+        speed_tier="medium",
         language=language,
         consent_at=datetime.now(timezone.utc),
         raw_object_key=None,
@@ -111,6 +134,7 @@ async def delete_voice(
     voice_id: int, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
 ) -> dict:
     voice = await db.get(Voice, voice_id)
+    # Global catalog voices cannot be deleted by end users.
     if voice is None or voice.user_id != user.id:
         raise HTTPException(status_code=404, detail="Voice not found")
     if voice.kind == "clone":

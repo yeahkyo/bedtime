@@ -16,14 +16,18 @@ class ElevenLabsTtsProvider(TtsProvider):
         speech_rate_delta: int = 0,
         loudness_rate: int = 0,
         ssml: str | None = None,
+        model: str | None = None,
     ) -> bytes:
         cfg = get_settings()
         if not cfg.elevenlabs_api_key:
             raise RuntimeError("ELEVENLABS_API_KEY is not set")
+        from app.services.provider_settings import resolve_speech_model
+
         # ElevenLabs has no Volc SSML; use plain text (caller already punctuates).
         _ = ssml
         # Map Volc-style rate delta (~-50..100) onto ElevenLabs speed lightly.
         speed = max(0.7, min(1.2, settings.speed + speech_rate_delta / 200.0))
+        model_id = (model or "").strip() or await resolve_speech_model("elevenlabs")
         url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
         async with httpx.AsyncClient(timeout=180) as client:
             resp = await client.post(
@@ -35,7 +39,7 @@ class ElevenLabsTtsProvider(TtsProvider):
                 },
                 json={
                     "text": text,
-                    "model_id": cfg.elevenlabs_model_id,
+                    "model_id": model_id or cfg.elevenlabs_model_id,
                     "voice_settings": {
                         "stability": settings.stability,
                         "similarity_boost": settings.similarity_boost,
@@ -56,12 +60,16 @@ class ElevenLabsTtsProvider(TtsProvider):
         speech_rate_delta: int = 0,
         loudness_rate: int = 0,
         ssml: str | None = None,
+        model: str | None = None,
     ) -> AsyncIterator[bytes]:
         cfg = get_settings()
         if not cfg.elevenlabs_api_key:
             raise RuntimeError("ELEVENLABS_API_KEY is not set")
+        from app.services.provider_settings import resolve_speech_model
+
         _ = ssml
         speed = max(0.7, min(1.2, settings.speed + speech_rate_delta / 200.0))
+        model_id = (model or "").strip() or await resolve_speech_model("elevenlabs")
         url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}/stream"
         async with httpx.AsyncClient(timeout=180) as client:
             async with client.stream(
@@ -74,7 +82,7 @@ class ElevenLabsTtsProvider(TtsProvider):
                 },
                 json={
                     "text": text,
-                    "model_id": cfg.elevenlabs_model_id,
+                    "model_id": model_id or cfg.elevenlabs_model_id,
                     "voice_settings": {
                         "stability": settings.stability,
                         "similarity_boost": settings.similarity_boost,

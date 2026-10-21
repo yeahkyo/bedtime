@@ -277,6 +277,7 @@ async def synthesize_with_prosody(
     settings: VoiceSettings,
     *,
     speech_provider: str | None = None,
+    model: str | None = None,
 ) -> tuple[bytes, str]:
     """
     Single TTS call with SSML breaks (system, non-2.0) or punctuation breaths.
@@ -296,6 +297,7 @@ async def synthesize_with_prosody(
                 speech_rate_delta=prepared.speech_rate_delta,
                 loudness_rate=prepared.loudness_rate,
                 ssml=prepared.ssml,
+                model=model,
             )
             return audio, display
         except Exception as exc:
@@ -307,5 +309,6 @@ async def synthesize_with_prosody(
         settings,
         speech_rate_delta=prepared.speech_rate_delta,
         loudness_rate=prepared.loudness_rate,
+        model=model,
     )
     return audio, display

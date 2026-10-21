@@ -124,7 +124,7 @@ class _ChildrenManageScreenState extends State<ChildrenManageScreen> {
                         final picked = await showDatePicker(
                           context: ctx,
                           initialDate: birth,
-                          firstDate: DateTime(DateTime.now().year - 12),
+                          firstDate: DateTime(DateTime.now().year - 13),
                           lastDate: DateTime.now(),
                         );
                         if (picked != null) setModal(() => birth = picked);

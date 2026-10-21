@@ -67,7 +67,7 @@ class ChildOut(BaseModel):
 
 
 class VoicePrefsUpdate(BaseModel):
-    speed_tier: str = "slow"
+    speed_tier: str = "medium"
     tone_preset: str = "gentle"
     likeness_boost: bool = False
     default_voice_id: int | None = None
@@ -80,12 +80,18 @@ class VoiceOut(BaseModel):
     language: str
     provider: str = "fishaudio"
     provider_voice_id: str
+    speech_model: str | None = None
+    speed_tier: str = "medium"
 
     model_config = {"from_attributes": True}
 
 
 class VoiceUpdate(BaseModel):
     name: str = Field(min_length=1, max_length=64)
+    # Optional; omit to leave unchanged on client PATCH that only renames.
+    speech_model: str | None = None
+    provider: str | None = None
+    provider_voice_id: str | None = None
 
 
 class StoryCreate(BaseModel):
@@ -106,6 +112,8 @@ class StoryCreate(BaseModel):
     keywords: list[str] = []
     # Optional soft developmental focus id (e.g. tiny_brave); auto-picked by age if omitted
     development_focus: str | None = None
+    # Optional catalog element id from chip pick; else server silently selects
+    story_element_id: str | None = Field(default=None, max_length=64)
     # auto | protagonist | supporting | absent
     child_cast_role: str = "auto"
     # Style dials
@@ -137,6 +145,7 @@ class StoryOut(BaseModel):
     development_focus_label: str | None = None
     story_provider: str | None = None
     speech_provider: str | None = None
+    speech_model: str | None = None
 
     model_config = {"from_attributes": True}
 

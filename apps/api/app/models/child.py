@@ -12,8 +12,8 @@ class Child(Base):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     nickname: Mapped[str] = mapped_column(String(64))
-    # Kept in sync from birth_date for prompt routing / legacy clients.
-    age_band: Mapped[str] = mapped_column(String(32), default="3-5")  # 2-3 | 3-5 | 6-8
+    # Deprecated as data source — always derive from birth_date; kept for legacy clients.
+    age_band: Mapped[str] = mapped_column(String(32), default="3-5")  # 2-3 | 3-5 | 6-8 | 9-12
     birth_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     gender: Mapped[str] = mapped_column(String(32), default="unspecified")  # girl|boy|other|unspecified
     intro: Mapped[str | None] = mapped_column(Text, nullable=True)  # free-text intro for storytelling

@@ -3,6 +3,7 @@ from unittest.mock import patch
 from app.core.config import Settings
 from app.providers.deepseek_story import DeepSeekStoryProvider
 from app.providers.doubao_story import DoubaoStoryProvider
+from app.providers.aliyun_tts import AliyunTtsProvider, AliyunVoiceCloneProvider
 from app.providers.elevenlabs_tts import ElevenLabsTtsProvider, ElevenLabsVoiceCloneProvider
 from app.providers.factory import get_clone_provider, get_story_provider, get_tts_provider
 from app.providers.fish_tts import FishAudioTtsProvider, FishAudioVoiceCloneProvider
@@ -47,6 +48,8 @@ def test_factory_by_name():
         assert isinstance(get_clone_provider("volc"), VolcVoiceCloneProvider)
         assert isinstance(get_tts_provider("elevenlabs"), ElevenLabsTtsProvider)
         assert isinstance(get_clone_provider("elevenlabs"), ElevenLabsVoiceCloneProvider)
+        assert isinstance(get_tts_provider("aliyun"), AliyunTtsProvider)
+        assert isinstance(get_clone_provider("aliyun"), AliyunVoiceCloneProvider)
         assert isinstance(get_story_provider("mock"), MockStoryProvider)
         assert isinstance(get_tts_provider("mock"), MockTtsProvider)
         assert isinstance(get_clone_provider("mock"), MockVoiceCloneProvider)

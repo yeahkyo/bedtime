@@ -1,5 +1,6 @@
 import json
 from collections.abc import AsyncIterator
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from fastapi.responses import StreamingResponse
@@ -17,7 +18,6 @@ from app.models.voice import Voice, VoicePrefs
 from app.providers.base import StoryRequest, VoiceSettings
 from app.providers.factory import get_story_provider, get_tts_provider
 from app.providers.story_prompt import (
-    choose_development_focus,
     clamp_episode_count,
     focus_from_series_outline,
 )
@@ -25,13 +25,33 @@ from app.schemas.common import StoryCreate, StoryOut
 from app.services.errors import safe_error_message
 from app.services.quota import check_and_increment
 from app.services.retention import story_expiry_from_now
-from app.services.child_profile import normalize_gender, sync_age_band
+from app.services.child_profile import (
+    age_years_int_on,
+    normalize_gender,
+    sync_age_band,
+)
 from app.services.narration_prosody import prepare_narration, synthesize_with_prosody
-from app.services.provider_settings import resolve_speech_provider_name, resolve_story_provider_name
+from app.services.provider_settings import (
+    resolve_speech_model,
+    resolve_speech_provider_name,
+    resolve_story_provider_name,
+)
 from app.services.storage import storage_service
+from app.services.story_elements import resolve_story_element_for_job
+from app.services.story_history import load_recent_story_history
+from app.services.story_job_recovery import (
+    is_retryable_story,
+    load_episode_plan_json,
+    should_resume_draft_only,
+    should_resume_tts_only,
+)
 from app.services.story_jobs import process_story_job, serialize_story_request
-from app.services.system_voice import ensure_system_voice
-from app.services.voice_settings import resolve_voice_settings
+from app.services.story_kernels import (
+    record_kernel_usage,
+    resolve_story_kernel_for_create,
+)
+from app.services.system_voice import ensure_system_voice, voice_accessible_to_user
+from app.services.voice_settings import apply_voice_speed, resolve_voice_settings
 
 
 router = APIRouter(prefix="/stories", tags=["stories"])
@@ -123,7 +143,8 @@ async def _resolve_series_state(
     return None, None, 1, body.recap, False
 
 
-def _build_story_request(
+async def _build_story_request(
+    db: AsyncSession,
     *,
     child: Child,
     body: StoryCreate,
@@ -133,33 +154,42 @@ def _build_story_request(
     need_series_outline: bool = False,
     recap: str | None = None,
     soft_series_mode: bool | None = None,
-) -> tuple[StoryRequest, str, str]:
-    age_band = sync_age_band(child.birth_date, child.age_band)
+    preferred_kernel: str | None = None,
+    exclude_story_id: int | None = None,
+) -> tuple[StoryRequest, str, str, str | None]:
+    age_band = sync_age_band(child.birth_date)
+    recent_history = await load_recent_story_history(
+        db, child_id=child.id, exclude_story_id=exclude_story_id
+    )
     outline_focus, outline_how = focus_from_series_outline(
         series_outline, episode_no, age_band=age_band
     )
-    if outline_focus:
-        focus_id, focus_label = outline_focus, (outline_how or outline_focus)
-    else:
-        focus_id, focus_label = choose_development_focus(
-            age_band,
-            body.theme,
-            preferred=body.development_focus or outline_focus,
-            salt=child.nickname,
-        )
-        if outline_how and not body.development_focus:
-            focus_label = outline_how
+    focus_id, focus_label, kernel_id = await resolve_story_kernel_for_create(
+        db,
+        child_id=child.id,
+        birth_date=child.birth_date,
+        salt=child.nickname or "",
+        episode_no=episode_no,
+        preferred=preferred_kernel or body.development_focus,
+        outline_focus=outline_focus,
+        outline_how=outline_how,
+    )
+    # Empty / placeholder theme → axis label only (not kernel name / soft_guidance).
+    theme = (body.theme or "").strip()
+    if not theme or theme in ("温柔的夜晚", "a gentle forest adventure"):
+        theme = (focus_label or focus_id or "睡前小故事")[:128]
     series_on = soft_series_mode if soft_series_mode is not None else body.soft_series_mode
     req = StoryRequest(
         child_nickname=child.nickname,
         age_band=age_band,
         language=body.language,
-        theme=body.theme,
+        theme=theme,
         duration_minutes=body.duration_minutes,
         values=body.values,
         interests=interests,
         keywords=body.keywords,
         child_gender=normalize_gender(child.gender),
+        child_age_years=age_years_int_on(child.birth_date),
         child_intro=(child.intro or "").strip() or None,
         recap=recap if recap is not None else body.recap,
         soft_series_mode=series_on or need_series_outline or series_outline is not None,
@@ -176,8 +206,9 @@ def _build_story_request(
         episode_no=episode_no,
         series_outline=series_outline,
         need_series_outline=need_series_outline,
+        recent_history=recent_history,
     )
-    return req, focus_id, focus_label
+    return req, focus_id, focus_label, kernel_id
 
 
 async def _story_out(db: AsyncSession, story: Story) -> StoryOut:
@@ -219,6 +250,7 @@ async def _story_out(db: AsyncSession, story: Story) -> StoryOut:
         development_focus_label=focus_label,
         story_provider=story.story_provider,
         speech_provider=story.speech_provider,
+        speech_model=getattr(story, "speech_model", None),
     )
 
 
@@ -233,7 +265,7 @@ async def _resolve_voice_and_settings(
     voice: Voice | None = None
     if chosen_id:
         voice = await db.get(Voice, chosen_id)
-        if voice is None or voice.user_id != user.id:
+        if voice is None or not voice_accessible_to_user(voice, user.id):
             raise HTTPException(status_code=404, detail="Voice not found")
     else:
         speech = await resolve_speech_provider_name()
@@ -248,6 +280,8 @@ async def _resolve_voice_and_settings(
         )
     else:
         vs = resolve_voice_settings()
+    # Voice catalog speed applies to all users; child prefs still supply tone knobs.
+    vs = apply_voice_speed(vs, voice)
     return voice, vs
 
 
@@ -297,7 +331,8 @@ async def create_story_batch(
     )
     if series_row is not None:
         body = await _inherit_series_create_body(db, series_row, body)
-    story_req, focus_id, focus_label = _build_story_request(
+    story_req, focus_id, focus_label, kernel_id = await _build_story_request(
+        db,
         child=child,
         body=body,
         interests=interests,
@@ -307,25 +342,37 @@ async def create_story_batch(
         recap=recap,
         soft_series_mode=body.soft_series_mode or series_row is not None or need_outline,
     )
+    from app.services.story_kernels import axis_for_focus
+
     params = body.model_dump()
+    params["theme"] = story_req.theme
     params["development_focus"] = focus_id
+    # Axis label only (not soft_guidance / kernel name).
     params["development_focus_label"] = focus_label
+    axis_id, _ = axis_for_focus(focus_id)
+    params["story_axis"] = axis_id
     params["episode_no"] = episode_no
+    if kernel_id:
+        params["story_kernel_id"] = kernel_id
 
     await check_and_increment(db, user.id, "story")
 
     story_provider = await resolve_story_provider_name()
     speech_provider = (voice.provider or await resolve_speech_provider_name()).strip().lower()
+    speech_model = await resolve_speech_model(
+        speech_provider, voice_model=voice.speech_model
+    )
 
     story = Story(
         user_id=user.id,
         child_id=child.id,
         voice_id=voice.id,
         language=body.language,
-        theme=body.theme,
+        theme=story_req.theme,
         duration_minutes=body.duration_minutes,
         status="generating",
         progress="queued",
+        progress_at=datetime.now(timezone.utc),
         source=body.source,
         memory_ids_json=json.dumps(body.memory_ids),
         params_json=json.dumps(params, ensure_ascii=False),
@@ -336,10 +383,16 @@ async def create_story_batch(
         episode_no=episode_no if (series_row or need_outline) else None,
         story_provider=story_provider,
         speech_provider=speech_provider,
+        speech_model=speech_model or None,
     )
     db.add(story)
     await db.commit()
     await db.refresh(story)
+
+    if kernel_id:
+        await record_kernel_usage(
+            db, child_id=child.id, kernel_id=kernel_id, story_id=story.id
+        )
 
     background_tasks.add_task(
         process_story_job,
@@ -379,6 +432,7 @@ def _story_create_from_params(story: Story, params: dict) -> StoryCreate:
         "memory_ids": params.get("memory_ids") or [],
         "keywords": params.get("keywords") or [],
         "development_focus": params.get("development_focus"),
+        "story_element_id": params.get("story_element_id"),
         "child_cast_role": params.get("child_cast_role") or "auto",
         "plot_drive": params.get("plot_drive") or "light",
         "imagery": params.get("imagery") or "balanced",
@@ -397,7 +451,11 @@ async def retry_failed_story(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> StoryOut:
-    """Re-enqueue a failed story with the same params. Does not charge quota again."""
+    """Re-enqueue a failed or stuck generating story. Does not charge quota again.
+
+    If body is already checkpointed and audio is missing, resumes TTS only.
+    If episode_plan is checkpointed and body is empty, skips plan LLM and drafts only.
+    """
     story = (
         await db.execute(
             select(Story).where(Story.id == story_id).options(selectinload(Story.audio))
@@ -405,10 +463,15 @@ async def retry_failed_story(
     ).scalar_one_or_none()
     if story is None or story.user_id != user.id:
         raise HTTPException(status_code=404, detail="Story not found")
-    if story.status != "failed":
-        raise HTTPException(status_code=400, detail="Only failed stories can be retried")
+    if not is_retryable_story(story):
+        raise HTTPException(
+            status_code=400,
+            detail="Only failed or stuck generating stories can be retried",
+        )
     if story.child_id is None:
         raise HTTPException(status_code=400, detail="Missing child")
+    resume_tts_only = should_resume_tts_only(story)
+    resume_draft_only = (not resume_tts_only) and should_resume_draft_only(story)
 
     child = await db.get(Child, story.child_id)
     if child is None or child.user_id != user.id:
@@ -436,8 +499,9 @@ async def retry_failed_story(
         except json.JSONDecodeError as exc:
             raise HTTPException(status_code=500, detail="Series outline corrupt") from exc
         need_outline = False
-    elif body.soft_series_mode:
+    elif body.soft_series_mode and not resume_draft_only:
         # First episode failed before a series row was created — restart outline.
+        # If we already have a saved episode_plan, skip outline+plan and draft only.
         need_outline = True
         episode_no = 1
 
@@ -456,7 +520,13 @@ async def retry_failed_story(
         except (json.JSONDecodeError, TypeError):
             pass
 
-    story_req, focus_id, focus_label = _build_story_request(
+    prev_kernel = None
+    if isinstance(params, dict):
+        raw_k = params.get("story_kernel_id")
+        if isinstance(raw_k, str) and raw_k.strip():
+            prev_kernel = raw_k.strip()
+    story_req, focus_id, focus_label, kernel_id = await _build_story_request(
+        db,
         child=child,
         body=body,
         interests=interests,
@@ -465,24 +535,46 @@ async def retry_failed_story(
         need_series_outline=need_outline,
         recap=recap,
         soft_series_mode=body.soft_series_mode or series_row is not None or need_outline,
+        preferred_kernel=prev_kernel,
+        exclude_story_id=story.id,
     )
+    if resume_draft_only:
+        saved_plan = load_episode_plan_json(story.episode_plan_json)
+        if saved_plan is not None:
+            story_req.episode_plan = saved_plan
+            story_req.need_series_outline = False
     # Refresh params snapshot (keep voice/child binding on the story row).
+    from app.services.story_kernels import axis_for_focus
+
     retry_params = body.model_dump()
     retry_params["development_focus"] = focus_id
     retry_params["development_focus_label"] = focus_label
+    retry_params["story_axis"] = axis_for_focus(focus_id)[0]
     retry_params["episode_no"] = episode_no
+    # Preserve element/kernel chosen on first attempt so retry does not re-pick.
+    if isinstance(params, dict):
+        prev_el = params.get("story_element_id")
+        if isinstance(prev_el, str) and prev_el.strip():
+            retry_params["story_element_id"] = prev_el.strip()
+    if kernel_id or prev_kernel:
+        retry_params["story_kernel_id"] = kernel_id or prev_kernel
 
     story_provider = await resolve_story_provider_name()
     speech_provider = (voice.provider or await resolve_speech_provider_name()).strip().lower()
+    speech_model = await resolve_speech_model(
+        speech_provider, voice_model=voice.speech_model
+    )
 
     story.status = "generating"
-    story.progress = "queued"
+    story.progress = "tts" if resume_tts_only else "queued"
+    story.progress_at = datetime.now(timezone.utc)
     story.error_message = None
     story.voice_id = voice.id
     story.params_json = json.dumps(retry_params, ensure_ascii=False)
     story.voice_settings_json = json.dumps(vs.__dict__)
     story.story_provider = story_provider
     story.speech_provider = speech_provider
+    story.speech_model = speech_model or None
     await db.commit()
     await db.refresh(story)
 
@@ -497,6 +589,7 @@ async def retry_failed_story(
         continuing_series_id=series_row.id if series_row else None,
         story_provider=story_provider,
         speech_provider=speech_provider,
+        resume_tts_only=resume_tts_only,
     )
 
     story = (
@@ -533,6 +626,10 @@ async def stream_story_audio(
         raise HTTPException(status_code=400, detail="Missing child")
     voice, vs = await _resolve_voice_and_settings(db, user, child, story.voice_id)
     speech_provider = (voice.provider or story.speech_provider or "fishaudio").strip().lower()
+    speech_model = await resolve_speech_model(
+        speech_provider,
+        voice_model=voice.speech_model or story.speech_model,
+    )
     tts = get_tts_provider(speech_provider)
 
     async def gen() -> AsyncIterator[bytes]:
@@ -542,6 +639,7 @@ async def stream_story_audio(
             voice.provider_voice_id,
             vs,
             speech_provider=speech_provider,
+            model=speech_model,
         )
         # Chunk for progressive transfer; full file already paced with pauses.
         step = 16_384
@@ -568,7 +666,8 @@ async def create_story_streaming(
     )
     if series_row is not None:
         body = await _inherit_series_create_body(db, series_row, body)
-    story_req, focus_id, focus_label = _build_story_request(
+    story_req, focus_id, focus_label, kernel_id = await _build_story_request(
+        db,
         child=child,
         body=body,
         interests=interests,
@@ -578,25 +677,35 @@ async def create_story_streaming(
         recap=recap,
         soft_series_mode=body.soft_series_mode or series_row is not None or need_outline,
     )
+    from app.services.story_kernels import axis_for_focus
+
     params = body.model_dump()
+    params["theme"] = story_req.theme
     params["development_focus"] = focus_id
     params["development_focus_label"] = focus_label
+    params["story_axis"] = axis_for_focus(focus_id)[0]
     params["episode_no"] = episode_no
+    if kernel_id:
+        params["story_kernel_id"] = kernel_id
 
     await check_and_increment(db, user.id, "story")
 
     story_name = await resolve_story_provider_name()
     speech_name = (voice.provider or await resolve_speech_provider_name()).strip().lower()
+    speech_model = await resolve_speech_model(
+        speech_name, voice_model=voice.speech_model
+    )
 
     story = Story(
         user_id=user.id,
         child_id=child.id,
         voice_id=voice.id,
         language=body.language,
-        theme=body.theme,
+        theme=story_req.theme,
         duration_minutes=body.duration_minutes,
         status="generating",
         progress="queued",
+        progress_at=datetime.now(timezone.utc),
         source=body.source,
         memory_ids_json=json.dumps(body.memory_ids),
         params_json=json.dumps(params, ensure_ascii=False),
@@ -607,22 +716,71 @@ async def create_story_streaming(
         episode_no=episode_no if (series_row or need_outline) else None,
         story_provider=story_name,
         speech_provider=speech_name,
+        speech_model=speech_model or None,
     )
     db.add(story)
     await db.commit()
     await db.refresh(story)
 
+    if kernel_id:
+        await record_kernel_usage(
+            db, child_id=child.id, kernel_id=kernel_id, story_id=story.id
+        )
+
+    reuse_el = (body.story_element_id or "").strip() or None
+    element_payload = await resolve_story_element_for_job(
+        db,
+        child_id=child.id,
+        birth_date=child.birth_date,
+        salt=child.nickname or "",
+        episode_no=int(episode_no or 1),
+        story_id=story.id,
+        reuse_element_id=reuse_el,
+    )
+    if element_payload:
+        story_req.story_element = element_payload
+        params["story_element_id"] = element_payload["id"]
+        story.params_json = json.dumps(params, ensure_ascii=False)
+        await db.commit()
+
     story_id = story.id
     provider = get_story_provider(story_name)
     tts = get_tts_provider(speech_name)
 
-    async def _mark_failed(session, message: str) -> None:
+    async def _mark_failed(
+        session,
+        message: str,
+        prompts: list | None = None,
+        episode_plan: dict | None = None,
+        metrics: dict | None = None,
+    ) -> None:
+        from app.providers.chat_usage import merge_metrics_dicts, parse_metrics_json
+        from app.providers.story_pipeline import merge_submitted_prompts
+
         s = await session.get(Story, story_id)
-        if s:
-            s.status = "failed"
-            s.progress = "failed"
-            s.error_message = message[:2000]
-            await session.commit()
+        if s is None:
+            return
+        if (s.status or "") == "ready":
+            return
+        # Keep TTS checkpoint so retry can skip LLM when body already exists.
+        had_tts = (s.progress or "") in ("tts", "tts_running") and (s.body or "").strip()
+        s.status = "failed"
+        s.progress = "tts" if had_tts else "failed"
+        s.error_message = message[:2000]
+        prompts_json = merge_submitted_prompts(s.prompts_json, prompts)
+        if prompts_json:
+            s.prompts_json = prompts_json
+        if isinstance(metrics, dict) and metrics:
+            s.metrics_json = json.dumps(
+                merge_metrics_dicts(parse_metrics_json(s.metrics_json), metrics),
+                ensure_ascii=False,
+            )
+        if isinstance(episode_plan, dict) and not (s.episode_plan_json or "").strip():
+            s.episode_plan_json = json.dumps(episode_plan, ensure_ascii=False)
+            title = str(episode_plan.get("title") or "").strip()
+            if title and not (s.title or "").strip():
+                s.title = title[:256]
+        await session.commit()
 
     async def event_stream() -> AsyncIterator[bytes]:
         from app.core.db import SessionLocal
@@ -632,7 +790,13 @@ async def create_story_streaming(
         except Exception as exc:
             msg = safe_error_message(exc, fallback="Story generation failed")
             async with SessionLocal() as session:
-                await _mark_failed(session, msg)
+                await _mark_failed(
+                    session,
+                    msg,
+                    getattr(exc, "submitted_prompts", None),
+                    getattr(exc, "submitted_episode_plan", None),
+                    getattr(exc, "submitted_metrics", None),
+                )
             err = json.dumps({"type": "error", "detail": msg}, ensure_ascii=False)
             yield (err + "\n").encode()
             return
@@ -669,13 +833,31 @@ async def create_story_streaming(
                     s.episode_plan_json = json.dumps(
                         result.episode_plan, ensure_ascii=False
                     )
+                if result.metrics:
+                    from app.providers.chat_usage import (
+                        merge_metrics_dicts,
+                        parse_metrics_json,
+                    )
+
+                    s.metrics_json = json.dumps(
+                        merge_metrics_dicts(
+                            parse_metrics_json(s.metrics_json),
+                            result.metrics,
+                        ),
+                        ensure_ascii=False,
+                    )
+                from app.providers.story_pipeline import merge_submitted_prompts
+
+                prompts_json = merge_submitted_prompts(s.prompts_json, result.prompts)
+                if prompts_json:
+                    s.prompts_json = prompts_json
                 if result.series_outline is not None:
                     series = StorySeries(
                         user_id=user.id,
                         child_id=child.id,
                         title=result.series_title or result.title,
                         language=body.language,
-                        theme=body.theme,
+                        theme=story_req.theme,
                         episode_count=clamp_episode_count(body.episode_count),
                         outline_json=json.dumps(result.series_outline, ensure_ascii=False),
                         status="active",
@@ -701,6 +883,7 @@ async def create_story_streaming(
                 voice.provider_voice_id,
                 vs,
                 speech_provider=speech_name,
+                model=speech_model,
             )
             key = storage_service.new_key(f"stories/{user.id}", ".mp3")
             await storage_service.put_bytes(key, audio_bytes, "audio/mpeg")

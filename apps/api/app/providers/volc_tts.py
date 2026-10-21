@@ -22,6 +22,7 @@ class VolcTtsProvider(TtsProvider):
         speech_rate_delta: int = 0,
         loudness_rate: int = 0,
         ssml: str | None = None,
+        model: str | None = None,
     ) -> bytes:
         chunks: list[bytes] = []
         async for chunk in self.synthesize_stream(
@@ -31,6 +32,7 @@ class VolcTtsProvider(TtsProvider):
             speech_rate_delta=speech_rate_delta,
             loudness_rate=loudness_rate,
             ssml=ssml,
+            model=model,
         ):
             chunks.append(chunk)
         return b"".join(chunks)
@@ -44,14 +46,24 @@ class VolcTtsProvider(TtsProvider):
         speech_rate_delta: int = 0,
         loudness_rate: int = 0,
         ssml: str | None = None,
+        model: str | None = None,
     ) -> AsyncIterator[bytes]:
         cfg = get_settings()
         api_key = cfg.volc_speech_api_key or cfg.ark_api_key
         if not api_key:
             raise RuntimeError("VOLC_SPEECH_API_KEY or ARK_API_KEY is not set")
 
+        from app.services.provider_settings import resolve_speech_model
+
         is_clone = voice_id.startswith("S_") or voice_id.startswith("custom_")
-        resource = cfg.volc_icl_resource_id if is_clone else cfg.volc_tts_resource_id
+        if is_clone:
+            resource = (model or "").strip() or cfg.volc_icl_resource_id
+        else:
+            resource = (
+                (model or "").strip()
+                or (await resolve_speech_model("volc"))
+                or cfg.volc_tts_resource_id
+            )
         # Map ~0.7–1.15 product speeds to Volc speech_rate (-50..100 roughly; 0=default)
         speech_rate = int(max(-50, min(100, (settings.speed - 1.0) * 100 + speech_rate_delta)))
         loud = int(max(-50, min(100, loudness_rate)))

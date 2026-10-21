@@ -1,8 +1,16 @@
-from app.models.beat_pattern import StoryBeatPattern
 from app.models.child import Child
 from app.models.memory import Memory, MemoryAsset, MemoryElement
 from app.models.story import Story, StoryAudio
+from app.models.story_element import (
+    StoryElement,
+    StoryElementCategory,
+    StoryElementSubcategory,
+    StoryElementUsage,
+)
+from app.models.llm_agent import LlmAgent
+from app.models.story_kernel import StoryKernel, StoryKernelUsage
 from app.models.story_series import StorySeries
+from app.models.story_shape import StoryShape
 from app.models.usage import UsageLedger
 from app.models.user import User
 from app.models.voice import Voice, VoicePrefs
@@ -19,5 +27,12 @@ __all__ = [
     "Memory",
     "MemoryAsset",
     "MemoryElement",
-    "StoryBeatPattern",
+    "StoryShape",
+    "StoryElementCategory",
+    "StoryElementSubcategory",
+    "StoryElement",
+    "StoryElementUsage",
+    "StoryKernel",
+    "StoryKernelUsage",
+    "LlmAgent",
 ]

@@ -3,34 +3,30 @@ import { onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { api } from '@/api/client'
 
-export interface BeatPattern {
+export interface StoryShapeRow {
   id: string
-  label: string
-  lineage: string
-  theme_tags: string[]
-  slots: string
-  instruction: string
-  escalation: string | null
-  focus_ids: string[]
+  label_zh: string
+  guidance: string
+  effect: string
+  beat_min: number
+  beat_max: number
   enabled: boolean
   sort_order: number
 }
 
 const loading = ref(false)
 const saving = ref(false)
-const items = ref<BeatPattern[]>([])
+const items = ref<StoryShapeRow[]>([])
 const dialogOpen = ref(false)
 const isCreate = ref(false)
 
 const form = ref({
   id: '',
-  label: '',
-  lineage: '',
-  theme_tags_text: '',
-  focus_ids_text: '',
-  slots: 'wish, snag, try_1, try_2, turn_ok',
-  instruction: '',
-  escalation: '',
+  label_zh: '',
+  guidance: '',
+  effect: '',
+  beat_min: 3,
+  beat_max: 5,
   enabled: true,
   sort_order: 0,
 })
@@ -38,7 +34,7 @@ const form = ref({
 async function load() {
   loading.value = true
   try {
-    const { data } = await api.get<{ items: BeatPattern[]; total: number }>('/admin/beats')
+    const { data } = await api.get<{ items: StoryShapeRow[]; total: number }>('/admin/shapes')
     items.value = data.items
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败')
@@ -51,62 +47,49 @@ function openCreate() {
   isCreate.value = true
   form.value = {
     id: '',
-    label: '',
-    lineage: 'fairy',
-    theme_tags_text: '',
-    focus_ids_text: '',
-    slots: 'wish, snag, try_1, try_2, turn_ok',
-    instruction: '',
-    escalation: '',
+    label_zh: '',
+    guidance: '',
+    effect: '',
+    beat_min: 3,
+    beat_max: 5,
     enabled: true,
     sort_order: (items.value.at(-1)?.sort_order ?? 0) + 10,
   }
   dialogOpen.value = true
 }
 
-function openEdit(row: BeatPattern) {
+function openEdit(row: StoryShapeRow) {
   isCreate.value = false
   form.value = {
     id: row.id,
-    label: row.label,
-    lineage: row.lineage,
-    theme_tags_text: row.theme_tags.join('、'),
-    focus_ids_text: row.focus_ids.join(', '),
-    slots: row.slots,
-    instruction: row.instruction,
-    escalation: row.escalation || '',
+    label_zh: row.label_zh,
+    guidance: row.guidance,
+    effect: row.effect || '',
+    beat_min: row.beat_min,
+    beat_max: row.beat_max,
     enabled: row.enabled,
     sort_order: row.sort_order,
   }
   dialogOpen.value = true
 }
 
-function splitTags(raw: string): string[] {
-  return raw
-    .split(/[,，、\n]+/)
-    .map((s) => s.trim())
-    .filter(Boolean)
-}
-
 async function save() {
   saving.value = true
   try {
     const payload = {
-      label: form.value.label.trim(),
-      lineage: form.value.lineage.trim(),
-      theme_tags: splitTags(form.value.theme_tags_text),
-      focus_ids: splitTags(form.value.focus_ids_text),
-      slots: form.value.slots.trim(),
-      instruction: form.value.instruction.trim(),
-      escalation: form.value.escalation.trim() || null,
+      label_zh: form.value.label_zh.trim(),
+      guidance: form.value.guidance.trim(),
+      effect: form.value.effect.trim(),
+      beat_min: form.value.beat_min,
+      beat_max: form.value.beat_max,
       enabled: form.value.enabled,
       sort_order: form.value.sort_order,
     }
     if (isCreate.value) {
-      await api.post('/admin/beats', { id: form.value.id.trim(), ...payload })
+      await api.post('/admin/shapes', { id: form.value.id.trim(), ...payload })
       ElMessage.success('已创建')
     } else {
-      await api.patch(`/admin/beats/${form.value.id}`, payload)
+      await api.patch(`/admin/shapes/${form.value.id}`, payload)
       ElMessage.success('已保存')
     }
     dialogOpen.value = false
@@ -118,9 +101,9 @@ async function save() {
   }
 }
 
-async function toggleEnabled(row: BeatPattern, enabled: string | number | boolean) {
+async function toggleEnabled(row: StoryShapeRow, enabled: string | number | boolean) {
   try {
-    await api.patch(`/admin/beats/${row.id}`, { enabled: Boolean(enabled) })
+    await api.patch(`/admin/shapes/${row.id}`, { enabled: Boolean(enabled) })
     await load()
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '更新失败')
@@ -128,16 +111,16 @@ async function toggleEnabled(row: BeatPattern, enabled: string | number | boolea
   }
 }
 
-async function remove(row: BeatPattern) {
+async function remove(row: StoryShapeRow) {
   try {
-    await ElMessageBox.confirm(`删除节奏框「${row.label}」(${row.id})？`, '确认删除', {
+    await ElMessageBox.confirm(`删除结构「${row.label_zh}」(${row.id})？`, '确认删除', {
       type: 'warning',
     })
   } catch {
     return
   }
   try {
-    await api.delete(`/admin/beats/${row.id}`)
+    await api.delete(`/admin/shapes/${row.id}`)
     ElMessage.success('已删除')
     await load()
   } catch (e) {
@@ -151,22 +134,20 @@ onMounted(load)
 <template>
   <div>
     <div class="toolbar">
-      <h2>节奏框</h2>
+      <h2>故事结构</h2>
       <el-button type="primary" @click="openCreate">新建</el-button>
     </div>
     <p class="hint">
-      控制故事 Plan 阶段选用的叙事节奏（童话 / 寓言 / 戏剧等）。保存后立即作用于新生成；代码常量仅作空库种子。
+      系统从本表选题，并避开最近两集用过的结构。guidance 是结构功能与睡前边界，会注入构思；
+      节拍数量只限制在 beat_min～beat_max，不再使用示例拍。
     </p>
     <el-table v-loading="loading" :data="items" stripe>
       <el-table-column prop="id" label="ID" width="140" />
-      <el-table-column prop="label" label="名称" min-width="120" />
-      <el-table-column prop="lineage" label="渊源" width="90" />
-      <el-table-column label="主题词" min-width="160" show-overflow-tooltip>
-        <template #default="{ row }">{{ row.theme_tags.join('、') }}</template>
+      <el-table-column prop="label_zh" label="名称" min-width="120" />
+      <el-table-column label="节拍数量" width="100">
+        <template #default="{ row }">{{ row.beat_min }}–{{ row.beat_max }}</template>
       </el-table-column>
-      <el-table-column label="焦点" min-width="140" show-overflow-tooltip>
-        <template #default="{ row }">{{ row.focus_ids.join(', ') || '—' }}</template>
-      </el-table-column>
+      <el-table-column prop="effect" label="预期效果" min-width="180" show-overflow-tooltip />
       <el-table-column prop="sort_order" label="排序" width="70" />
       <el-table-column label="启用" width="80">
         <template #default="{ row }">
@@ -183,44 +164,34 @@ onMounted(load)
 
     <el-dialog
       v-model="dialogOpen"
-      :title="isCreate ? '新建节奏框' : `编辑 ${form.id}`"
+      :title="isCreate ? '新建故事结构' : `编辑 ${form.id}`"
       width="720px"
       destroy-on-close
     >
-      <el-form label-width="100px">
+      <el-form label-width="110px">
         <el-form-item v-if="isCreate" label="ID">
-          <el-input v-model="form.id" placeholder="snake_case，如 two_gates" />
+          <el-input v-model="form.id" placeholder="snake_case，如 binary_op" />
         </el-form-item>
         <el-form-item label="名称">
-          <el-input v-model="form.label" />
+          <el-input v-model="form.label_zh" />
         </el-form-item>
-        <el-form-item label="渊源">
-          <el-input v-model="form.lineage" placeholder="fairy / fable / drama / folk / ritual" />
+        <el-form-item label="节拍区间">
+          <div class="range">
+            <el-input-number v-model="form.beat_min" :min="1" :max="12" />
+            <span>–</span>
+            <el-input-number v-model="form.beat_max" :min="1" :max="12" />
+          </div>
         </el-form-item>
-        <el-form-item label="主题词">
+        <el-form-item label="预期效果">
+          <el-input v-model="form.effect" placeholder="如：微小张力，最后和解归静" />
+        </el-form-item>
+        <el-form-item label="guidance">
           <el-input
-            v-model="form.theme_tags_text"
+            v-model="form.guidance"
             type="textarea"
-            :rows="2"
-            placeholder="逗号或顿号分隔，匹配故事主题"
+            :rows="8"
+            placeholder="结构功能 + 睡前限制，注入给构思模型"
           />
-        </el-form-item>
-        <el-form-item label="发展焦点">
-          <el-input
-            v-model="form.focus_ids_text"
-            type="textarea"
-            :rows="2"
-            placeholder="如 tiny_brave, emotion_held"
-          />
-        </el-form-item>
-        <el-form-item label="slots">
-          <el-input v-model="form.slots" />
-        </el-form-item>
-        <el-form-item label="instruction">
-          <el-input v-model="form.instruction" type="textarea" :rows="8" />
-        </el-form-item>
-        <el-form-item label="escalation">
-          <el-input v-model="form.escalation" type="textarea" :rows="3" />
         </el-form-item>
         <el-form-item label="排序">
           <el-input-number v-model="form.sort_order" :step="10" />
@@ -248,5 +219,10 @@ onMounted(load)
   color: var(--el-text-color-secondary);
   font-size: 13px;
   margin: 0 0 16px;
+}
+.range {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 </style>

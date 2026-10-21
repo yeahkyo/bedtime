@@ -9,9 +9,14 @@ const auth = useAuthStore()
 
 const active = computed(() => {
   if (route.path.startsWith('/stories')) return '/stories'
+  if (route.path.startsWith('/series')) return '/series'
   if (route.path.startsWith('/users')) return '/users'
   if (route.path.startsWith('/settings')) return '/settings'
-  if (route.path.startsWith('/beats')) return '/beats'
+  if (route.path.startsWith('/shapes') || route.path.startsWith('/beats')) return '/shapes'
+  if (route.path.startsWith('/elements')) return '/elements'
+  if (route.path.startsWith('/kernels')) return '/kernels'
+  if (route.path.startsWith('/agents')) return '/agents'
+  if (route.path.startsWith('/voices')) return '/voices'
   return route.path
 })
 
@@ -34,9 +39,29 @@ function logout() {
           <el-icon><Notebook /></el-icon>
           <span>故事</span>
         </el-menu-item>
-        <el-menu-item index="/beats">
+        <el-menu-item index="/series">
+          <el-icon><Film /></el-icon>
+          <span>软系列</span>
+        </el-menu-item>
+        <el-menu-item index="/shapes">
           <el-icon><Collection /></el-icon>
-          <span>节奏框</span>
+          <span>故事结构</span>
+        </el-menu-item>
+        <el-menu-item index="/elements">
+          <el-icon><Reading /></el-icon>
+          <span>故事元素</span>
+        </el-menu-item>
+        <el-menu-item index="/kernels">
+          <el-icon><Sunny /></el-icon>
+          <span>故事内核</span>
+        </el-menu-item>
+        <el-menu-item index="/agents">
+          <el-icon><Cpu /></el-icon>
+          <span>LLM Agents</span>
+        </el-menu-item>
+        <el-menu-item index="/voices">
+          <el-icon><Headset /></el-icon>
+          <span>音色</span>
         </el-menu-item>
         <el-menu-item index="/settings">
           <el-icon><Setting /></el-icon>

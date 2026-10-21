@@ -17,10 +17,22 @@ _MOCK_MP3 = (
 
 
 class MockStoryProvider(StoryProvider):
-    async def generate(self, request: StoryRequest, on_progress=None) -> StoryResult:
+    async def generate(
+        self, request: StoryRequest, on_progress=None, on_plan=None
+    ) -> StoryResult:
         if on_progress:
             await on_progress("episode_plan")
         await asyncio.sleep(0.05)
+        if on_plan:
+            await on_plan(
+                {
+                    "title": f"{request.child_nickname}的夜晚",
+                    "theme": request.theme or "温柔",
+                    "casts": [{"name": request.child_nickname or "小朋友", "desc": ""}],
+                    "beats": ["出门", "轻轻做事", "回家睡着"],
+                    "shape": "一小圈再回家",
+                }
+            )
         if on_progress:
             await on_progress("draft")
         if request.language.startswith("zh"):
@@ -102,7 +114,9 @@ class MockTtsProvider(TtsProvider):
         speech_rate_delta: int = 0,
         loudness_rate: int = 0,
         ssml: str | None = None,
+        model: str | None = None,
     ) -> bytes:
+        _ = model
         await asyncio.sleep(0.05)
         # Repeat a tiny payload so players have something to buffer.
         n = len(ssml or text)
@@ -117,6 +131,7 @@ class MockTtsProvider(TtsProvider):
         speech_rate_delta: int = 0,
         loudness_rate: int = 0,
         ssml: str | None = None,
+        model: str | None = None,
     ) -> AsyncIterator[bytes]:
         data = await self.synthesize(
             text,
@@ -125,6 +140,7 @@ class MockTtsProvider(TtsProvider):
             speech_rate_delta=speech_rate_delta,
             loudness_rate=loudness_rate,
             ssml=ssml,
+            model=model,
         )
         step = 512
         for i in range(0, len(data), step):

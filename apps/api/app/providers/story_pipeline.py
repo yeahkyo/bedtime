@@ -2,28 +2,36 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import time
 from collections.abc import Awaitable, Callable
 from typing import Any
 
 from app.providers.base import StoryRequest, StoryResult
+from app.providers.chat_usage import (
+    ChatOutcome,
+    coerce_chat_outcome,
+    merge_stage_rows,
+    metrics_payload,
+)
 from app.providers.story_prompt import (
-    PLAN_SYSTEM_PROMPT,
-    SERIES_OUTLINE_SYSTEM_PROMPT,
-    SYSTEM_PROMPT,
     build_outline_user_message,
     build_plan_user_message,
     build_user_message,
     clamp_episode_count,
     ensure_soft_hook_in_body,
     max_tokens_for_story,
+    normalize_series_outline,
     parse_json_object,
-    select_beat_pattern,
-    select_cast_intro_mode,
-    select_opening_pattern,
     story_http_timeout_seconds,
     validate_episode_plan,
+)
+from app.services.llm_agents import (
+    AgentConfig,
+    build_chat_messages,
+    get_agent_standalone,
+    resolve_temperature,
 )
 
 logger = logging.getLogger(__name__)
@@ -35,8 +43,9 @@ PLAN_TIMEOUT_SECONDS = 120.0
 OUTLINE_MAX_TOKENS = 4096
 PLAN_MAX_TOKENS = 2048
 
-ChatFn = Callable[..., Awaitable[str]]
+ChatFn = Callable[..., Awaitable[str | ChatOutcome]]
 ProgressFn = Callable[[str], Awaitable[None]]
+PlanFn = Callable[[dict[str, Any]], Awaitable[None]]
 
 
 def _parse_stage_json(stage: str, raw: str) -> dict:
@@ -49,6 +58,58 @@ def _parse_stage_json(stage: str, raw: str) -> dict:
         ) from exc
 
 
+def _story_extra_vars(request: StoryRequest) -> dict[str, Any]:
+    return {
+        "age_band": request.age_band or "",
+        "theme": request.theme or "",
+        "child_nickname": request.child_nickname or "",
+        "language": request.language or "",
+        "duration_minutes": int(request.duration_minutes or 5),
+    }
+
+
+def dumps_submitted_prompts(stages: list[dict[str, Any]] | None) -> str | None:
+    if not stages:
+        return None
+    return json.dumps({"stages": stages}, ensure_ascii=False)
+
+
+def loads_submitted_prompts(raw: str | None) -> list[dict[str, Any]]:
+    if not (raw or "").strip():
+        return []
+    try:
+        loaded = json.loads(raw)
+    except json.JSONDecodeError:
+        return []
+    if isinstance(loaded, dict):
+        stages = loaded.get("stages")
+    elif isinstance(loaded, list):
+        stages = loaded
+    else:
+        return []
+    if not isinstance(stages, list):
+        return []
+    return [row for row in stages if isinstance(row, dict)]
+
+
+def merge_submitted_prompts(
+    prior_raw: str | None,
+    newer_stages: list[dict[str, Any]] | None,
+) -> str | None:
+    """Merge prompt stages across attempts (plan from first try + draft on retry)."""
+    merged = merge_stage_rows(loads_submitted_prompts(prior_raw), newer_stages)
+    return dumps_submitted_prompts(merged)
+
+
+def _is_truncated_error(exc: BaseException) -> bool:
+    from app.providers.deepseek_budget import DeepSeekTruncatedError
+
+    if isinstance(exc, DeepSeekTruncatedError):
+        return True
+    msg = str(exc).lower()
+    return "truncated" in msg or "finish_reason=length" in msg or "empty content" in msg
+
+
 async def _chat_json(
     chat: ChatFn,
     *,
@@ -58,44 +119,155 @@ async def _chat_json(
     max_tokens: int,
     timeout: float,
     retries: int = 0,
+    model: str | None = None,
+    provider_override: str | None = None,
+    effective_provider: str | None = None,
+    temperature: float | None = None,
+    stage_metrics: list[dict[str, Any]] | None = None,
 ) -> dict:
+    """max_tokens is visible JSON (content) budget. Truncation retries prefer
+    disabling thinking over inflating the budget (cheaper than a second fat CoT).
+    """
     last_err: Exception | None = None
+    # content budget only — provider adds CoT reserve when thinking is on
     tokens = max_tokens
+    thinking_override: bool | None = None
+    effort_override: str | None = None
+    temp = resolve_temperature(temperature)
     for attempt in range(retries + 1):
         t0 = time.perf_counter()
         try:
-            raw = await chat(
-                system,
-                user,
-                max_tokens=tokens,
-                timeout=timeout,
-                stage=stage,
-            )
-            data = _parse_stage_json(stage, raw)
+            if provider_override:
+                from app.services.llm_agents_chat import chat_with_provider
+
+                raw = await chat_with_provider(
+                    provider=provider_override,
+                    model=model,
+                    system=system,
+                    user=user,
+                    max_tokens=tokens,
+                    timeout=timeout,
+                    stage=stage,
+                    thinking=thinking_override,
+                    reasoning_effort=effort_override,
+                    temperature=temp,
+                )
+            else:
+                raw = await chat(
+                    system,
+                    user,
+                    max_tokens=tokens,
+                    timeout=timeout,
+                    stage=stage,
+                    model=model,
+                    thinking=thinking_override,
+                    reasoning_effort=effort_override,
+                    temperature=temp,
+                )
+            outcome = coerce_chat_outcome(raw)
+            data = _parse_stage_json(stage, outcome.content)
             ms = int((time.perf_counter() - t0) * 1000)
             logger.info(
-                "story_timing stage=%s attempt=%s ok ms=%s max_tokens=%s chars=%s",
+                "story_timing stage=%s attempt=%s ok ms=%s content_budget=%s "
+                "thinking=%s chars=%s tokens=%s",
                 stage,
                 attempt + 1,
                 ms,
                 tokens,
-                len(raw or ""),
+                thinking_override,
+                len(outcome.content or ""),
+                outcome.usage_dict() or None,
             )
+            if stage_metrics is not None:
+                row: dict[str, Any] = {"stage": stage, "ms": ms, "attempt": attempt + 1}
+                if effective_provider:
+                    row["provider"] = effective_provider
+                if model:
+                    row["model"] = model
+                row.update(outcome.usage_dict())
+                stage_metrics.append(row)
             return data
         except Exception as exc:
             ms = int((time.perf_counter() - t0) * 1000)
             last_err = exc
             logger.warning(
-                "story_timing stage=%s attempt=%s fail ms=%s max_tokens=%s err=%s",
+                "story_timing stage=%s attempt=%s fail ms=%s content_budget=%s "
+                "thinking=%s err=%s",
                 stage,
                 attempt + 1,
                 ms,
                 tokens,
+                thinking_override,
                 type(exc).__name__,
             )
-            tokens = min(8192, int(tokens * 1.5))
+            if attempt >= retries:
+                break
+            if _is_truncated_error(exc) and thinking_override is not False:
+                # Prefer cheaper retry: drop CoT instead of doubling max_tokens.
+                thinking_override = False
+                effort_override = None
+                tokens = min(8192, max(tokens, int(max_tokens * 1.15)))
+                logger.info(
+                    "story_timing stage=%s retry_policy=disable_thinking "
+                    "content_budget=%s",
+                    stage,
+                    tokens,
+                )
+            else:
+                # Invalid JSON / already no-thinking: modest content bump only.
+                tokens = min(8192, max(int(tokens * 1.25), tokens + 512))
+                logger.info(
+                    "story_timing stage=%s retry_policy=content_bump "
+                    "content_budget=%s",
+                    stage,
+                    tokens,
+                )
     assert last_err is not None
     raise last_err
+
+
+async def _run_agent_stage(
+    chat: ChatFn,
+    *,
+    agent: AgentConfig,
+    user_payload: str,
+    extra_vars: dict[str, Any],
+    stage: str,
+    default_max_tokens: int,
+    default_timeout: float,
+    default_provider: str,
+    retries: int = 1,
+    stage_metrics: list[dict[str, Any]] | None = None,
+    stage_prompts: list[dict[str, str]] | None = None,
+) -> dict:
+    from app.services.provider_settings import resolve_story_model
+
+    system, user = build_chat_messages(
+        agent, user_payload=user_payload, extra_vars=extra_vars
+    )
+    if stage_prompts is not None:
+        stage_prompts.append({"stage": stage, "system": system, "user": user})
+    max_tokens = int(agent.max_tokens) if agent.max_tokens else default_max_tokens
+    timeout = (
+        float(agent.timeout_seconds) if agent.timeout_seconds else default_timeout
+    )
+    provider_override = (agent.provider or "").strip().lower() or None
+    effective_provider = provider_override or (default_provider or "").strip().lower()
+    model = (agent.model or "").strip() or await resolve_story_model(effective_provider)
+    return await _chat_json(
+        chat,
+        system=system,
+        user=user,
+        stage=stage,
+        max_tokens=max_tokens,
+        timeout=timeout,
+        retries=retries,
+        model=model,
+        provider_override=provider_override,
+        effective_provider=effective_provider,
+        temperature=agent.temperature,
+        stage_metrics=stage_metrics,
+    )
 
 
 async def run_story_pipeline(
@@ -103,13 +275,67 @@ async def run_story_pipeline(
     *,
     chat: ChatFn,
     on_progress: ProgressFn | None = None,
+    on_plan: PlanFn | None = None,
+    default_provider: str | None = None,
 ) -> StoryResult:
     """
-    chat(system, user, *, max_tokens, timeout, stage) -> content str
+    chat(...) -> str | ChatOutcome
     on_progress(stage) optional DB/UI progress hook
+    on_plan(plan) optional checkpoint after episode_plan validates
+    default_provider: job-level story provider (doubao/openai/deepseek) for metrics
     """
-    pipeline_t0 = time.perf_counter()
+    from app.services.provider_settings import resolve_story_provider_name
 
+    pipeline_t0 = time.perf_counter()
+    extra = _story_extra_vars(request)
+    stage_metrics: list[dict[str, Any]] = []
+    stage_prompts: list[dict[str, str]] = []
+    partial: dict[str, Any] = {"episode_plan": None}
+    job_provider = (
+        (default_provider or "").strip().lower()
+        or await resolve_story_provider_name()
+    )
+    try:
+        return await _run_story_pipeline_body(
+            request,
+            chat=chat,
+            on_progress=on_progress,
+            on_plan=on_plan,
+            pipeline_t0=pipeline_t0,
+            extra=extra,
+            stage_metrics=stage_metrics,
+            stage_prompts=stage_prompts,
+            partial=partial,
+            job_provider=job_provider,
+        )
+    except Exception as exc:
+        if stage_prompts and not getattr(exc, "submitted_prompts", None):
+            setattr(exc, "submitted_prompts", list(stage_prompts))
+        if stage_metrics and not getattr(exc, "submitted_metrics", None):
+            setattr(
+                exc,
+                "submitted_metrics",
+                metrics_payload(stages=list(stage_metrics)),
+            )
+        plan = partial.get("episode_plan")
+        if plan is not None and not getattr(exc, "submitted_episode_plan", None):
+            setattr(exc, "submitted_episode_plan", plan)
+        raise
+
+
+async def _run_story_pipeline_body(
+    request: StoryRequest,
+    *,
+    chat: ChatFn,
+    on_progress: ProgressFn | None,
+    on_plan: PlanFn | None,
+    pipeline_t0: float,
+    extra: dict[str, Any],
+    stage_metrics: list[dict[str, Any]],
+    stage_prompts: list[dict[str, str]],
+    partial: dict[str, Any],
+    job_provider: str,
+) -> StoryResult:
     async def _progress(stage: str) -> None:
         if on_progress is not None:
             await on_progress(stage)
@@ -125,34 +351,34 @@ async def run_story_pipeline(
     if should_build_outline:
         request.episode_count = clamp_episode_count(request.episode_count)
         await _progress("series_outline")
-        outline = await _chat_json(
+        outline_agent = await get_agent_standalone("story_series_outline")
+        outline = await _run_agent_stage(
             chat,
-            system=SERIES_OUTLINE_SYSTEM_PROMPT,
-            user=build_outline_user_message(request),
+            agent=outline_agent,
+            user_payload=build_outline_user_message(request),
+            extra_vars=extra,
             stage="series_outline",
-            max_tokens=OUTLINE_MAX_TOKENS,
-            timeout=OUTLINE_TIMEOUT_SECONDS,
+            default_max_tokens=OUTLINE_MAX_TOKENS,
+            default_timeout=OUTLINE_TIMEOUT_SECONDS,
+            default_provider=job_provider,
             retries=1,
+            stage_metrics=stage_metrics,
+            stage_prompts=stage_prompts,
         )
+        outline = normalize_series_outline(outline)
         _validate_outline(outline, request.episode_count)
         new_outline = outline
         series_title = str(outline.get("title") or "") or None
         episode_no = 1
 
     if outline is not None:
+        # Accept legacy long-key outlines already stored in DB.
+        outline = normalize_series_outline(outline)
         request.series_outline = outline
         request.episode_no = episode_no
         request.soft_series_mode = True
 
-    await _progress("episode_plan")
-    salt = request.child_nickname or ""
-    beat = select_beat_pattern(
-        request.development_focus,
-        theme=request.theme,
-        episode_no=episode_no,
-        salt=salt,
-    )
-    # Prefer outline focus when continuing a series episode.
+    # Prefer outline focus when continuing a series episode (metadata only).
     if outline is not None:
         from app.providers.story_prompt import focus_from_series_outline
 
@@ -160,65 +386,70 @@ async def run_story_pipeline(
             outline, episode_no, age_band=request.age_band
         )
         if oid:
-            beat = select_beat_pattern(
-                oid,
-                theme=request.theme,
-                episode_no=episode_no,
-                salt=salt,
-            )
             request.development_focus = oid
 
-    lead = _lead_level(request)
-    opening = select_opening_pattern(
-        lead,
-        episode_no=episode_no,
-        has_recap=bool((request.recap or "").strip()),
-        child_cast_absent=(request.child_cast_role or "").lower() == "absent",
-        salt=salt,
-    )
-    intro = select_cast_intro_mode(
-        soft_series_mode=bool(request.soft_series_mode or outline),
-        episode_no=episode_no,
-        lead_in=lead,
-    )
-
-    plan = validate_episode_plan(
-        await _chat_json(
-            chat,
-            system=PLAN_SYSTEM_PROMPT,
-            user=build_plan_user_message(
-                request,
-                beat_pattern=beat,
-                opening_pattern=opening,
-                cast_intro_mode=intro,
-            ),
-            stage="episode_plan",
-            max_tokens=PLAN_MAX_TOKENS,
-            timeout=PLAN_TIMEOUT_SECONDS,
-            retries=1,
-        ),
-        lead_in=lead,
-        soft_series_mode=bool(request.soft_series_mode),
-        beat_pattern=beat,
-        opening_pattern=opening,
-        cast_intro_mode=intro,
-    )
+    reused_plan = request.episode_plan
+    if isinstance(reused_plan, dict) and reused_plan:
+        await _progress("episode_plan")
+        plan = validate_episode_plan(reused_plan)
+        partial["episode_plan"] = plan
+        # Placeholder so admin still shows the stage; merge keeps real prior timings.
+        stage_metrics.append(
+            {
+                "stage": "episode_plan",
+                "ms": 0,
+                "skipped": True,
+                "reason": "resume_saved_plan",
+            }
+        )
+        logger.info(
+            "story_timing stage=episode_plan skip_llm reason=resume_saved_plan "
+            "title=%s beats=%s",
+            plan.get("title"),
+            len(plan.get("beats") or []),
+        )
+    else:
+        await _progress("episode_plan")
+        plan_agent = await get_agent_standalone("story_episode_plan")
+        plan = validate_episode_plan(
+            await _run_agent_stage(
+                chat,
+                agent=plan_agent,
+                user_payload=build_plan_user_message(request),
+                extra_vars=extra,
+                stage="episode_plan",
+                default_max_tokens=PLAN_MAX_TOKENS,
+                default_timeout=PLAN_TIMEOUT_SECONDS,
+                default_provider=job_provider,
+                retries=1,
+                stage_metrics=stage_metrics,
+                stage_prompts=stage_prompts,
+            )
+        )
+        partial["episode_plan"] = plan
+        if on_plan is not None:
+            await on_plan(plan)
 
     await _progress("draft")
     draft_timeout = story_http_timeout_seconds(request.duration_minutes)
-    data = await _chat_json(
+    draft_agent = await get_agent_standalone("story_draft")
+    data = await _run_agent_stage(
         chat,
-        system=SYSTEM_PROMPT,
-        user=build_user_message(request, plan),
+        agent=draft_agent,
+        user_payload=build_user_message(request, plan),
+        extra_vars=extra,
         stage="draft",
-        max_tokens=max_tokens_for_story(request.language, request.duration_minutes),
-        timeout=draft_timeout,
-        retries=1,
+        default_max_tokens=max_tokens_for_story(request.language, request.duration_minutes),
+        default_timeout=draft_timeout,
+        default_provider=job_provider,
+        retries=2,
+        stage_metrics=stage_metrics,
+        stage_prompts=stage_prompts,
     )
-    soft_hook = data.get("soft_hook")
+    soft_hook = data.get("hook") if data.get("hook") is not None else data.get("soft_hook")
     if request.soft_series_mode:
         if not soft_hook:
-            soft_hook = plan.get("soft_hook_hint") or None
+            soft_hook = plan.get("hook") or plan.get("soft_promise") or None
         if soft_hook == "":
             soft_hook = None
     else:
@@ -239,29 +470,23 @@ async def run_story_pipeline(
     )
 
     return StoryResult(
-        title=data.get("title") or plan.get("title_hint") or "Bedtime Story",
+        title=str(
+            data.get("title") or plan.get("title") or plan.get("title_hint") or "睡前故事"
+        ),
         body=body,
         soft_hook=soft_hook,
         series_outline=new_outline,
-        series_title=series_title or (str(outline.get("title")) if outline else None),
-        episode_no=episode_no if request.soft_series_mode else None,
+        series_title=series_title,
+        episode_no=episode_no if (request.soft_series_mode or new_outline) else None,
         episode_plan=plan,
+        metrics=metrics_payload(stages=stage_metrics, pipeline_ms=pipeline_ms),
+        prompts=list(stage_prompts),
     )
 
 
-def _lead_level(request: StoryRequest) -> str:
-    from app.providers.story_prompt import normalize_dial
-
-    return normalize_dial("lead_in", request.lead_in)
-
-
 def _validate_outline(outline: dict, episode_count: int) -> None:
-    episodes = outline.get("episodes")
-    if not isinstance(episodes, list) or len(episodes) < 2:
-        raise ValueError("series outline must include episodes[]")
-    if len(episodes) < min(2, episode_count):
-        raise ValueError("series outline episodes too short")
-    outline.setdefault("threads", [])
-    outline.setdefault("cast_spine", [])
-    outline.setdefault("throughline", "")
-    outline.setdefault("title", "晚安小系列")
+    episodes = outline.get("episodes") or []
+    if not isinstance(episodes, list) or len(episodes) != int(episode_count):
+        raise ValueError(
+            f"series_outline episodes length must equal episode_count={episode_count}"
+        )

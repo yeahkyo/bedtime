@@ -5,7 +5,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.db import Base
 
-# Per-user default TTS voice display name (created via system-default).
+# Shared system TTS voice display name (global catalog / system-default).
 SYSTEM_VOICE_NAME = "枕边柔声"
 
 
@@ -13,11 +13,18 @@ class Voice(Base):
     __tablename__ = "voices"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    # NULL = global catalog (shared system presets). Set for per-user clones.
+    user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=True
+    )
     name: Mapped[str] = mapped_column(String(64))
     kind: Mapped[str] = mapped_column(String(32), default="system")  # system | clone
     provider: Mapped[str] = mapped_column(String(32), default="fishaudio")
     provider_voice_id: Mapped[str] = mapped_column(String(128))
+    # Optional per-voice TTS model (e.g. CosyVoice target_model). Empty → provider default.
+    speech_model: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    # Catalog default narration speed for all users: slow | medium | fast.
+    speed_tier: Mapped[str] = mapped_column(String(16), default="medium")
     language: Mapped[str] = mapped_column(String(8), default="zh")
     consent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     raw_object_key: Mapped[str | None] = mapped_column(String(512), nullable=True)
@@ -32,11 +39,11 @@ class VoicePrefs(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     child_id: Mapped[int] = mapped_column(ForeignKey("children.id", ondelete="CASCADE"), unique=True)
-    speed_tier: Mapped[str] = mapped_column(String(16), default="slow")  # slow | medium | fast
+    speed_tier: Mapped[str] = mapped_column(String(16), default="medium")  # slow | medium | fast
     tone_preset: Mapped[str] = mapped_column(String(32), default="gentle")  # gentle | clear | lively
     likeness_boost: Mapped[bool] = mapped_column(Boolean, default=False)
     default_voice_id: Mapped[int | None] = mapped_column(ForeignKey("voices.id"), nullable=True)
-    speed: Mapped[float] = mapped_column(Float, default=0.85)
+    speed: Mapped[float] = mapped_column(Float, default=1.0)
     stability: Mapped[float] = mapped_column(Float, default=0.65)
     style: Mapped[float] = mapped_column(Float, default=0.05)
     similarity_boost: Mapped[float] = mapped_column(Float, default=0.75)

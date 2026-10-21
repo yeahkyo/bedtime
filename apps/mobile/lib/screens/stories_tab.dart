@@ -76,7 +76,7 @@ class StoriesTabState extends State<StoriesTab> {
     try {
       final story = await widget.api.createStoryAndWait(
         childId: childId,
-        theme: (theme == null || theme.isEmpty) ? '温柔的夜晚' : theme,
+        theme: theme ?? '',
         language: s['language'] as String? ?? 'zh',
         durationMinutes: s['duration_minutes'] as int? ?? 5,
         softSeriesMode: true,
@@ -260,6 +260,7 @@ class StoriesTabState extends State<StoriesTab> {
                               }
                               final status = s['status'] as String? ?? '';
                               final failed = status == 'failed';
+                              final canRetry = failed;
                               final canContinue = seriesId != null &&
                                   status != 'generating' &&
                                   status != 'failed';
@@ -277,9 +278,9 @@ class StoriesTabState extends State<StoriesTab> {
                                           ? s['theme'] as String
                                           : '未完成的故事'),
                                   meta: meta.toString(),
-                                  failed: failed,
+                                  failed: canRetry,
                                   onPlay: () => _openPlayer(s),
-                                  onRetry: failed ? () => _retryStory(s) : null,
+                                  onRetry: canRetry ? () => _retryStory(s) : null,
                                   onContinue:
                                       canContinue ? () => _continueSeries(s) : null,
                                 ),

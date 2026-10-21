@@ -18,5 +18,8 @@ class User(Base):
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     children = relationship("Child", back_populates="user", cascade="all, delete-orphan")
-    voices = relationship("Voice", back_populates="user", cascade="all, delete-orphan")
+    # No delete-orphan: system catalog rows may have user_id cleared (promoted to global).
+    voices = relationship(
+        "Voice", back_populates="user", cascade="all", passive_deletes=True
+    )
     stories = relationship("Story", back_populates="user", cascade="all, delete-orphan")

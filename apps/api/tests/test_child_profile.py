@@ -11,6 +11,8 @@ from app.core.security import get_current_user
 from app.models.user import User
 from app.services.child_profile import (
     age_band_from_birth_date,
+    age_months_on,
+    age_years_int_on,
     approximate_birth_date_from_age_band,
     normalize_gender,
     sync_age_band,
@@ -30,7 +32,22 @@ def test_age_band_from_birth_date():
     assert age_band_from_birth_date(date(2024, 10, 15), on=today) == "2-3"
     assert age_band_from_birth_date(date(2022, 1, 1), on=today) == "3-5"
     assert age_band_from_birth_date(date(2018, 1, 1), on=today) == "6-8"
+    assert age_band_from_birth_date(date(2016, 1, 1), on=today) == "9-12"
     assert age_band_from_birth_date(None) == "3-5"
+
+
+def test_age_months_from_birth_date():
+    today = date(2026, 10, 15)
+    assert age_months_on(date(2024, 10, 15), on=today) == 24
+    assert age_months_on(date(2020, 5, 1), on=today) == 77
+    assert age_months_on(None) == 48
+
+
+def test_age_years_int_from_birth_date():
+    today = date(2026, 10, 15)
+    assert age_years_int_on(date(2024, 10, 15), on=today) == 2
+    assert age_years_int_on(date(2020, 5, 1), on=today) == 6
+    assert age_years_int_on(None) == 4
 
 
 def test_sync_and_legacy_approx():

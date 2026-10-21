@@ -48,9 +48,10 @@ STYLE_DIALS: dict[str, dict[str, dict[str, str]]] = {
         "balanced": {
             "label": "适中",
             "instruction": (
-                "可用少量可摸可听的身体感（凉、暖、叮一声、脚边）；"
+                "可用少量可摸可听的身体感（凉、暖、脚边的布、窗外一点光）；"
                 "叠词全篇≤3次且不反复同一词；禁止排比、长定语与开篇堆修饰；"
                 "宁可多一步动作，也不写华丽空句。"
+                "不要默认用「叮叮 / 叮当 / 小响片」当开场钩子。"
             ),
         },
         "rich": {
@@ -94,16 +95,26 @@ STYLE_DIALS: dict[str, dict[str, dict[str, str]]] = {
     },
     "wonder": {
         "everyday": {
-            "label": "日常",
-            "instruction": "偏现实生活场景与逻辑；最多轻度拟人，不造奇幻世界。",
+            "label": "生活向",
+            "instruction": (
+                "生活向：场景、物件与因果都贴近孩子日常（家、幼儿园、散步、玩具）；"
+                "最多轻度拟人，禁止魔法国度、穿越、大型奇幻设定。"
+                "setting 与 beats 须像「今晚真的可能发生」的小事。"
+            ),
         },
         "soft": {
-            "label": "轻奇幻",
-            "instruction": "可有一点点温柔想象（如月亮眨眼、玩具轻声说话）；不写复杂世界观。",
+            "label": "轻想象",
+            "instruction": (
+                "轻想象：以日常为底，可有一点点温柔想象（月亮眨眼、玩具轻声说话）；"
+                "不写复杂世界观、不堆奇幻规则；幻想只服务安心与听感。"
+            ),
         },
         "fantasy": {
             "label": "更幻想",
-            "instruction": "可用更明显的想象设定，但仍单线、安全、今晚安心入睡。",
+            "instruction": (
+                "更幻想：可用更明显的想象设定或温柔奇遇，但仍单线、安全、低冲突；"
+                "禁止恐怖、史诗战争与难懂世界观；今晚必须安心入睡。"
+            ),
         },
     },
     "wind_down": {
@@ -192,6 +203,14 @@ AGE_SPECS: dict[str, AgeSpec] = {
         label_zh="约6–8岁",
         guidance="清晰主线；口语短句与简短对话；结尾明显安静下来；仍避免书面腔。",
     ),
+    "9-12": AgeSpec(
+        band="9-12",
+        label_zh="约9–12岁",
+        guidance=(
+            "主线仍清晰，可有一点点因果或选择；口语自然，可有简短对话；"
+            "允许轻微好奇/思考，但结尾仍明显安静；禁止说教、课堂腔与成人讽刺。"
+        ),
+    ),
 }
 
 FOCUS_POOLS: dict[str, list[tuple[str, str]]] = {
@@ -213,6 +232,13 @@ FOCUS_POOLS: dict[str, list[tuple[str, str]]] = {
         ("fair_turn", "轮流/公平的萌芽"),
         ("mentalize_light", "别人也可能有不一样的小心思，仍友善收场"),
     ],
+    "9-12": [
+        ("try_persist", "坚持一下：小小努力后可以休息"),
+        ("friend_repair", "小摩擦后和好（双方都不被贬低）"),
+        ("mentalize_light", "别人也可能有不一样的小心思，仍友善收场"),
+        ("curious_cause", "小小因果：好奇发生了什么，轻轻弄明白（不讲课）"),
+        ("own_choice", "做一个小决定并被尊重，然后安心收场"),
+    ],
 }
 
 MOTIF_WHITELIST = [
@@ -224,175 +250,36 @@ MOTIF_WHITELIST = [
     "好奇但不吓人的小期待",
 ]
 
-# Rhythm frames from fairy / fable / folk / drama (bedtime-soft). Algorithm picks by theme+focus.
-# Shared slots stay wish/snag/try_1/try_2/turn_ok so draft pipeline stays stable.
-_BEAT_SLOTS = "wish, snag, try_1, try_2, turn_ok"
-_ESCALATION_RULE = (
-    "try_2 相对 try_1 必须升级或转变：换方法、换视角、换工具、或先收再放；"
-    "禁止「同一动作更用力/再试一次」；禁止 try_2 只是被旁人直接解决。"
+# Story architecture: DB-backed shape pool (Admin「故事结构」). Soft beat ranges.
+from app.services.story_shapes import (  # noqa: E402
+    SHAPE_SEED,
+    default_roles_for_shape,
+    default_shape_id,
+    get_runtime_shape_ids,
+    select_beat_pattern,
+    select_story_shape,
+    shape_beat_range,
+    shape_guidance,
+    shape_payload,
 )
 
-BEAT_PATTERNS: dict[str, dict[str, Any]] = {
-    "two_gates": {
-        "label": "两道小门槛",
-        "lineage": "fairy",
-        "theme_tags": (
-            "找", "寻", "路", "门", "桥", "洞", "森林", "冒险", "火车", "旅行",
-            "河", "山", "宝藏", "地图",
-        ),
-        "slots": _BEAT_SLOTS,
-        "instruction": (
-            "童话式小旅程：愿望前有两道轻门槛。"
-            "try_1：直冲/催促/硬闯 → 被挡住或弄僵；"
-            "try_2：观察、绕道、问路、或借一件具体小物 → 才过第二道。"
-            f"{_ESCALATION_RULE}"
-        ),
-    },
-    "misused_gift": {
-        "label": "礼物先用错",
-        "lineage": "fable",
-        "theme_tags": (
-            "礼物", "灯", "钥匙", "种子", "伞", "碗", "帽", "鞋", "魔", "工具",
-            "箱子", "瓶",
-        ),
-        "slots": _BEAT_SLOTS,
-        "instruction": (
-            "寓言式：一件具体小物/能力先用错方向。"
-            "try_1：用它求快/显摆/吓人 → 反而更糟或没用；"
-            "try_2：改用它安抚、照路、分享、或修好一件小事 → 才贴合愿望。"
-            f"{_ESCALATION_RULE}"
-        ),
-    },
-    "home_and_back": {
-        "label": "出门再回家",
-        "lineage": "fairy",
-        "theme_tags": (
-            "家", "床", "出门", "回来", "月亮", "夜", "窗", "院子", "散步",
-        ),
-        "slots": _BEAT_SLOTS,
-        "instruction": (
-            "童话环状：离开熟悉处一点 → 遇见轻巧事 → 带着一点变化回家。"
-            "try_1：想离开或想抓住什么却慌/急；"
-            "try_2：用新发现的小办法（带回一件声响/触感/约定）安稳返回。"
-            "turn_ok 要写清「回家后多了一点什么」。"
-            f"{_ESCALATION_RULE}"
-        ),
-    },
-    "helper_earned": {
-        "label": "帮忙要换来",
-        "lineage": "fairy",
-        "theme_tags": (
-            "朋友", "帮", "一起", "猫", "狗", "羊", "兔", "鸟", "伙伴", "哥哥",
-            "姐姐",
-        ),
-        "slots": _BEAT_SLOTS,
-        "instruction": (
-            "童话求助：帮助不是白送。"
-            "try_1：只喊/只催/只抢 → 对方不理或帮不上；"
-            "try_2：先做一件具体小事（让位、递物、轻声问、等一等）→ 才换来协作。"
-            f"{_ESCALATION_RULE}"
-        ),
-    },
-    "soft_rule": {
-        "label": "轻轻破规矩",
-        "lineage": "fable",
-        "theme_tags": (
-            "分享", "轮流", "排队", "等待", "规矩", "先", "抢", "独享", "公平",
-        ),
-        "slots": _BEAT_SLOTS,
-        "instruction": (
-            "寓言式轻规矩：想抢先或独占。"
-            "try_1：抢/占 → 卡住或两人都不开心；"
-            "try_2：主动让一点、轮流、或立一个可执行的小约定 → 才顺。"
-            "禁止说教点题「要学会分享」。"
-            f"{_ESCALATION_RULE}"
-        ),
-    },
-    "reframe_reveal": {
-        "label": "误会翻面",
-        "lineage": "drama",
-        "theme_tags": (
-            "怕", "暗", "影", "怪声", "躲", "误会", "怪", "空", "静", "风声",
-        ),
-        "slots": _BEAT_SLOTS,
-        "instruction": (
-            "戏剧翻面：把吓人的东西看清楚。"
-            "try_1：躲开/捂住/猜错 → 更紧；"
-            "try_2：靠近看/听/摸一下 → 发现是无理解的温和原因；安心来自「看懂了」。"
-            f"{_ESCALATION_RULE}"
-        ),
-    },
-    "echo_shift": {
-        "label": "重复变奏",
-        "lineage": "folk",
-        "theme_tags": (
-            "舞", "歌", "雨", "风", "脚步", "节奏", "敲", "摇", "重复", "铃",
-        ),
-        "slots": _BEAT_SLOTS,
-        "instruction": (
-            "民间反复式：同一母题做两次，第二次意义变了。"
-            "try_1：重复一个动作求结果（更快/更大声）→ 不够或乱；"
-            "try_2：同样母题改速度/力度/对象（更慢、更轻、对着某人）→ 才对上愿望。"
-            f"{_ESCALATION_RULE}"
-        ),
-    },
-    "threshold": {
-        "label": "跨过门槛",
-        "lineage": "drama",
-        "theme_tags": (
-            "第一次", "台阶", "岸", "水", "门缝", "高", "低", "敢", "试",
-        ),
-        "slots": _BEAT_SLOTS,
-        "instruction": (
-            "戏剧门槛：站在「差一点就跨过去」处。"
-            "try_1：犹豫或假动作 → 退回；"
-            "try_2：带着一件具体支撑（手、声、光、倒数）真正跨过一小步；"
-            "turn_ok 写跨过后的身体感，不要空喊勇敢。"
-            f"{_ESCALATION_RULE}"
-        ),
-    },
-    "settle_ladder": {
-        "label": "一级级静下来",
-        "lineage": "ritual",
-        "theme_tags": ("睡", "床", "枕", "被", "闭眼", "安静", "夜灯", "摇"),
-        "slots": _BEAT_SLOTS,
-        "instruction": (
-            "仪式收束：先有一点轻动，再两级减速。"
-            "try_1：还想玩/看/动 → 轻轻放下一样东西；"
-            "try_2：再收一层（盖上、关一点光、声音变小）→ 才真正静。"
-            "禁止突然睡着；禁止机械排比说晚安。"
-            f"{_ESCALATION_RULE}"
-        ),
-    },
+STORY_SHAPES = tuple(s["id"] for s in SHAPE_SEED)
+STORY_SHAPE_SPECS = {
+    s["id"]: {
+        "label": s["label_zh"],
+        "beat_min": s["beat_min"],
+        "beat_max": s["beat_max"],
+        "guidance": s["guidance"],
+        "effect": s.get("effect") or "",
+    }
+    for s in SHAPE_SEED
 }
-
-# focus_id → preferred frames (theme match can override / widen)
+# Known development-focus ids (from age pools). Shape selection no longer maps focus→shape.
 FOCUS_BEAT_MAP: dict[str, list[str]] = {
-    "tiny_brave": ["two_gates", "threshold", "helper_earned"],
-    "emotion_held": ["reframe_reveal", "helper_earned", "home_and_back"],
-    "gentle_agency": ["misused_gift", "echo_shift", "two_gates"],
-    "share_space": ["soft_rule", "helper_earned", "echo_shift"],
-    "wind_down": ["settle_ladder", "home_and_back", "echo_shift"],
-    "secure_presence": ["home_and_back", "helper_earned", "reframe_reveal"],
-    "body_rhythm": ["settle_ladder", "echo_shift", "threshold"],
-    "name_feeling": ["reframe_reveal", "settle_ladder", "home_and_back"],
-    "try_persist": ["two_gates", "threshold", "misused_gift"],
-    "friend_repair": ["helper_earned", "soft_rule", "reframe_reveal"],
-    "fair_turn": ["soft_rule", "helper_earned", "echo_shift"],
-    "mentalize_light": ["reframe_reveal", "soft_rule", "helper_earned"],
+    fid: []
+    for pool in FOCUS_POOLS.values()
+    for fid, _ in pool
 }
-
-DEFAULT_BEAT_POOL = [
-    "two_gates",
-    "misused_gift",
-    "home_and_back",
-    "helper_earned",
-    "soft_rule",
-    "reframe_reveal",
-    "echo_shift",
-    "threshold",
-    "settle_ladder",
-]
 
 # Internal opening menus (not shown in App). Warm-up = host voice before plot.
 OPENING_PATTERNS: dict[str, dict[str, Any]] = {
@@ -453,7 +340,7 @@ CAST_INTRO_MODES: dict[str, dict[str, str]] = {
             "听前开场白里或紧随其后、主冲突之前，用口语完成建档："
             "每个主要角色一句（名字+一个标志动作或喜好）；"
             "再说明今晚在哪儿、在做什么（接 throughline/本集一小步）。"
-            "可与开场白融在同一段口播里，但须让听者先认识人/地方，再进 wish。"
+            "可与开场白融在同一段口播里，但须让听者先认识人/地方，再进情节节拍。"
             "禁止只扔名字不挂钩。"
         ),
     },
@@ -470,109 +357,110 @@ CAST_INTRO_MODES: dict[str, dict[str, str]] = {
     },
 }
 
-SYSTEM_PROMPT = """你是会讲睡前故事的家长旁白：写给幼儿**听**的口述晚安故事（像播客旁白，不是念书）。
+SYSTEM_PROMPT = """你是一个资深的睡前故事作家。你擅长将一个故事写成温暖的、适合睡前听的文字。
 
-优先级：安全入睡 > 听感 > 文采。职责是把 story_plan 落成可听口语；wish/try/弧光等创意结构已在 plan 定好，不要改写节拍含义。
+【你的任务】
+- 你将得到一个json输入，它将描述故事的基本信息及大纲。
+- 你需要根据输入信息，将这个故事的正文写出来
+- 文本的开头不要直接进入故事，写一段开篇的垫话。内容可以是你对故事的提炼，组织成可以吸引小听众注意力和兴趣的语言。
+- 文本结尾不要戛然而止。故事讲完后可以有一段与情节相关交流式的总结语言，然后自然的引导到休息、睡觉、明天见等睡前故事结尾的感受。
 
-听感：一句一事；先名词后人/动作；短对话；可摸可听的细节；场景物要参与动作。
-可选稀疏标记（仅 body）：[pause:short] [pause:think] [pause:long] [slow] [soft] [warm]。
+【核心要求】
+- 文本要适合读和听，所以不要过多使用长句，修辞和用语不要过于书面。
+- 根据目标听众的年龄来遣词造句
 
-正文顺序：
-1) 听前开场白（若 opening 非 none）：对听者说话，安顿注意力；轻点人物/背景/今晚软期待；再过渡进故事。禁止第一句就进书本式情节。
-2) 角色/场景建档（若需要）可与开场白末尾自然衔接。
-3) 按 wish/snag/try_1/try_2/turn_ok 原样落地（两段 try 保持 plan 里的不同动作，勿揉成「再试一次」）。
-4) 系列 soft_hook（若有）→ 自然收束。
+【输入格式】
+输入是一个json，以下是字段说明：
+- title：故事题目。
+- theme：故事主题、内核、核心创意的简述。
+- casts：故事中出现的角色，用数组的形式表示，每个元素是一个json，有以下两个字段。
+  - name：角色名称。如果有昵称，用斜杠分格。如：哆啦A梦/小叮当
+  - desc：角色概述。简述角色设定、性格、习惯等，让角色鲜活起来。
+- beats：故事的节拍（推动故事前进的最小叙事单位），用数组形式表示，每个元素是字符串，描述一个节拍。
+- age：目标听众的年龄（整数，单位：岁）。你的文字、语言要适合这个年纪的听众。
+- gender：目标听众的性别（如：男孩、女孩、其他、不指定）。可轻柔影响称呼与细节，禁止刻板印象与说教。
+- dialog: 对话的多少，0-5打分。分数越高则写更多的对话，分数越低则少对话，0分是完全不要用直接的对话描写。
+- len：建议的文本长度。输出的正文长度尽量接近这个值，不要差距过大，但优先满足故事质量。
 
-系列：plants 只埋；勿提前兑季终伏笔；soft_hook 与正文一致。
-child_cast_role=absent 时不要出现孩子昵称。遵守 child_profile_guidance（若有）。
-
-底线：单线今晚闭环；禁止暴力恐怖抛弃恐吓；禁止说教与照搬名著角色名；勿景点巡礼。
-soft_hook 仅 soft_series_mode=true 时有一句，否则 null。
-尽量达到 length_target。只输出 JSON：{"title","body","soft_hook"}
+【输出要求】
+输出一个json对象，字段说明如下：
+- title: 故事标题
+- body: 正文。包括开篇垫话、故事正文、结尾的话。
 """
 
 SERIES_OUTLINE_SYSTEM_PROMPT = """你是睡前「软系列」叙事策划（不是写正文）。为幼儿设计一小季温和连载大纲。
 
 规则：
 1) 每集今晚情绪闭环、可单独安心入睡；跨集只用温和期待，禁止硬悬念。
-2) throughline 是整季小目标（如「找到能跳舞的软草地」）；每集 premise 必须是主线的一小步，不能写成无关的偶遇即止。
-3) 1～2 条 threads；每条写清 what 与 payoff_episode；非 payoff 集只能埋或轻碰，禁止提前兑现。
-4) cast_spine 用对象：每人 name + move（标志动作）+ catchphrase（口头禅，可短）；禁止只有形容词标签。
-5) 每集 focus_how 必须是动作级；禁止把终集 focus_id 设为 wind_down；终集也要有今晚情节（可兑现线索）。
-6) soft_promise / sleep_note 必须是可直接朗读的短句（不是气氛说明）。
-7) plants：本集只埋的线索；payoffs：本集允许轻兑现的（须对照 threads 的 payoff_episode）。
-8) 只输出 JSON（不要 markdown），字段短写（≤40字）：
+2) arc 是整季小目标（如「找到能跳舞的软草地」）；每集 premise 必须是主线的一小步，不能写成无关的偶遇即止。
+3) 服从输入 dials.wonder：everyday 整季偏生活场景；soft 以日常为底可轻想象；fantasy 可更温柔奇遇，仍禁止复杂世界观。
+4) 1～2 条 threads；每条写清 what 与 at（兑现集号）；非 at 集只能埋或轻碰，禁止提前兑现。
+5) cast 用对象：每人 name + move（标志动作）+ line（口头禅，可短）；禁止只有形容词标签。
+6) 每集 how 必须是动作级；禁止把终集 focus 设为 wind_down；终集也要有今晚情节（可兑现线索）。
+7) hook / sleep 必须是可直接朗读的短句（不是气氛说明）。
+8) plants：本集只埋的线索；payoffs：本集允许轻兑现的（须对照 threads.at）。
+9) 只输出 JSON（不要 markdown），字段短写（≤40字）：
 {
   "title": string,
-  "throughline": string,
-  "cast_spine": [{"name": string, "move": string, "catchphrase": string}],
-  "threads": [{"id": string, "what": string, "payoff_episode": number}],
+  "arc": string,
+  "cast": [{"name": string, "move": string, "line": string}],
+  "threads": [{"id": string, "what": string, "at": number}],
   "episodes": [{
-    "episode_no": number,
-    "focus_id": string,
-    "focus_how": string,
+    "ep": number,
+    "focus": string,
+    "how": string,
     "premise": string,
-    "soft_promise": string,
+    "hook": string,
     "plants": [string],
     "payoffs": [string],
-    "sleep_note": string
+    "sleep": string
   }]
 }
-episodes 长度必须等于 episode_count；episode_no 从 1 连续编号。
+episodes 长度必须等于 n；ep 从 1 连续编号。
 字符串内勿用未转义双引号；输出必须是完整可解析 JSON。
 """
 
-PLAN_SYSTEM_PROMPT = """你是睡前故事的单集构思助手（不写正文）。负责创意与结构：动机、节拍、弧光、听前开场白要点。按 beat_pattern 设计今晚可执行短构思。
+PLAN_SYSTEM_PROMPT = """你是一位世界级的儿童睡前故事作家，你擅长写温暖但富有想象力的儿童故事。
 
-要求：
-- 严格遵守 beat_pattern.instruction（含 lineage 节奏）；填满 wish / snag / try_1 / try_2 / turn_ok。
-- try_2 必须相对 try_1 有升级或转变（方法/视角/工具/节奏变了），禁止同动作加力，禁止旁人直接替做。创意决策在本阶段完成。
-- 遵守 opening_pattern 与 cast_intro_mode。opening 非 none 时：
-  opening_lines 写「听前开场白」提纲（4～6句要点）：安顿听者、点人物/背景、轻提今晚值得期待的小事；
-  soft_promise 是那句软期待（可朗读）；opening_lines 不是第一句情节动作，勿剧透 try/turn。
-- cast_use 至少两个角色，每人有 signature_move 与 how_tonight。
-- 动作具体、单线、今晚安心收束；禁止说教与硬悬念。
-- 有 series_context 时：wish 对齐 throughline 一小步；plants 只埋；soft_hook_hint 必填可朗读句。
-- 遵守 child_profile_guidance（若有）：性别只轻轻影响称谓/倾向；intro 轻点即可。
-- sleep_beat 一句自然收束即可，勿排比点名套话。
+【你的任务】
+- 根据输入的关键词构思故事的核心创意、背景、地点、角色、事件、结构。
+- 你不写全文，只要写出故事大纲。
 
-只输出 JSON（不要 markdown）：
-{
-  "beat_pattern": string,
-  "opening_pattern": string,
-  "cast_intro_mode": string,
-  "opening_lines": string,
-  "setting_line": string,
-  "wish": string,
-  "snag": string,
-  "try_1": string,
-  "try_2": string,
-  "try_beat": string,
-  "turn_ok": string,
-  "soft_promise": string,
-  "opening_kind": "curiosity"|"scene"|"recap"|"none",
-  "plants_tonight": [string],
-  "payoffs_tonight": [string],
-  "places": [string],
-  "scene_jobs": [string],
-  "cast": [string],
-  "cast_use": [{"name": string, "signature_move": string, "line": string, "how_tonight": string}],
-  "sleep_beat": string,
-  "title_hint": string,
-  "soft_hook_hint": string
-}
+【核心要求】
+- 严禁暴力、色情等不适合小孩的内容
+- 不要有强烈冲突、激烈争吵、打斗等不适合睡前听的内容
+
+【输入说明】
+关键词信息会以json的形式输入，以下说明字段含义：
+- theme：故事主题。它将是你创作故事内核的初始动机。
+- keywords：关键词。以这些关键词提到的事物为出发点，来构思场景、情节、角色。
+- age：目标听众的年龄（整数，单位：岁）。你的故事情节、角色要适合这个年纪的听众。
+- gender：目标听众的性别（如：男孩、女孩、其他、不指定）。构思角色与称呼时可参考，禁止刻板印象与说教。
+- fantasy: 故事是偏幻想还是偏日常。0-5打分。分数越高则世界观与剧情设定更偏虚构幻想充满想象力；分数越低则更偏日常生活。
+
+【输出格式】
+将你构思的内容梳理为一个json，这个数据将用于给下一位作家用来写正文。json的字段说明如下：
+- title：故事题目。
+- theme：故事主题、内核、核心创意的简述。
+- casts：故事中出现的角色，用数组的形式表示，每个元素是一个json，有以下两个字段。
+  - name：角色名称。如果有昵称，用斜杠分格。如：哆啦A梦/小叮当
+  - desc：角色概述。简述角色设定、性格、习惯等，让角色鲜活起来。
+- beats：故事的节拍（推动故事前进的最小叙事单位），用数组形式表示，每个元素是字符串，描述一个节拍。
+- shape: 故事的结构。用一句简短的话或词描述你用到的结构。
 """
 
 DEFAULT_EPISODE_COUNT = 4
-PLAN_REQUIRED_KEYS = (
-    "wish",
-    "snag",
-    "turn_ok",
-    "soft_promise",
-    "opening_kind",
-    "sleep_beat",
-    "title_hint",
-)
+# Lean plan keys (legacy aliases accepted on input).
+PLAN_REQUIRED_ALIASES: dict[str, tuple[str, ...]] = {
+    "title": ("title", "title_hint"),
+    "casts": ("casts", "cast", "cast_use"),
+    "beats": ("beats",),
+    "shape": ("shape", "story_shape"),
+}
+
+# wonder dial → fantasy 0–5 for simplified plan/draft prompts.
+WONDER_FANTASY_SCORE = {"everyday": 1, "soft": 3, "fantasy": 5}
+DIALOGUE_DIALOG_SCORE = {"low": 1, "some": 3, "more": 5}
 
 
 def normalize_age_band(age_band: str | None) -> str:
@@ -592,6 +480,12 @@ def normalize_age_band(age_band: str | None) -> str:
         "7": "6-8",
         "8": "6-8",
         "school": "6-8",
+        "9": "9-12",
+        "10": "9-12",
+        "11": "9-12",
+        "12": "9-12",
+        "preteen": "9-12",
+        "tween": "9-12",
     }
     if raw in aliases:
         return aliases[raw]
@@ -605,7 +499,9 @@ def normalize_age_band(age_band: str | None) -> str:
             return "2-3"
         if lo <= 5:
             return "3-5"
-        return "6-8"
+        if lo <= 8:
+            return "6-8"
+        return "9-12"
     return "3-5"
 
 
@@ -619,6 +515,7 @@ def merge_keywords(
     *,
     limit: int = MAX_KEYWORDS_IN_PROMPT,
 ) -> list[str]:
+    """Dedupe/cap string tags. Prefer tonight keywords first, then interests."""
     out: list[str] = []
     seen: set[str] = set()
     for raw in list(keywords or []) + list(interests or []):
@@ -635,6 +532,25 @@ def merge_keywords(
         if len(out) >= limit:
             break
     return out
+
+
+def pick_soft_likes(
+    interests: list[str] | None,
+    *,
+    salt: str = "",
+    max_n: int = 1,
+) -> list[str]:
+    """Rotate at most max_n profile interests for optional flavor (not every night)."""
+    pool = merge_keywords(None, interests, limit=MAX_KEYWORDS_IN_PROMPT)
+    if not pool or max_n <= 0:
+        return []
+    # ~half the nights inject no like — avoids "every episode dances".
+    dig = hashlib.sha256(f"likes|{salt}|{','.join(pool)}".encode()).hexdigest()
+    if int(dig[:2], 16) % 2 == 0:
+        return []
+    start = int(dig[2:6], 16) % len(pool)
+    rotated = pool[start:] + pool[:start]
+    return rotated[:max_n]
 
 
 def length_lang_key(language: str | None) -> str:
@@ -744,6 +660,8 @@ def resolve_style_dials(request: StoryRequest) -> dict[str, dict[str, str]]:
             band = normalize_age_band(request.age_band)
             if band == "2-3":
                 instruction += "此年龄开场白略短（约4～5句），词语具体、可摸可听。"
+            elif band == "9-12":
+                instruction += "此年龄开场白可略清晰一点，仍短、口语、不讲课。"
             if wind == "deep":
                 instruction += "安眠档偏静：开场白声音更轻，仍须先安顿听者再进情节。"
             if (request.duration_minutes or 5) <= 3:
@@ -838,83 +756,21 @@ def choose_development_focus(
     return candidates[idx]
 
 
-def _active_beat_catalog() -> tuple[dict[str, dict[str, Any]], dict[str, list[str]], list[str]]:
-    """Prefer DB-backed runtime catalog; fall back to code constants."""
-    try:
-        from app.services.beat_patterns import (
-            get_runtime_default_pool,
-            get_runtime_focus_map,
-            get_runtime_patterns,
-        )
-
-        patterns = get_runtime_patterns()
-        if patterns:
-            return patterns, get_runtime_focus_map(), get_runtime_default_pool()
-    except Exception:
-        pass
-    return BEAT_PATTERNS, FOCUS_BEAT_MAP, list(DEFAULT_BEAT_POOL)
-
-
-def _theme_matched_beats(
-    theme: str | None, patterns: dict[str, dict[str, Any]]
-) -> list[str]:
-    """Beat ids whose theme_tags appear as substrings in the theme text."""
-    text = (theme or "").strip().lower()
-    if not text:
-        return []
-    hits: list[str] = []
-    for pid, meta in patterns.items():
-        tags = meta.get("theme_tags") or ()
-        if any(str(tag).lower() in text for tag in tags):
-            hits.append(pid)
-    return hits
-
-
-def select_beat_pattern(
-    focus_id: str | None,
-    *,
-    theme: str | None = None,
-    episode_no: int = 1,
-    salt: str = "",
-) -> dict[str, Any]:
-    """Pick a rhythm frame by theme + focus (stable for same inputs).
-
-    Catalog comes from DB (admin-editable) when seeded; otherwise code constants.
-    """
-    patterns, focus_map, default_pool = _active_beat_catalog()
-    fid = (focus_id or "").strip()
-    focus_opts = list(focus_map.get(fid) or default_pool)
-    theme_hits = [p for p in _theme_matched_beats(theme, patterns) if p in patterns]
-
-    if theme_hits:
-        # Prefer theme ∩ focus; else theme hits; always keep a spare for variety.
-        overlap = [p for p in theme_hits if p in focus_opts]
-        options = overlap or theme_hits
-        for pid in focus_opts:
-            if pid not in options:
-                options.append(pid)
-                if len(options) >= 4:
-                    break
-    else:
-        options = focus_opts
-
-    options = [p for p in options if p in patterns] or list(default_pool)
-    digest = hashlib.sha256(
-        f"beat|{fid}|{theme or ''}|{episode_no}|{salt}".encode()
-    ).hexdigest()
-    idx = int(digest[:8], 16) % len(options)
-    pid = options[idx]
-    fallback_id = next(iter(patterns), "two_gates")
-    meta = patterns.get(pid) or patterns.get(fallback_id) or BEAT_PATTERNS["two_gates"]
-    resolved = pid if pid in patterns else fallback_id
-    return {
-        "id": resolved,
-        "label": meta["label"],
-        "lineage": meta.get("lineage") or "",
-        "slots": meta.get("slots") or _BEAT_SLOTS,
-        "instruction": meta.get("instruction") or "",
-        "escalation": meta.get("escalation") or _ESCALATION_RULE,
-    }
+def resolve_target_feeling(request: "StoryRequest") -> str:
+    """Map style dials to a speakable target_feeling for plan/draft."""
+    if getattr(request, "target_feeling", None):
+        tf = str(request.target_feeling or "").strip()
+        if tf:
+            return tf
+    wd = (request.wind_down or "gentle").strip().lower()
+    if wd == "deep":
+        return "困倦"
+    if wd == "playful":
+        return "轻微好奇"
+    wonder = (request.wonder or "soft").strip().lower()
+    if wonder == "fantasy":
+        return "轻微好奇"
+    return "安心"
 
 
 def select_opening_pattern(
@@ -989,13 +845,14 @@ def focus_from_series_outline(
     """Return (focus_id, focus_label) from series outline episode slice, if present."""
     if not outline:
         return None, None
-    episodes = outline.get("episodes") or []
+    norm = normalize_series_outline(outline)
+    episodes = norm.get("episodes") or []
     ep: dict | None = None
     for item in episodes:
         if not isinstance(item, dict):
             continue
         try:
-            if int(item.get("episode_no") or 0) == int(episode_no):
+            if int(item.get("ep") or 0) == int(episode_no):
                 ep = item
                 break
         except (TypeError, ValueError):
@@ -1009,11 +866,10 @@ def focus_from_series_outline(
             ep = None
     if not ep:
         return None, None
-    fid = (ep.get("focus_id") or "").strip() or None
-    how = (ep.get("focus_how") or "").strip() or None
+    fid = (ep.get("focus") or "").strip() or None
+    how = (ep.get("how") or "").strip() or None
     if not fid:
         return None, how
-    # Prefer pool label when id is known; keep focus_how as richer how-text.
     if how:
         return fid, how
     _, pool_label = choose_development_focus(age_band, None, preferred=fid)
@@ -1021,18 +877,35 @@ def focus_from_series_outline(
 
 
 def build_user_payload(request: StoryRequest) -> dict:
+    from app.services.story_kernels import AXIS_LABELS_ZH, axis_for_focus
+
     spec = get_age_spec(request.age_band)
     focus_id = request.development_focus
-    focus_desc = request.development_focus_label
-    if not focus_id or not focus_desc:
-        focus_id, focus_desc = choose_development_focus(
+    if not focus_id:
+        focus_id, _pool_how = choose_development_focus(
             request.age_band,
             request.theme,
             preferred=request.development_focus,
             salt=request.child_nickname,
         )
+    axis, axis_label = axis_for_focus(focus_id)
+    # Accept short axis zh if already set; drop legacy long soft_guidance labels.
+    label_in = (request.development_focus_label or "").strip()
+    if label_in in AXIS_LABELS_ZH.values():
+        axis_label = label_in
+        for aid, zh in AXIS_LABELS_ZH.items():
+            if zh == label_in:
+                axis = aid
+                break
 
-    keywords = merge_keywords(request.keywords, request.interests)
+    # Tonight chips only — do NOT merge profile interests into kw (that forced
+    # every episode to revolve around the same long-term tag, e.g. 跳舞).
+    keywords = merge_keywords(request.keywords, None)
+    likes = pick_soft_likes(
+        request.interests,
+        salt=f"{request.child_nickname}|{request.theme or ''}|{request.episode_no or 1}",
+        max_n=1,
+    )
     motif_idx = (
         int(hashlib.sha256(f"motif|{request.theme or ''}|{focus_id}".encode()).hexdigest()[:8], 16)
         % len(MOTIF_WHITELIST)
@@ -1041,14 +914,18 @@ def build_user_payload(request: StoryRequest) -> dict:
     cast_hints = {
         "protagonist": f"请让「{request.child_nickname}」作为故事主角出场。",
         "supporting": f"「{request.child_nickname}」可以配角出场，主线可给玩具/伙伴。",
-        "absent": f"整篇不要出现「{request.child_nickname}」；用 keywords 里的角色推进故事。",
+        "absent": f"整篇不要出现「{request.child_nickname}」；可用 kw 里的角色推进故事。",
         "auto": (
             "角色完全可选：孩子可作主角、配角，或整篇不出现；"
-            "keywords 中的玩具、娃娃、宠物、家人或物件都可当主角或伙伴。"
+            "kw 里的玩具、娃娃、宠物、家人或物件都可当主角或伙伴。"
         ),
     }
     cast_hint = cast_hints.get(cast_role, cast_hints["auto"])
-    cast_hint += "不必用尽所有关键词，选最贴主题的若干自然织入。"
+    cast_hint += "kw 是今晚可选素材，可不用或只用最贴 theme 的 1～2 个；禁止把 kw 当成必须清单。"
+    likes_tip = (
+        "likes 是档案里的长期兴趣（可选）：最多轻点 0～1 处作道具/氛围；"
+        "禁止当主线、禁止每集都出现、禁止整集围着某个兴趣转。"
+    )
 
     minutes = max(2, min(12, int(request.duration_minutes or 5)))
     max_places = 1 if minutes <= 3 else 2
@@ -1079,11 +956,13 @@ def build_user_payload(request: StoryRequest) -> dict:
         "duration_minutes": minutes,
         "length_target": length_target,
         "keywords": keywords,
+        "likes": likes,
+        "likes_tip": likes_tip,
         "child_cast_role": cast_role,
         "cast_hint": cast_hint,
         "setting_hint": (
             f"全篇建议不超过 {max_places} 个地点（含入睡处）；"
-            "跟随 theme/keywords；用动作推进，结尾自然安静入睡。"
+            "主线跟 theme 与今晚情节；kw/likes 都是可选点缀；用动作推进，结尾自然安静入睡。"
         ),
         "style_dials": dials,
         "values_hint": request.values or [],
@@ -1092,12 +971,17 @@ def build_user_payload(request: StoryRequest) -> dict:
         "recap": request.recap,
         "soft_series_mode": request.soft_series_mode,
         "series_opening_note": build_series_opening_note(request),
-        "tonight_focus": {"id": focus_id, "how": focus_desc},
+        "tonight_focus": {
+            "id": focus_id,
+            "axis": axis,
+            "axis_label": axis_label,
+        },
         "allowed_motif": MOTIF_WHITELIST[motif_idx],
         "style_reminders": [
-            "听感优先：口语旁白，一句一事；遵守 length_target",
+            "听感优先：口语旁白，一句一事；遵守 length",
             "先听前开场白安顿听者，再渐入正文；勿像翻书开念",
-            "忠实落地 story_plan；结尾自然收束；系列才写 soft_hook；勿说教",
+            "忠实落地 plan；结尾自然收束；系列才写 hook；勿说教",
+            "勿把长期兴趣当成每集主线",
         ],
     }
 
@@ -1129,12 +1013,115 @@ def clamp_episode_count(n: int | None) -> int:
     return max(2, min(8, int(n or DEFAULT_EPISODE_COUNT)))
 
 
+def _pick(d: dict | None, *keys: str, default: Any = None) -> Any:
+    if not isinstance(d, dict):
+        return default
+    for k in keys:
+        if k in d and d[k] is not None:
+            return d[k]
+    return default
+
+
+def _slim_dials(dials: dict[str, dict[str, str]]) -> dict[str, dict[str, str]]:
+    return {k: {"lv": v["level"], "tip": v["instruction"]} for k, v in dials.items()}
+
+
+def _slim_length(lt: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "n": lt.get("target"),
+        "min": lt.get("min"),
+        "max": lt.get("max"),
+        "unit": lt.get("unit_label") or lt.get("unit"),
+        "tip": lt.get("instruction"),
+    }
+
+
+def normalize_series_outline(outline: dict) -> dict:
+    """Canonical short-key series outline; accepts legacy long keys on input."""
+    cast_raw = _pick(outline, "cast", "cast_spine", default=[]) or []
+    cast_out: list[Any] = []
+    if isinstance(cast_raw, list):
+        for item in cast_raw:
+            if isinstance(item, dict):
+                cast_out.append(
+                    {
+                        "name": str(item.get("name") or "").strip(),
+                        "move": str(item.get("move") or "").strip(),
+                        "line": str(
+                            _pick(item, "line", "catchphrase", default="") or ""
+                        ).strip(),
+                    }
+                )
+            elif isinstance(item, str) and item.strip():
+                cast_out.append({"name": item.strip(), "move": "", "line": ""})
+
+    threads_raw = outline.get("threads") or []
+    threads_out: list[dict[str, Any]] = []
+    if isinstance(threads_raw, list):
+        for t in threads_raw:
+            if not isinstance(t, dict):
+                continue
+            at = _pick(t, "at", "payoff_episode")
+            try:
+                at_n = int(at) if at is not None else None
+            except (TypeError, ValueError):
+                at_n = None
+            threads_out.append(
+                {
+                    "id": str(t.get("id") or "").strip(),
+                    "what": str(t.get("what") or "").strip(),
+                    "at": at_n,
+                }
+            )
+
+    eps_raw = outline.get("episodes") or []
+    eps_out: list[dict[str, Any]] = []
+    if isinstance(eps_raw, list):
+        for i, ep in enumerate(eps_raw):
+            if not isinstance(ep, dict):
+                continue
+            ep_no = _pick(ep, "ep", "episode_no", default=i + 1)
+            try:
+                ep_no = int(ep_no)
+            except (TypeError, ValueError):
+                ep_no = i + 1
+            eps_out.append(
+                {
+                    "ep": ep_no,
+                    "focus": str(_pick(ep, "focus", "focus_id", default="") or "").strip(),
+                    "how": str(_pick(ep, "how", "focus_how", default="") or "").strip(),
+                    "premise": str(ep.get("premise") or "").strip(),
+                    "hook": str(
+                        _pick(ep, "hook", "soft_promise", default="") or ""
+                    ).strip(),
+                    "plants": list(ep.get("plants") or [])
+                    if isinstance(ep.get("plants"), list)
+                    else [],
+                    "payoffs": list(ep.get("payoffs") or [])
+                    if isinstance(ep.get("payoffs"), list)
+                    else [],
+                    "sleep": str(
+                        _pick(ep, "sleep", "sleep_note", default="") or ""
+                    ).strip(),
+                }
+            )
+
+    return {
+        "title": str(outline.get("title") or "").strip(),
+        "arc": str(_pick(outline, "arc", "throughline", default="") or "").strip(),
+        "cast": cast_out,
+        "threads": threads_out,
+        "episodes": eps_out,
+    }
+
+
 def slice_series_context(outline: dict, episode_no: int) -> dict:
-    """Episode-facing slice of a series outline for plan/draft prompts."""
-    episodes = outline.get("episodes") or []
+    """Episode-facing slice of a series outline for plan/draft prompts (short keys)."""
+    norm = normalize_series_outline(outline) if outline else normalize_series_outline({})
+    episodes = norm.get("episodes") or []
     ep = None
     for item in episodes:
-        if int(item.get("episode_no") or 0) == int(episode_no):
+        if int(item.get("ep") or 0) == int(episode_no):
             ep = item
             break
     if ep is None and episodes:
@@ -1142,142 +1129,201 @@ def slice_series_context(outline: dict, episode_no: int) -> dict:
         ep = episodes[idx]
     if ep is None:
         ep = {
-            "episode_no": episode_no,
+            "ep": episode_no,
             "premise": "",
-            "soft_promise": "",
+            "hook": "",
             "plants": [],
             "payoffs": [],
-            "sleep_note": "",
-            "focus_id": "",
-            "focus_how": "",
+            "sleep": "",
+            "focus": "",
+            "how": "",
         }
-    total = len(episodes) or int(outline.get("episode_count") or episode_no)
+    total = len(episodes) or int(episode_no)
     return {
-        "series_title": outline.get("title") or "",
-        "throughline": outline.get("throughline") or "",
-        "cast_spine": outline.get("cast_spine") or [],
-        "threads": outline.get("threads") or [],
-        "episode_no": int(episode_no),
-        "episode_count": total,
-        "is_finale": int(episode_no) >= total,
-        "episode": ep,
+        "title": norm.get("title") or "",
+        "arc": norm.get("arc") or "",
+        "cast": norm.get("cast") or [],
+        "threads": norm.get("threads") or [],
+        "ep": int(episode_no),
+        "n": total,
+        "finale": int(episode_no) >= total,
+        "main": True,
+        "ep_data": ep,
     }
+
+
+# Mid-band whole years when birth_date / child_age_years is unavailable.
+_AGE_BAND_YEARS = {
+    "2-3": 3,
+    "3-5": 4,
+    "6-8": 7,
+    "9-12": 10,
+}
+
+
+def prompt_age_years(request: StoryRequest) -> int:
+    """Numeric age (years) for plan/draft LLM JSON."""
+    if request.child_age_years is not None:
+        try:
+            return max(0, int(request.child_age_years))
+        except (TypeError, ValueError):
+            pass
+    band = normalize_age_band(request.age_band)
+    return int(_AGE_BAND_YEARS.get(band, 4))
+
+
+def prompt_gender_label(request: StoryRequest) -> str:
+    """Human-readable gender for plan/draft LLM JSON."""
+    from app.services.child_profile import GENDER_LABELS_ZH, normalize_gender
+
+    g = normalize_gender(request.child_gender)
+    if (request.language or "zh").strip().lower().startswith("en"):
+        return {
+            "girl": "girl",
+            "boy": "boy",
+            "other": "other",
+            "unspecified": "unspecified",
+        }.get(g, "unspecified")
+    return GENDER_LABELS_ZH.get(g, "不指定")
+
+
+def fantasy_score_from_wonder(wonder: str | None) -> int:
+    level = normalize_dial("wonder", wonder)
+    return int(WONDER_FANTASY_SCORE.get(level, 3))
+
+
+def dialog_score_from_dialogue(dialogue: str | None) -> int:
+    level = normalize_dial("dialogue", dialogue)
+    return int(DIALOGUE_DIALOG_SCORE.get(level, 3))
 
 
 def validate_episode_plan(
     plan: dict,
     *,
-    lead_in: str,
+    lead_in: str = "soft",
     soft_series_mode: bool = False,
     beat_pattern: dict[str, Any] | None = None,
     opening_pattern: dict[str, Any] | None = None,
     cast_intro_mode: dict[str, str] | None = None,
+    story_element: dict[str, Any] | None = None,
+    target_feeling: str | None = None,
 ) -> dict:
-    missing = [k for k in PLAN_REQUIRED_KEYS if k not in plan]
+    """Normalize LLM plan into lean dict for the simplified draft stage.
+
+    Accepts the new schema (casts/desc, string beats, free-text shape) and
+    legacy aliases. Catalog beat windows / forced shape ids are not enforced.
+    """
+    _ = (
+        lead_in,
+        soft_series_mode,
+        beat_pattern,
+        opening_pattern,
+        cast_intro_mode,
+        story_element,
+        target_feeling,
+    )
+    missing = [
+        canon
+        for canon, aliases in PLAN_REQUIRED_ALIASES.items()
+        if not any(a in plan for a in aliases)
+    ]
     if missing:
         raise ValueError(f"episode plan missing keys: {missing}")
 
-    if opening_pattern:
-        plan["opening_pattern"] = opening_pattern.get("id") or "familiar_anomaly"
-        plan["opening_pattern_meta"] = {
-            "id": opening_pattern.get("id"),
-            "label": opening_pattern.get("label"),
-            "instruction": opening_pattern.get("instruction"),
-        }
-        forced_kind = str(opening_pattern.get("opening_kind") or "scene")
-    else:
-        plan.setdefault("opening_pattern", "familiar_anomaly")
-        forced_kind = str(plan.get("opening_kind") or "scene")
+    title = str(_pick(plan, "title", "title_hint", default="") or "").strip() or "睡前故事"
+    theme = plan.get("theme")
+    if theme is not None:
+        theme_s = str(theme).strip()
+        theme = theme_s or None
 
-    kind = str(plan.get("opening_kind") or forced_kind).strip().lower()
-    if kind not in ("curiosity", "scene", "recap", "none"):
-        kind = forced_kind if forced_kind in ("curiosity", "scene", "recap", "none") else "scene"
-    if lead_in == "none" or (opening_pattern and opening_pattern.get("id") == "none"):
-        plan["opening_kind"] = "none"
-        plan["soft_promise"] = ""
-        plan["opening_lines"] = ""
-    else:
-        # Prefer pattern-forced kind so lead_in and draft stay aligned.
-        plan["opening_kind"] = forced_kind if forced_kind != "none" else kind
-        # Do not copy soft_promise into opening_lines — that injects the wrong beat as spoken prose.
+    shape = str(_pick(plan, "shape", "story_shape", default="") or "").strip() or "自由结构"
 
-    if cast_intro_mode:
-        plan["cast_intro_mode"] = cast_intro_mode.get("id") or "full_intro"
-        plan["cast_intro_meta"] = {
-            "id": cast_intro_mode.get("id"),
-            "label": cast_intro_mode.get("label"),
-            "instruction": cast_intro_mode.get("instruction"),
-        }
-    else:
-        plan.setdefault("cast_intro_mode", "full_intro")
-    plan.setdefault("setting_line", "")
-    plan.setdefault("opening_lines", plan.get("opening_lines") or "")
+    beats_raw = plan.get("beats")
+    if not isinstance(beats_raw, list) or not beats_raw:
+        raise ValueError("episode plan beats must be a non-empty list")
+    beats: list[str] = []
+    for i, src in enumerate(beats_raw):
+        if isinstance(src, dict):
+            action = str(src.get("action") or src.get("beat") or "").strip()
+        else:
+            action = str(src or "").strip()
+        if not action:
+            raise ValueError(f"episode plan beat {i + 1} missing text")
+        beats.append(action)
 
-    try_1 = str(plan.get("try_1") or "").strip()
-    try_2 = str(plan.get("try_2") or "").strip()
-    try_beat = str(plan.get("try_beat") or "").strip()
-    if not try_1 and try_beat:
-        # Legacy single beat → split lightly if model used "；" / "。再"
-        parts = re.split(r"[；;]|。再|，再", try_beat, maxsplit=1)
-        try_1 = parts[0].strip() or try_beat
-        try_2 = (parts[1].strip() if len(parts) > 1 else "") or ""
-    # Prefer model text; fall back to other plan fields only — never invent canned spoken lines.
-    if not try_1:
-        try_1 = try_beat or str(plan.get("wish") or "").strip()
-    if not try_2:
-        try_2 = str(plan.get("turn_ok") or "").strip() or try_beat
-    plan["try_1"] = try_1
-    plan["try_2"] = try_2
-    plan["try_beat"] = try_beat or ("；".join(p for p in (try_1, try_2) if p))
+    cast_raw = _pick(plan, "casts", "cast", "cast_use", default=[])
+    casts: list[dict[str, str]] = []
+    if isinstance(cast_raw, list):
+        for item in cast_raw[:6]:
+            if isinstance(item, dict):
+                name = str(item.get("name") or "").strip()
+                desc = str(
+                    _pick(
+                        item,
+                        "desc",
+                        "does",
+                        "tonight_does",
+                        "how_tonight",
+                        "move",
+                        "signature_move",
+                        default="",
+                    )
+                    or ""
+                ).strip()
+                if name:
+                    casts.append({"name": name, "desc": desc})
+            elif isinstance(item, str) and item.strip():
+                casts.append({"name": item.strip(), "desc": ""})
+    if not casts:
+        raise ValueError("episode plan casts must include at least one character")
 
-    if beat_pattern:
-        plan["beat_pattern"] = beat_pattern.get("id") or plan.get("beat_pattern") or "two_gates"
-        plan["beat_pattern_meta"] = {
-            "id": beat_pattern.get("id"),
-            "label": beat_pattern.get("label"),
-            "instruction": beat_pattern.get("instruction"),
-        }
-    else:
-        plan.setdefault("beat_pattern", "two_gates")
-
-    plan.setdefault("plants_tonight", [])
-    plan.setdefault("payoffs_tonight", [])
-    plan.setdefault("places", [])
-    plan.setdefault("scene_jobs", [])
-    plan.setdefault("cast", [])
-    plan.setdefault("cast_use", [])
-    plan.setdefault("soft_hook_hint", "")
-    if soft_series_mode and not str(plan.get("soft_hook_hint") or "").strip():
-        # Fall back to soft_promise so draft still has a hook line.
-        plan["soft_hook_hint"] = str(plan.get("soft_promise") or "").strip()
-    # Keep model sleep_beat as-is. Never inject canned spoken templates into the plan.
-    plan["sleep_beat"] = str(plan.get("sleep_beat") or "").strip()
-    return plan
+    return {
+        "title": title,
+        "theme": theme,
+        "casts": casts,
+        "beats": beats,
+        "shape": shape,
+    }
 
 
 def build_outline_user_message(request: StoryRequest) -> str:
     payload = build_user_payload(request)
     count = clamp_episode_count(request.episode_count)
+    focus = payload["tonight_focus"]
+    dials = _slim_dials(payload["style_dials"])
+    # Outline only needs wonder tip in full; others level-only.
+    dials_out = {
+        k: ({"lv": v["lv"], "tip": v["tip"]} if k == "wonder" else {"lv": v["lv"]})
+        for k, v in dials.items()
+    }
     outline_payload = {
-        "episode_count": count,
+        "n": count,
         "theme": payload["theme"],
-        "language": payload["language"],
-        "age_band": payload["age_band"],
-        "age_guidance": payload["age_guidance"],
-        "keywords": payload["keywords"],
-        "cast_hint": payload["cast_hint"],
-        "style_dials": {
-            k: {"level": v["level"], "label": v["label"]}
-            for k, v in payload["style_dials"].items()
+        "lang": payload["language"],
+        "age": prompt_age_years(request),
+        "gender": prompt_gender_label(request),
+        "age_how": payload["age_guidance"],
+        "kw": payload["keywords"],
+        "likes": payload.get("likes") or [],
+        "likes_tip": payload.get("likes_tip"),
+        "cast_tip": payload["cast_hint"],
+        "dials": dials_out,
+        "focus_pool": FOCUS_POOLS.get(payload["age_band"], []),
+        "focus_seed": {
+            "id": focus.get("id"),
+            "axis": focus.get("axis"),
+            "label": focus.get("axis_label"),
         },
-        "focus_pool_hint": FOCUS_POOLS.get(payload["age_band"], []),
-        "tonight_focus_seed": payload["tonight_focus"],
-        "values_hint": payload["values_hint"],
+        "values": payload["values_hint"],
     }
     lead = (
-        f"请为软系列设计 {count} 集睡前大纲。只输出 JSON。\n"
+        f"请为软系列设计 {count} 集睡前大纲。只输出 JSON（短字段名）。"
+        "arc/premise 跟 theme；kw/likes 只是可选点缀，禁止整季围着某个兴趣转。\n"
         if not (request.language or "zh").lower().startswith("en")
-        else f"Design a soft bedtime series outline with {count} episodes. JSON only.\n"
+        else (
+            f"Design a soft bedtime series outline with {count} episodes. JSON only (short keys). "
+            "Do not make the whole season about one profile interest.\n"
+        )
     )
     return lead + json.dumps(outline_payload, ensure_ascii=False)
 
@@ -1288,133 +1334,101 @@ def build_plan_user_message(
     beat_pattern: dict[str, Any] | None = None,
     opening_pattern: dict[str, Any] | None = None,
     cast_intro_mode: dict[str, str] | None = None,
+    recent_history: dict[str, Any] | None = None,
 ) -> str:
+    """Assemble simplified plan user JSON: theme / keywords / age / gender / fantasy."""
+    _ = (beat_pattern, opening_pattern, cast_intro_mode, recent_history)
     payload = build_user_payload(request)
-    lead_level = payload["style_dials"]["lead_in"]["level"]
-    focus_id = (payload.get("tonight_focus") or {}).get("id") or request.development_focus
-    ep_no = int(request.episode_no or 1)
-    salt = request.child_nickname or ""
-    cast_absent = (request.child_cast_role or "").strip().lower() == "absent"
-    beat = beat_pattern or select_beat_pattern(
-        focus_id,
-        theme=request.theme,
-        episode_no=ep_no,
-        salt=salt,
-    )
-    opening = opening_pattern or select_opening_pattern(
-        lead_level,
-        episode_no=ep_no,
-        has_recap=bool((request.recap or "").strip()),
-        child_cast_absent=cast_absent,
-        salt=salt,
-    )
-    intro = cast_intro_mode or select_cast_intro_mode(
-        soft_series_mode=bool(request.soft_series_mode or request.series_outline),
-        episode_no=ep_no,
-        lead_in=lead_level,
-    )
     plan_payload = {
-        **{k: payload[k] for k in (
-            "child_nickname",
-            "age_band",
-            "age_guidance",
-            "child_gender",
-            "child_gender_label",
-            "child_intro",
-            "child_profile_guidance",
-            "language",
-            "theme",
-            "duration_minutes",
-            "keywords",
-            "cast_hint",
-            "setting_hint",
-            "style_dials",
-            "recap",
-            "soft_series_mode",
-            "tonight_focus",
-        )},
-        "lead_in_level": lead_level,
-        "episode_no": request.episode_no,
-        "beat_pattern": beat,
-        "opening_pattern": opening,
-        "cast_intro_mode": intro,
-        "series_context": (
-            slice_series_context(request.series_outline, request.episode_no)
-            if request.series_outline
-            else None
-        ),
+        "theme": payload["theme"],
+        "keywords": payload["keywords"],
+        "age": prompt_age_years(request),
+        "gender": prompt_gender_label(request),
+        "fantasy": fantasy_score_from_wonder(request.wonder),
     }
-    if lead_level == "none" or opening.get("id") == "none":
-        plan_payload["opening_constraint"] = (
-            "opening_kind must be none; soft_promise empty; opening_lines empty"
-        )
     lead = (
-        "请只输出今晚单集构思 JSON（不要正文）。"
-        "负责创意与结构；必须遵守 beat_pattern、opening_pattern、cast_intro_mode；"
-        "opening 非 none 时 opening_lines 须是听前开场白提纲（非第一句情节）。\n"
-        if not (request.language or "zh").lower().startswith("en")
-        else (
-            "Output tonight's episode plan JSON only (no prose). "
-            "Own creative structure; obey beat_pattern, opening_pattern, cast_intro_mode; "
-            "if opening is not none, opening_lines must be a host warm-up outline, not plot beat one.\n"
-        )
+        "请根据以下输入构思今晚睡前故事大纲。"
+        "只输出 JSON（字段：title、theme、casts、beats、shape），不要正文、不要 markdown。\n"
     )
     return lead + json.dumps(plan_payload, ensure_ascii=False)
 
 
 def build_user_message(request: StoryRequest, plan: dict | None = None) -> str:
+    """Assemble simplified draft user JSON matching the draft system prompt."""
     payload = build_user_payload(request)
-    if plan is not None:
-        payload["story_plan"] = plan
-        need_opening = (plan.get("opening_pattern") or "none") != "none"
-        payload["draft_checklist"] = {
-            "body_order": [
-                "warm_up_host_voice (own paragraphs)" if need_opening else "skip_opening",
-                "cast_intro / setting_line (may blend end of warm-up)",
-                "wish_snag_tries",
-                "soft_hook then goodnight" if request.soft_series_mode else "goodnight",
-            ],
-            "must_land_warm_up_before_plot": need_opening,
-            "forbid_book_like_cold_open": need_opening,
-            "opening_lines": plan.get("opening_lines") or None,
-            "soft_promise": plan.get("soft_promise") or None,
-            "opening_pattern": plan.get("opening_pattern"),
-            "cast_intro_mode": plan.get("cast_intro_mode"),
-            "setting_line": plan.get("setting_line") or None,
-            "must_include_try_1": plan.get("try_1"),
-            "must_include_try_2": plan.get("try_2"),
-            "land_try_beats_as_planned": True,
-            "must_land_soft_hook_in_body": bool(request.soft_series_mode),
-            "soft_hook_line": plan.get("soft_hook_hint") or None,
-            "prefer_gentle_sleep_close": True,
-            "forbid_parallel_goodnight_list": True,
-            "sleep_beat": plan.get("sleep_beat") or None,
-            "cast_use": plan.get("cast_use") or [],
-            "no_early_thread_payoff": True,
-            "forbid_child_nickname": (request.child_cast_role or "").lower() == "absent",
-        }
-    if request.series_outline is not None:
-        payload["series_context"] = slice_series_context(
-            request.series_outline, request.episode_no
-        )
-    lang = (request.language or "zh").lower()
-    if lang.startswith("zh"):
-        lead = (
-            "请按系统规则、style_dials"
-            + ("与 story_plan/draft_checklist" if plan is not None else "")
-            + "写今晚的睡前故事（口语旁白，不是念书）。"
-            "正文顺序：听前开场白（若需要）→ 角色/场景建档（若需要）→ 情节 → 软期待（系列）→ 晚安。"
-            "开场白须先安顿听者并轻点人物/背景/软期待，再渐入正文。"
-            "系列时正文末段（晚安前）必须出现 soft_hook 那句软期待。"
-            "只输出 JSON 对象（不要 markdown）："
-            '{"title","body","soft_hook"}。\n'
-        )
-    else:
-        lead = (
-            "Write tonight's bedtime story as spoken host narration (not reading a book), "
-            "per the system rules, style_dials"
-            + (", story_plan, and draft_checklist" if plan is not None else "")
-            + ". Order: warm-up → cast intro → plot → soft_hook (series) → goodnight. "
-            'Reply with ONLY a JSON object (no markdown): {"title","body","soft_hook"}.\n'
-        )
-    return lead + json.dumps(payload, ensure_ascii=False)
+    length = payload["length_target"]
+    draft: dict[str, Any] = {
+        "title": (plan or {}).get("title") or payload["theme"] or "睡前故事",
+        "theme": (plan or {}).get("theme") or payload["theme"],
+        "casts": list((plan or {}).get("casts") or []),
+        "beats": list((plan or {}).get("beats") or []),
+        "age": prompt_age_years(request),
+        "gender": prompt_gender_label(request),
+        "dialog": dialog_score_from_dialogue(request.dialogue),
+        "len": int(length.get("target") or 0),
+    }
+    # Legacy plan rows: cast/move/does → casts; beat objects → strings.
+    if not draft["casts"]:
+        legacy = (plan or {}).get("cast") or []
+        if isinstance(legacy, list):
+            for item in legacy:
+                if isinstance(item, dict) and item.get("name"):
+                    desc = str(
+                        item.get("desc")
+                        or item.get("does")
+                        or item.get("move")
+                        or ""
+                    ).strip()
+                    draft["casts"].append({"name": str(item["name"]).strip(), "desc": desc})
+    if draft["beats"] and isinstance(draft["beats"][0], dict):
+        draft["beats"] = [
+            str(b.get("action") or "").strip()
+            for b in draft["beats"]
+            if isinstance(b, dict) and str(b.get("action") or "").strip()
+        ]
+    lead = (
+        "请根据以下大纲写睡前故事正文。"
+        "只输出 JSON 对象（字段 title、body；不要 markdown）。\n"
+    )
+    return lead + json.dumps(draft, ensure_ascii=False)
+
+
+def empty_recent_history() -> dict[str, Any]:
+    return {
+        "shapes_used": [],
+        "themes_used": [],
+        "core_elements_used": [],
+        "last_summary": None,
+    }
+
+
+def history_fields_from_plan(plan: dict | None) -> dict[str, Any]:
+    """Extract persistable history fields from a validated episode plan."""
+    if not isinstance(plan, dict):
+        return {}
+    raw_shape = str(_pick(plan, "shape", "story_shape", default="") or "").strip() or None
+    # Only persist catalog shape ids for soft-dedup; free-text shape notes are skipped.
+    known = set(get_runtime_shape_ids()) or set(STORY_SHAPES)
+    shape = raw_shape if raw_shape in known else None
+    theme = plan.get("theme")
+    if theme is not None:
+        theme = str(theme).strip() or None
+    core = _pick(plan, "props", "core_element") or []
+    if isinstance(core, str):
+        core = [core]
+    core_list = [str(x).strip() for x in core if str(x).strip()]
+    summary = None
+    beats = plan.get("beats") or []
+    if isinstance(beats, list) and beats:
+        last = beats[-1]
+        if isinstance(last, dict) and last.get("action"):
+            summary = str(last.get("action")).strip()[:80]
+        elif isinstance(last, str) and last.strip():
+            summary = last.strip()[:80]
+    return {
+        "story_shape": shape,
+        "theme": theme,
+        "core_element": core_list,
+        "last_summary": summary,
+    }
+

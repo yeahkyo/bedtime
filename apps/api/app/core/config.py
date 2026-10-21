@@ -43,6 +43,8 @@ class Settings(BaseSettings):
     # Independent knobs (empty = derive from provider_profile).
     story_provider: str = ""
     speech_provider: str = ""
+    # When True, skip TTS after LLM (text-only ready). Prefer env STORY_SKIP_TTS=1 temporarily.
+    story_skip_tts: bool = False
 
     openai_api_key: str | None = None
     openai_model: str = "gpt-4o-mini"
@@ -50,6 +52,11 @@ class Settings(BaseSettings):
     deepseek_api_key: str | None = None
     deepseek_base_url: str = "https://api.deepseek.com"
     deepseek_model: str = "deepseek-flash"
+    # Story chat CoT: enabled improves quality for some models; costs latency/tokens.
+    deepseek_thinking: bool = True
+    # Ceiling for story stages (outline/plan/draft default low; cannot raise above stage).
+    # low | medium | high | max. Ignored when thinking is off.
+    deepseek_reasoning_effort: str = "low"
 
     ark_api_key: str | None = None
     ark_base_url: str = "https://ark.cn-beijing.volces.com/api/v3"
@@ -71,6 +78,17 @@ class Settings(BaseSettings):
     fish_audio_default_voice_id: str = ""
     fish_audio_tts_model: str = "s2-pro"
     fish_audio_base_url: str = "https://api.fish.audio"
+
+    # Aliyun Model Studio / DashScope CosyVoice TTS (+ voice enrollment)
+    # Prefer ALIYUN_DASHSCOPE_API_KEY; DASHSCOPE_API_KEY also accepted.
+    aliyun_dashscope_api_key: str | None = None
+    dashscope_api_key: str | None = None
+    aliyun_tts_workspace_id: str = ""
+    aliyun_tts_region: str = "cn-beijing"  # cn-beijing | ap-southeast-1
+    aliyun_tts_model: str = "cosyvoice-v3-flash"
+    aliyun_tts_default_voice: str = "longanyang"
+    # Optional override: api/v1 root or full SpeechSynthesizer URL.
+    aliyun_tts_base_url: str = ""
 
     story_retention_months: int = 24
     raw_voice_retention_hours: int = 24

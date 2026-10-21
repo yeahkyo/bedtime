@@ -1,9 +1,27 @@
 import 'package:flutter/material.dart';
 
 import '../api/client.dart';
+import '../data/chip_cache.dart';
+import '../data/create_fallbacks.dart';
 import '../theme/app_theme.dart';
 import '../theme/widgets.dart';
+import 'children_manage_screen.dart';
 import 'player_screen.dart';
+
+class _ChipOpt {
+  const _ChipOpt({
+    required this.key,
+    required this.label,
+    this.focusId,
+    this.serverId,
+  });
+
+  final String key;
+  final String label;
+  final String? focusId;
+  /// Non-null when backed by a real catalog row (elements).
+  final String? serverId;
+}
 
 class CreateStoryScreen extends StatefulWidget {
   const CreateStoryScreen({super.key, required this.api});
@@ -15,33 +33,36 @@ class CreateStoryScreen extends StatefulWidget {
 }
 
 class _CreateStoryScreenState extends State<CreateStoryScreen> {
-  final themeCtrl = TextEditingController(text: '月光下的小兔子');
-  final nicknameCtrl = TextEditingController(text: '豆豆');
-  final keywordsCtrl = TextEditingController(text: '星星娃娃, 小毯子');
-  final interestsCtrl = TextEditingController();
-  final valuesCtrl = TextEditingController();
+  final themeCtrl = TextEditingController();
+  final keywordsCtrl = TextEditingController();
   final recapCtrl = TextEditingController();
 
   String language = 'zh';
-  String ageBand = '3-5'; // derived from birthDate for focus dials
+  String ageBand = '3-5';
   String gender = 'unspecified';
-  DateTime birthDate = DateTime(DateTime.now().year - 4, DateTime.now().month, DateTime.now().day);
-  String? developmentFocus;
+  String nickname = '豆豆';
+  List<String> interests = [];
+  List<Map<String, dynamic>> children = [];
+
+  List<_ChipOpt> inspirationChips = [];
+  List<_ChipOpt> thingChips = [];
+  /// null = 自动
+  String? selectedInspirationKey;
+  String? selectedThingKey;
+
   String childCastRole = 'auto';
-  String plotDrive = 'light';
-  String imagery = 'balanced';
   String wonder = 'soft';
-  String windDown = 'gentle';
   String dialogue = 'some';
-  String leadIn = 'soft';
   int duration = 5;
-  String speedTier = 'slow';
-  String tone = 'gentle';
+  /// Not exposed in UI; preserved so saving voice id does not reset TTS prefs.
+  String _speedTier = 'medium';
+  String _tonePreset = 'gentle';
   bool softSeries = false;
   int? continueSeriesId;
   int episodeCount = 4;
   bool busy = false;
   bool preparing = true;
+  bool chipsLoading = false;
   String? quotaText;
   String? progressText;
   int? childId;
@@ -62,57 +83,18 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
     ('absent', '不出现孩子'),
   ];
 
-  static const plotDrives = [
-    ('mood', '氛围向'),
-    ('light', '轻情节'),
-    ('arc', '更有故事'),
-  ];
-  static const imageries = [
-    ('sparse', '干净口述'),
-    ('balanced', '适中'),
-    ('rich', '更细腻'),
-  ];
+  /// everyday | soft | fantasy — 生活向 ↔ 想象力
   static const wonders = [
-    ('everyday', '日常'),
-    ('soft', '轻奇幻'),
+    ('everyday', '生活向'),
+    ('soft', '轻想象'),
     ('fantasy', '更幻想'),
   ];
-  static const windDowns = [
-    ('deep', '很快安静'),
-    ('gentle', '先轻轻再睡'),
-    ('playful', '活泼一点再收'),
-  ];
+  /// low | some | more
   static const dialogues = [
     ('low', '很少对话'),
     ('some', '一点对话'),
     ('more', '对话多些'),
   ];
-  static const leadIns = [
-    ('none', '直接开讲'),
-    ('soft', '听前开场白'),
-    ('curious', '好奇开场白'),
-  ];
-
-  static const focusOptions = <String, List<(String, String)>>{
-    '2-3': [
-      ('secure_presence', '安心在场'),
-      ('body_rhythm', '身体节奏'),
-      ('name_feeling', '轻轻命名感受'),
-    ],
-    '3-5': [
-      ('tiny_brave', '小小勇敢'),
-      ('emotion_held', '情绪被接住'),
-      ('gentle_agency', '小小自主'),
-      ('share_space', '留一点空间'),
-      ('wind_down', '慢慢安静'),
-    ],
-    '6-8': [
-      ('try_persist', '坚持一下'),
-      ('friend_repair', '和好'),
-      ('fair_turn', '轮流公平'),
-      ('mentalize_light', '理解小心思'),
-    ],
-  };
 
   @override
   void initState() {
@@ -126,58 +108,90 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
     return int.tryParse('$value');
   }
 
-  String _fmtDate(DateTime d) =>
-      '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
-
-  DateTime _parseBirth(String? raw) {
-    if (raw == null || raw.isEmpty) {
-      return DateTime(DateTime.now().year - 4, DateTime.now().month, DateTime.now().day);
+  String _genderLabel(String? id) {
+    for (final (gid, label) in genders) {
+      if (gid == id) return label;
     }
-    return DateTime.tryParse(raw) ??
-        DateTime(DateTime.now().year - 4, DateTime.now().month, DateTime.now().day);
+    return '不指定';
+  }
+
+  String get _interestsSummary {
+    if (interests.isEmpty) return '暂无兴趣标签';
+    return interests.take(4).join(' · ');
+  }
+
+  void _applyChild(Map<String, dynamic> c) {
+    childId = _asId(c['id']);
+    nickname = (c['nickname'] as String?)?.trim().isNotEmpty == true
+        ? (c['nickname'] as String).trim()
+        : '豆豆';
+    ageBand = c['age_band'] as String? ?? ageBand;
+    gender = c['gender'] as String? ?? gender;
+    interests = (c['interests'] as List<dynamic>? ?? []).cast<String>();
   }
 
   Future<void> _prepare() async {
     setState(() => preparing = true);
     try {
-      final children = await widget.api.listChildren();
+      final listed = await widget.api.listChildren();
+      children = listed.cast<Map<String, dynamic>>();
       if (children.isEmpty) {
         final child = await widget.api.createChild(
-          nickname: nicknameCtrl.text.trim().isEmpty ? '豆豆' : nicknameCtrl.text.trim(),
-          birthDate: _fmtDate(birthDate),
-          gender: gender,
+          nickname: '豆豆',
+          birthDate: _defaultBirth(),
+          gender: 'unspecified',
         );
-        childId = _asId(child['id']);
-        ageBand = child['age_band'] as String? ?? ageBand;
-        gender = child['gender'] as String? ?? gender;
-        birthDate = _parseBirth(child['birth_date'] as String?);
+        children = [child];
+        _applyChild(child);
       } else {
-        final c = children.first as Map<String, dynamic>;
-        childId = _asId(c['id']);
-        nicknameCtrl.text = c['nickname'] as String? ?? nicknameCtrl.text;
-        ageBand = c['age_band'] as String? ?? ageBand;
-        gender = c['gender'] as String? ?? gender;
-        birthDate = _parseBirth(c['birth_date'] as String?);
-        final interests = (c['interests'] as List<dynamic>? ?? []).cast<String>();
-        interestsCtrl.text = interests.join(', ');
+        final keep = childId != null
+            ? children.cast<Map<String, dynamic>?>().firstWhere(
+                  (c) => _asId(c?['id']) == childId,
+                  orElse: () => null,
+                )
+            : null;
+        _applyChild(keep ?? children.first);
       }
       if (childId == null) {
         throw ApiException('无法读取孩子档案 id，请下拉重试或重新进入');
       }
+
+      await _loadSuggestionChips();
+
       final system = await widget.api.ensureSystemVoice();
-      final listed = await widget.api.listVoices();
-      voices = listed.cast<Map<String, dynamic>>();
+      final voiceList = await widget.api.listVoices();
+      voices = voiceList.cast<Map<String, dynamic>>();
       if (voices.isEmpty) {
         voices = [system];
       }
-      Map<String, dynamic>? preferred;
-      for (final v in voices) {
-        if (v['kind'] == 'clone') {
-          preferred = v;
-          break;
-        }
+
+      Map<String, dynamic>? prefs;
+      try {
+        prefs = await widget.api.getVoicePrefs(childId!);
+      } catch (_) {
+        prefs = null;
       }
-      voiceId = _asId(preferred?['id']) ?? _asId(system['id']);
+      final prefVoiceId = _asId(prefs?['default_voice_id']);
+      final prefSpeed = prefs?['speed_tier'] as String?;
+      final prefTone = prefs?['tone_preset'] as String?;
+      if (prefSpeed is String && prefSpeed.isNotEmpty) _speedTier = prefSpeed;
+      if (prefTone is String && prefTone.isNotEmpty) _tonePreset = prefTone;
+
+      int? chosen;
+      if (prefVoiceId != null && voices.any((v) => _asId(v['id']) == prefVoiceId)) {
+        chosen = prefVoiceId;
+      } else {
+        Map<String, dynamic>? clone;
+        for (final v in voices) {
+          if (v['kind'] == 'clone') {
+            clone = v;
+            break;
+          }
+        }
+        chosen = _asId(clone?['id']) ?? _asId(system['id']);
+      }
+      voiceId = chosen;
+
       final q = await widget.api.quota();
       quotaText =
           '本月故事 ${q['story_used']}/${q['story_limit']} · 克隆 ${q['clone_used']}/${q['clone_limit']}';
@@ -188,6 +202,97 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
     } finally {
       if (mounted) setState(() => preparing = false);
     }
+  }
+
+  String _defaultBirth() {
+    final d = DateTime(DateTime.now().year - 4, DateTime.now().month, DateTime.now().day);
+    return '${d.year.toString().padLeft(4, '0')}-'
+        '${d.month.toString().padLeft(2, '0')}-'
+        '${d.day.toString().padLeft(2, '0')}';
+  }
+
+  Future<void> _loadSuggestionChips() async {
+    if (childId == null) return;
+    setState(() => chipsLoading = true);
+    try {
+      List<Map<String, dynamic>>? kRows;
+      List<Map<String, dynamic>>? eRows;
+      try {
+        final results = await Future.wait([
+          widget.api.listKernels(ageBand: ageBand, limit: 12, childId: childId),
+          widget.api.listElementSuggestions(ageBand: ageBand, limit: 12, childId: childId),
+        ]);
+        kRows = results[0];
+        eRows = results[1];
+      } catch (_) {
+        // network / timeout → cache below
+      }
+
+      if (kRows != null && kRows.isNotEmpty) {
+        await ChipCache.save('kernels', ageBand, kRows);
+      } else {
+        kRows = await ChipCache.load('kernels', ageBand);
+      }
+      if (eRows != null && eRows.isNotEmpty) {
+        await ChipCache.save('elements', ageBand, eRows);
+      } else {
+        eRows = await ChipCache.load('elements', ageBand);
+      }
+
+      final insp = <_ChipOpt>[];
+      if (kRows != null && kRows.isNotEmpty) {
+        for (final r in kRows) {
+          final focus = (r['focus_id'] as String?) ?? '';
+          final name = (r['name'] as String?) ?? '';
+          final id = (r['id'] as String?) ?? focus;
+          if (focus.isEmpty || name.isEmpty) continue;
+          insp.add(_ChipOpt(key: id, label: name, focusId: focus, serverId: id));
+        }
+      }
+      if (insp.isEmpty) {
+        for (final c in inspirationFallbackFor(ageBand)) {
+          insp.add(_ChipOpt(key: c.focusId, label: c.name, focusId: c.focusId));
+        }
+      }
+
+      final things = <_ChipOpt>[];
+      if (eRows != null && eRows.isNotEmpty) {
+        for (final r in eRows) {
+          final id = (r['id'] as String?) ?? '';
+          final name = (r['name'] as String?) ?? '';
+          if (id.isEmpty || name.isEmpty) continue;
+          things.add(_ChipOpt(key: id, label: name, serverId: id));
+        }
+      }
+      if (things.isEmpty) {
+        for (final name in thingFallbackSample(limit: 12, salt: ageBand)) {
+          things.add(_ChipOpt(key: 'local_$name', label: name));
+        }
+      }
+
+      if (!mounted) return;
+      setState(() {
+        inspirationChips = insp;
+        thingChips = things;
+        if (selectedInspirationKey != null &&
+            !insp.any((c) => c.key == selectedInspirationKey)) {
+          selectedInspirationKey = null;
+        }
+        if (selectedThingKey != null && !things.any((c) => c.key == selectedThingKey)) {
+          selectedThingKey = null;
+        }
+      });
+    } finally {
+      if (mounted) setState(() => chipsLoading = false);
+    }
+  }
+
+  Future<void> _openChildEditor() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => ChildrenManageScreen(api: widget.api)),
+    );
+    if (!mounted) return;
+    await _prepare();
   }
 
   Future<void> _generate() async {
@@ -204,10 +309,9 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
         return;
       }
     }
-    final nick = nicknameCtrl.text.trim();
-    if (nick.isEmpty) {
+    if (nickname.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('请填写孩子昵称（即使故事里可不出现）')),
+        const SnackBar(content: Text('请先完善孩子昵称（点档案卡片编辑）')),
       );
       return;
     }
@@ -217,45 +321,64 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
       );
       return;
     }
+
+    final insp = selectedInspirationKey == null
+        ? null
+        : inspirationChips.cast<_ChipOpt?>().firstWhere(
+              (c) => c?.key == selectedInspirationKey,
+              orElse: () => null,
+            );
+    final thing = selectedThingKey == null
+        ? null
+        : thingChips.cast<_ChipOpt?>().firstWhere(
+              (c) => c?.key == selectedThingKey,
+              orElse: () => null,
+            );
+
+    // Free text wins; else chip label; else empty → server fills from tonight's kernel.
+    final freeTheme = themeCtrl.text.trim();
+    final theme = freeTheme.isNotEmpty ? freeTheme : (insp?.label ?? '');
+    // Prefer catalog kernel id so server selects that row (not another with same focus).
+    final developmentFocus = insp?.serverId ?? insp?.focusId;
+
+    final keywords = _parseList(keywordsCtrl.text);
+    String? storyElementId;
+    if (thing != null) {
+      if (thing.serverId != null) {
+        storyElementId = thing.serverId;
+      } else if (!keywords.contains(thing.label)) {
+        keywords.insert(0, thing.label);
+      }
+    }
+
     setState(() {
       busy = true;
       progressText = '已提交，排队中…';
     });
     try {
-      await widget.api.updateChild(
-        childId: childId!,
-        nickname: nick,
-        birthDate: _fmtDate(birthDate),
-        gender: gender,
-        interests: _parseList(interestsCtrl.text),
-      );
       await widget.api.updateVoicePrefs(
         childId: childId!,
-        speedTier: speedTier,
-        tonePreset: tone,
+        speedTier: _speedTier,
+        tonePreset: _tonePreset,
         likenessBoost: false,
         defaultVoiceId: voiceId,
       );
       final story = await widget.api.createStoryAndWait(
         childId: childId!,
-        theme: themeCtrl.text.trim().isEmpty ? '温柔的夜晚' : themeCtrl.text.trim(),
+        theme: theme,
         language: language,
         durationMinutes: duration,
         voiceId: voiceId,
         softSeriesMode: softSeries || continueSeriesId != null,
         seriesId: continueSeriesId,
         episodeCount: episodeCount,
-        keywords: _parseList(keywordsCtrl.text),
-        values: _parseList(valuesCtrl.text),
+        keywords: keywords,
         developmentFocus: developmentFocus,
+        storyElementId: storyElementId,
         childCastRole: childCastRole,
         recap: softSeries && recapCtrl.text.trim().isNotEmpty ? recapCtrl.text.trim() : null,
-        plotDrive: plotDrive,
-        imagery: imagery,
         wonder: wonder,
-        windDown: windDown,
         dialogue: dialogue,
-        leadIn: leadIn,
         onProgress: (p) {
           if (!mounted) return;
           setState(() => progressText = _progressLabel(p));
@@ -274,9 +397,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
         );
       }
       await Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => PlayerScreen.fromStory(story),
-        ),
+        MaterialPageRoute(builder: (_) => PlayerScreen.fromStory(story)),
       );
       final q = await widget.api.quota();
       if (!mounted) return;
@@ -325,40 +446,12 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
         },
       );
       if (!mounted) return;
-      final sid = story['series_id'] as int?;
-      final ep = story['episode_no'] as int?;
-      if (sid != null) {
-        setState(() {
-          softSeries = true;
-          continueSeriesId = sid;
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('系列第 ${ep ?? '?'} 集已生成，可再点生成续写下一集')),
-        );
-      }
       await Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => PlayerScreen.fromStory(story),
-        ),
+        MaterialPageRoute(builder: (_) => PlayerScreen.fromStory(story)),
       );
-      final q = await widget.api.quota();
-      if (!mounted) return;
-      setState(() {
-        quotaText =
-            '本月故事 ${q['story_used']}/${q['story_limit']} · 克隆 ${q['clone_used']}/${q['clone_limit']}';
-      });
     } catch (e) {
       if (!mounted) return;
-      final retryId = e is ApiException ? e.storyId : storyId;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('$e'),
-          action: SnackBarAction(
-            label: '重试',
-            onPressed: () => _retryFailed(retryId ?? storyId),
-          ),
-        ),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
     } finally {
       if (mounted) {
         setState(() {
@@ -401,15 +494,10 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
   @override
   void dispose() {
     themeCtrl.dispose();
-    nicknameCtrl.dispose();
     keywordsCtrl.dispose();
-    interestsCtrl.dispose();
-    valuesCtrl.dispose();
     recapCtrl.dispose();
     super.dispose();
   }
-
-  List<(String, String)> get _fociForAge => focusOptions[ageBand] ?? focusOptions['3-5']!;
 
   @override
   Widget build(BuildContext context) {
@@ -430,323 +518,298 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
         backgroundColor: AppColors.background,
       ),
       body: Column(
-      children: [
-        Expanded(
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
-            children: [
-              BrandHeader(
-                eyebrow: 'Lullvale · Studio',
-                title: '定制今晚的枕边夜话',
-                subtitle: quotaText ?? '温柔、可听、慢慢入睡',
-              ),
-              const SizedBox(height: 20),
-              SectionCard(
-                title: '小主角档案',
-                subtitle: '昵称会传给模型；是否出场由「孩子角色」决定',
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    TextField(
-                      controller: nicknameCtrl,
-                      decoration: const InputDecoration(labelText: '孩子昵称'),
-                    ),
-                    const SizedBox(height: 14),
-                    Text('性别', style: Theme.of(context).textTheme.labelLarge),
-                    const SizedBox(height: 8),
-                    _softChipRow(genders, gender, (id) => setState(() => gender = id)),
-                    const SizedBox(height: 12),
-                    ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: const Text('出生日期'),
-                      subtitle: Text('${_fmtDate(birthDate)} · 故事档 $ageBand'),
-                      trailing: const Icon(Icons.calendar_today_outlined),
-                      onTap: () async {
-                        final picked = await showDatePicker(
-                          context: context,
-                          initialDate: birthDate,
-                          firstDate: DateTime(DateTime.now().year - 12),
-                          lastDate: DateTime.now(),
-                        );
-                        if (picked == null) return;
-                        setState(() {
-                          birthDate = picked;
-                          // Approximate local age band for focus chips before save.
-                          final years = DateTime.now().difference(picked).inDays / 365.25;
-                          if (years < 3) {
-                            ageBand = '2-3';
-                          } else if (years < 6) {
-                            ageBand = '3-5';
-                          } else {
-                            ageBand = '6-8';
-                          }
-                          final ids = focusOptions[ageBand]!.map((e) => e.$1).toSet();
-                          if (developmentFocus != null && !ids.contains(developmentFocus)) {
-                            developmentFocus = null;
-                          }
-                        });
-                      },
-                    ),
-                    const SizedBox(height: 8),
-                    TextField(
-                      controller: interestsCtrl,
-                      decoration: const InputDecoration(
-                        labelText: '长期兴趣（可选）',
-                        hintText: '恐龙, 火车',
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                    Text('孩子在故事中的角色', style: Theme.of(context).textTheme.labelLarge),
-                    const SizedBox(height: 8),
-                    _softChipRow(castRoles, childCastRole, (v) => setState(() => childCastRole = v)),
-                  ],
+        children: [
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+              children: [
+                BrandHeader(
+                  eyebrow: 'Lullvale · Studio',
+                  title: '定制今晚的枕边夜话',
+                  subtitle: quotaText ?? '温柔、可听、慢慢入睡',
                 ),
-              ),
-              const SizedBox(height: 14),
-              SectionCard(
-                title: '今晚的故事',
-                subtitle: '主题、伙伴与轻发展焦点',
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    TextField(
-                      controller: themeCtrl,
-                      decoration: const InputDecoration(labelText: '主题'),
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: keywordsCtrl,
-                      decoration: const InputDecoration(
-                        labelText: '关键词（人 / 玩具 / 事物）',
-                        hintText: '星星娃娃, 外公, 粉色秋千',
+                const SizedBox(height: 20),
+                _buildProfileCard(context),
+                const SizedBox(height: 14),
+                SectionCard(
+                  title: '今晚的故事',
+                  subtitle: '点选灵感与轻轻带上的事物；也可自己写一句',
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('孩子在故事中的角色', style: Theme.of(context).textTheme.labelLarge),
+                      const SizedBox(height: 8),
+                      _softChipRow(
+                        castRoles,
+                        childCastRole,
+                        (v) => setState(() => childCastRole = v),
                       ),
-                      minLines: 1,
-                      maxLines: 3,
-                    ),
-                    const SizedBox(height: 14),
-                    Text('发展焦点（可选）', style: Theme.of(context).textTheme.labelLarge),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        SoftChip(
-                          label: '自动',
-                          selected: developmentFocus == null,
-                          onSelected: (_) => setState(() => developmentFocus = null),
-                        ),
-                        for (final (id, label) in _fociForAge)
-                          SoftChip(
-                            label: label,
-                            selected: developmentFocus == id,
-                            onSelected: (_) => setState(() => developmentFocus = id),
-                          ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: valuesCtrl,
-                      decoration: const InputDecoration(
-                        labelText: '价值观提示（可选，勿说教）',
-                        hintText: '温柔, 分享',
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 14),
-              SectionCard(
-                title: '叙事风格',
-                subtitle: '像旋钮一样轻轻拧一拧',
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _labeledChips('情节性', plotDrives, plotDrive, (v) => plotDrive = v),
-                    _labeledChips('描写密度', imageries, imagery, (v) => imagery = v),
-                    _labeledChips('奇幻度', wonders, wonder, (v) => wonder = v),
-                    _labeledChips('安眠节奏', windDowns, windDown, (v) => windDown = v),
-                    _labeledChips('对话多少', dialogues, dialogue, (v) => dialogue = v),
-                    _labeledChips('听前开场白', leadIns, leadIn, (v) => leadIn = v),
-                    const SizedBox(height: 8),
-                    Text('语言', style: Theme.of(context).textTheme.labelLarge),
-                    const SizedBox(height: 8),
-                    _softChipRow(
-                      const [('zh', '中文'), ('en', 'English')],
-                      language,
-                      (v) => setState(() => language = v),
-                    ),
-                    const SizedBox(height: 14),
-                    Text('时长', style: Theme.of(context).textTheme.labelLarge),
-                    const SizedBox(height: 8),
-                    SegmentedButton<int>(
-                      segments: const [
-                        ButtonSegment(value: 3, label: Text('3分')),
-                        ButtonSegment(value: 5, label: Text('5分')),
-                        ButtonSegment(value: 8, label: Text('8分')),
-                      ],
-                      selected: {duration},
-                      onSelectionChanged: (s) => setState(() => duration = s.first),
-                    ),
-                    const SizedBox(height: 8),
-                    SwitchListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: const Text('软系列连载', style: TextStyle(color: AppColors.onSurface)),
-                      subtitle: Text(
-                        continueSeriesId != null
-                            ? '续写系列 #$continueSeriesId'
-                            : '开启后先大纲，再写第 1 集',
-                        style: const TextStyle(color: AppColors.onSurfaceDim),
-                      ),
-                      value: softSeries || continueSeriesId != null,
-                      onChanged: (v) => setState(() {
-                        softSeries = v;
-                        if (!v) continueSeriesId = null;
-                      }),
-                    ),
-                    if (softSeries || continueSeriesId != null) ...[
-                      if (continueSeriesId == null) ...[
-                        Text('系列集数', style: Theme.of(context).textTheme.labelLarge),
-                        const SizedBox(height: 8),
-                        SegmentedButton<int>(
-                          segments: const [
-                            ButtonSegment(value: 3, label: Text('3集')),
-                            ButtonSegment(value: 4, label: Text('4集')),
-                            ButtonSegment(value: 5, label: Text('5集')),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          Text('故事灵感', style: Theme.of(context).textTheme.labelLarge),
+                          if (chipsLoading) ...[
+                            const SizedBox(width: 8),
+                            const SizedBox(
+                              width: 14,
+                              height: 14,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
                           ],
-                          selected: {episodeCount},
-                          onSelectionChanged: (s) => setState(() => episodeCount = s.first),
-                        ),
-                        const SizedBox(height: 12),
-                      ],
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      _suggestChipWrap(
+                        chips: inspirationChips,
+                        selectedKey: selectedInspirationKey,
+                        onSelect: (k) => setState(() => selectedInspirationKey = k),
+                      ),
+                      const SizedBox(height: 10),
                       TextField(
-                        controller: recapCtrl,
+                        controller: themeCtrl,
                         decoration: const InputDecoration(
-                          labelText: '前情提要（可选）',
-                          hintText: '上次小兔子找到了星星毯子…',
+                          labelText: '今晚想讲什么（可选）',
+                          hintText: '不写也行，点灵感或交给我们安排',
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Text('轻轻带上', style: Theme.of(context).textTheme.labelLarge),
+                      const SizedBox(height: 8),
+                      _suggestChipWrap(
+                        chips: thingChips,
+                        selectedKey: selectedThingKey,
+                        onSelect: (k) => setState(() => selectedThingKey = k),
+                      ),
+                      const SizedBox(height: 10),
+                      TextField(
+                        controller: keywordsCtrl,
+                        decoration: const InputDecoration(
+                          labelText: '人名 / 玩具 / 事物（可选）',
+                          hintText: '也可自己写，如：星星娃娃, 外公',
                         ),
                         minLines: 1,
                         maxLines: 3,
                       ),
-                      if (continueSeriesId != null)
-                        TextButton(
-                          onPressed: () => setState(() {
-                            continueSeriesId = null;
-                            softSeries = true;
-                          }),
-                          child: const Text('改为开新系列'),
-                        ),
                     ],
-                  ],
+                  ),
                 ),
-              ),
-              const SizedBox(height: 14),
-              SectionCard(
-                title: '声音电台',
-                subtitle: '语速、语气与音色',
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('语速', style: Theme.of(context).textTheme.labelLarge),
-                    const SizedBox(height: 8),
-                    SegmentedButton<String>(
-                      segments: const [
-                        ButtonSegment(value: 'slow', label: Text('慢')),
-                        ButtonSegment(value: 'medium', label: Text('适中')),
-                        ButtonSegment(value: 'fast', label: Text('稍快')),
-                      ],
-                      selected: {speedTier},
-                      onSelectionChanged: (s) => setState(() => speedTier = s.first),
-                    ),
-                    const SizedBox(height: 12),
-                    Text('语气', style: Theme.of(context).textTheme.labelLarge),
-                    const SizedBox(height: 8),
-                    SegmentedButton<String>(
-                      segments: const [
-                        ButtonSegment(value: 'gentle', label: Text('温柔')),
-                        ButtonSegment(value: 'clear', label: Text('平稳')),
-                        ButtonSegment(value: 'lively', label: Text('生动')),
-                      ],
-                      selected: {tone},
-                      onSelectionChanged: (s) => setState(() => tone = s.first),
-                    ),
-                    const SizedBox(height: 12),
-                    Text('音色', style: Theme.of(context).textTheme.labelLarge),
-                    const SizedBox(height: 8),
-                    if (voices.isEmpty)
-                      const Text('加载音色中…', style: TextStyle(color: AppColors.onSurfaceDim))
-                    else
-                      DropdownButtonFormField<int>(
-                        // ignore: deprecated_member_use
-                        value: voiceId,
-                        items: voices.map((v) {
-                          final id = v['id'] as int;
-                          final name = v['name'] as String? ?? 'Voice';
-                          final kind = v['kind'] as String? ?? '';
-                          final label = kind == 'clone' ? '$name（克隆）' : '$name（系统）';
-                          return DropdownMenuItem(value: id, child: Text(label));
-                        }).toList(),
-                        onChanged: (id) => setState(() => voiceId = id),
+                const SizedBox(height: 14),
+                SectionCard(
+                  title: '叙事风格',
+                  subtitle: '其余听感交给系统默认',
+                  child: Column(
+                    children: [
+                      _labeledChips('生活 / 想象', wonders, wonder, (v) => wonder = v),
+                      _labeledChips('对话多少', dialogues, dialogue, (v) => dialogue = v),
+                      const SizedBox(height: 8),
+                      DropdownButtonFormField<String>(
+                        value: language,
+                        decoration: const InputDecoration(labelText: '语言'),
+                        items: const [
+                          DropdownMenuItem(value: 'zh', child: Text('中文')),
+                          DropdownMenuItem(value: 'en', child: Text('English')),
+                        ],
+                        onChanged: (v) => setState(() => language = v ?? 'zh'),
                       ),
-                    const SizedBox(height: 8),
-                    Text(
-                      '可在「音色」页录制家长声音',
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                  ],
+                      const SizedBox(height: 12),
+                      DropdownButtonFormField<int>(
+                        value: duration,
+                        decoration: const InputDecoration(labelText: '时长（分钟）'),
+                        items: [3, 5, 8, 10, 12]
+                            .map((m) => DropdownMenuItem(value: m, child: Text('$m')))
+                            .toList(),
+                        onChanged: (v) => setState(() => duration = v ?? 5),
+                      ),
+                      SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('软系列（可续写）'),
+                        value: softSeries,
+                        onChanged: (v) => setState(() {
+                          softSeries = v;
+                          if (!v) continueSeriesId = null;
+                        }),
+                      ),
+                      if (softSeries) ...[
+                        TextField(
+                          controller: recapCtrl,
+                          decoration: const InputDecoration(
+                            labelText: '上一集轻钩子（可选）',
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        DropdownButtonFormField<int>(
+                          value: episodeCount,
+                          decoration: const InputDecoration(labelText: '系列集数'),
+                          items: [2, 3, 4, 5, 6, 7, 8]
+                              .map((n) => DropdownMenuItem(value: n, child: Text('$n')))
+                              .toList(),
+                          onChanged: (v) => setState(() => episodeCount = v ?? 4),
+                        ),
+                      ],
+                    ],
+                  ),
                 ),
-              ),
-              const SizedBox(height: 88),
-            ],
-          ),
-        ),
-        Container(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
-          decoration: const BoxDecoration(
-            color: AppColors.surfaceLow,
-            border: Border(top: BorderSide(color: AppColors.outline)),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              AmberCta(
-                label: busy
-                    ? (progressText ?? '编织中…')
-                    : (childId == null ? '档案未就绪，点此重试' : '编织今晚的枕边故事'),
-                busy: busy,
-                onPressed: busy ? null : _generate,
-              ),
-              if (busy && progressText != null) ...[
-                const SizedBox(height: 8),
-                Text(
-                  progressText!,
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.bodySmall,
+                const SizedBox(height: 14),
+                SectionCard(
+                  title: '声音电台',
+                  subtitle: '默认记住你上次的音色',
+                  child: DropdownButtonFormField<int>(
+                    value: voiceId,
+                    decoration: const InputDecoration(labelText: '音色'),
+                    items: voices
+                        .map(
+                          (v) => DropdownMenuItem(
+                            value: _asId(v['id']),
+                            child: Text(
+                              '${v['name'] ?? '音色'}'
+                              '${v['kind'] == 'clone' ? ' · 克隆' : ' · 系统'}',
+                            ),
+                          ),
+                        )
+                        .where((e) => e.value != null)
+                        .toList(),
+                    onChanged: (v) => setState(() => voiceId = v),
+                  ),
                 ),
               ],
-            ],
+            ),
           ),
-        ),
-      ],
-    ),
+          Container(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+            decoration: BoxDecoration(
+              color: AppColors.background,
+              border: Border(top: BorderSide(color: Colors.black.withValues(alpha: 0.06))),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (progressText != null) ...[
+                  Text(progressText!, textAlign: TextAlign.center),
+                  const SizedBox(height: 8),
+                ],
+                AmberCta(
+                  label: busy ? '生成中…' : '生成今晚的故事',
+                  busy: busy,
+                  onPressed: busy ? null : _generate,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 
-  Widget _labeledChips(
-    String label,
-    List<(String, String)> options,
-    String selected,
-    void Function(String) onSelect,
-  ) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
+  Widget _buildProfileCard(BuildContext context) {
+    return SectionCard(
+      title: '小主角档案',
+      subtitle: '点按编辑角色信息',
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(label, style: Theme.of(context).textTheme.labelLarge),
-          const SizedBox(height: 8),
-          _softChipRow(options, selected, (v) => setState(() => onSelect(v))),
+          if (children.length > 1) ...[
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final c in children)
+                  SoftChip(
+                    label: (c['nickname'] as String?) ?? '孩子',
+                    selected: _asId(c['id']) == childId,
+                    onSelected: (_) async {
+                      _applyChild(c);
+                      setState(() {});
+                      await _loadSuggestionChips();
+                      await _reloadVoicePrefs();
+                    },
+                  ),
+              ],
+            ),
+            const SizedBox(height: 12),
+          ],
+          Material(
+            color: AppColors.surfaceLow,
+            borderRadius: BorderRadius.circular(16),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(16),
+              onTap: _openChildEditor,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            nickname,
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '${_genderLabel(gender)} · 故事档 $ageBand',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            _interestsSummary,
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                  color: AppColors.onSurfaceMuted,
+                                ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Icon(Icons.chevron_right),
+                  ],
+                ),
+              ),
+            ),
+          ),
         ],
       ),
+    );
+  }
+
+  Future<void> _reloadVoicePrefs() async {
+    if (childId == null) return;
+    try {
+      final prefs = await widget.api.getVoicePrefs(childId!);
+      final prefVoiceId = _asId(prefs['default_voice_id']);
+      final prefSpeed = prefs['speed_tier'] as String?;
+      final prefTone = prefs['tone_preset'] as String?;
+      if (!mounted) return;
+      setState(() {
+        if (prefSpeed is String && prefSpeed.isNotEmpty) _speedTier = prefSpeed;
+        if (prefTone is String && prefTone.isNotEmpty) _tonePreset = prefTone;
+        if (prefVoiceId != null && voices.any((v) => _asId(v['id']) == prefVoiceId)) {
+          voiceId = prefVoiceId;
+        }
+      });
+    } catch (_) {}
+  }
+
+  Widget _suggestChipWrap({
+    required List<_ChipOpt> chips,
+    required String? selectedKey,
+    required void Function(String? key) onSelect,
+  }) {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        SoftChip(
+          label: '自动',
+          selected: selectedKey == null,
+          onSelected: (_) => onSelect(null),
+        ),
+        for (final c in chips)
+          SoftChip(
+            label: c.label,
+            selected: selectedKey == c.key,
+            onSelected: (_) => onSelect(selectedKey == c.key ? null : c.key),
+          ),
+      ],
     );
   }
 
@@ -766,6 +829,25 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
             onSelected: (_) => onSelect(id),
           ),
       ],
+    );
+  }
+
+  Widget _labeledChips(
+    String label,
+    List<(String, String)> options,
+    String selected,
+    void Function(String) assign,
+  ) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: Theme.of(context).textTheme.labelLarge),
+          const SizedBox(height: 8),
+          _softChipRow(options, selected, (v) => setState(() => assign(v))),
+        ],
+      ),
     );
   }
 }

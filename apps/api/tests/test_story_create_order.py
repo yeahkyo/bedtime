@@ -22,4 +22,7 @@ def test_stream_create_checks_child_before_quota():
 def test_retry_failed_story_does_not_charge_quota():
     source = inspect.getsource(stories.retry_failed_story)
     assert "check_and_increment" not in source
-    assert 'status != "failed"' in source or "Only failed stories can be retried" in source
+    assert "failed" in source and "generating" in source
+    assert "resume_tts_only" in source
+    assert "resume_draft_only" in source
+    assert "should_resume_draft_only" in source

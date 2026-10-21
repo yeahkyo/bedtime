@@ -1,3 +1,5 @@
+import json
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy import func, select
@@ -7,6 +9,7 @@ from sqlalchemy.orm import selectinload
 from app.core.db import get_db
 from app.core.security import require_admin
 from app.models.story import Story
+from app.models.story_series import StorySeries
 from app.models.user import User
 from app.models.voice import Voice
 from app.services.storage import storage_service
@@ -38,6 +41,19 @@ class AdminStoryListOut(BaseModel):
     page_size: int
 
 
+class AdminStorySeriesBrief(BaseModel):
+    """Soft-series outline snapshot attached when the story belongs to a series."""
+
+    id: int
+    title: str
+    status: str
+    episode_count: int
+    throughline: str | None = None
+    cast_spine: list | dict | None = None
+    episodes: list | None = None
+    outline_json: str = "{}"
+
+
 class AdminStoryDetailOut(BaseModel):
     id: int
     title: str
@@ -54,6 +70,7 @@ class AdminStoryDetailOut(BaseModel):
     voice_name: str | None
     story_provider: str | None
     speech_provider: str | None
+    speech_model: str | None = None
     duration_minutes: int
     series_id: int | None
     episode_no: int | None
@@ -61,6 +78,9 @@ class AdminStoryDetailOut(BaseModel):
     error_message: str | None
     params_json: str | None
     episode_plan_json: str | None = None
+    metrics_json: str | None = None
+    prompts_json: str | None = None
+    series: AdminStorySeriesBrief | None = None
     created_at: str | None
 
 
@@ -148,6 +168,41 @@ async def get_story(
     audio_url = None
     if story.audio:
         audio_url = await storage_service.presigned_url(story.audio.object_key)
+
+    series_brief: AdminStorySeriesBrief | None = None
+    if story.series_id is not None:
+        series = await db.get(StorySeries, story.series_id)
+        if series is not None:
+            outline: dict = {}
+            try:
+                parsed = json.loads(series.outline_json or "{}")
+                if isinstance(parsed, dict):
+                    outline = parsed
+            except json.JSONDecodeError:
+                outline = {}
+            tl = outline.get("arc") or outline.get("throughline")
+            cast = outline.get("cast")
+            if not isinstance(cast, list):
+                cast = outline.get("cast_spine")
+            series_brief = AdminStorySeriesBrief(
+                id=series.id,
+                title=series.title or str(outline.get("title") or ""),
+                status=series.status,
+                episode_count=series.episode_count,
+                throughline=(
+                    str(tl).strip()
+                    if isinstance(tl, str) and tl.strip()
+                    else None
+                ),
+                cast_spine=cast if isinstance(cast, list) else None,
+                episodes=(
+                    outline.get("episodes")
+                    if isinstance(outline.get("episodes"), list)
+                    else None
+                ),
+                outline_json=series.outline_json or "{}",
+            )
+
     return AdminStoryDetailOut(
         id=story.id,
         title=story.title or "",
@@ -164,6 +219,7 @@ async def get_story(
         voice_name=voice_name,
         story_provider=story.story_provider,
         speech_provider=story.speech_provider,
+        speech_model=story.speech_model,
         duration_minutes=story.duration_minutes,
         series_id=story.series_id,
         episode_no=story.episode_no,
@@ -171,5 +227,8 @@ async def get_story(
         error_message=story.error_message,
         params_json=story.params_json,
         episode_plan_json=story.episode_plan_json,
+        metrics_json=story.metrics_json,
+        prompts_json=story.prompts_json,
+        series=series_brief,
         created_at=story.created_at.isoformat() if story.created_at else None,
     )

@@ -60,6 +60,54 @@ class ApiClient {
     return jsonDecode(res.body) as List<dynamic>;
   }
 
+  /// Developmental theme kernels (inspiration chips) for an age band.
+  Future<List<Map<String, dynamic>>> listKernels({
+    String ageBand = '3-5',
+    int limit = 12,
+    int? childId,
+  }) async {
+    final qp = <String, String>{
+      'age_band': ageBand,
+      'limit': '$limit',
+      if (childId != null) 'child_id': '$childId',
+    };
+    final res = await http
+        .get(_u('/v1/kernels').replace(queryParameters: qp), headers: _headers)
+        .timeout(const Duration(seconds: 8));
+    _ensure(res);
+    final data = jsonDecode(res.body) as Map<String, dynamic>;
+    final items = data['items'] as List<dynamic>? ?? [];
+    return items.cast<Map<String, dynamic>>();
+  }
+
+  /// Objective world-element suggestion chips.
+  Future<List<Map<String, dynamic>>> listElementSuggestions({
+    String ageBand = '3-5',
+    int limit = 12,
+    int? childId,
+  }) async {
+    final qp = <String, String>{
+      'age_band': ageBand,
+      'limit': '$limit',
+      if (childId != null) 'child_id': '$childId',
+    };
+    final res = await http
+        .get(_u('/v1/elements').replace(queryParameters: qp), headers: _headers)
+        .timeout(const Duration(seconds: 8));
+    _ensure(res);
+    final data = jsonDecode(res.body) as Map<String, dynamic>;
+    final items = data['items'] as List<dynamic>? ?? [];
+    return items.cast<Map<String, dynamic>>();
+  }
+
+  Future<Map<String, dynamic>> getVoicePrefs(int childId) async {
+    final res = await http
+        .get(_u('/v1/children/$childId/voice-prefs'), headers: _headers)
+        .timeout(_timeout);
+    _ensure(res);
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
   Future<Map<String, dynamic>> createChild({
     required String nickname,
     String? birthDate,
@@ -212,6 +260,7 @@ class ApiClient {
     List<String> keywords = const [],
     List<String> values = const [],
     String? developmentFocus,
+    String? storyElementId,
     String childCastRole = 'auto',
     String? recap,
     String plotDrive = 'light',
@@ -237,6 +286,8 @@ class ApiClient {
             'keywords': keywords,
             'values': values,
             'development_focus': developmentFocus,
+            if (storyElementId != null && storyElementId.isNotEmpty)
+              'story_element_id': storyElementId,
             'child_cast_role': childCastRole,
             'recap': recap,
             'plot_drive': plotDrive,
@@ -266,6 +317,7 @@ class ApiClient {
     List<String> keywords = const [],
     List<String> values = const [],
     String? developmentFocus,
+    String? storyElementId,
     String childCastRole = 'auto',
     String? recap,
     String plotDrive = 'light',
@@ -288,6 +340,7 @@ class ApiClient {
       keywords: keywords,
       values: values,
       developmentFocus: developmentFocus,
+      storyElementId: storyElementId,
       childCastRole: childCastRole,
       recap: recap,
       plotDrive: plotDrive,

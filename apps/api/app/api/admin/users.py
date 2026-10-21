@@ -50,6 +50,8 @@ class AdminVoiceBrief(BaseModel):
     name: str
     kind: str
     provider: str
+    provider_voice_id: str = ""
+    speech_model: str | None = None
 
 
 class AdminUserDetailOut(BaseModel):
@@ -195,7 +197,12 @@ async def get_user(
         ],
         voices=[
             AdminVoiceBrief(
-                id=v.id, name=v.name, kind=v.kind, provider=v.provider or ""
+                id=v.id,
+                name=v.name,
+                kind=v.kind,
+                provider=v.provider or "",
+                provider_voice_id=v.provider_voice_id or "",
+                speech_model=v.speech_model,
             )
             for v in user.voices
         ],

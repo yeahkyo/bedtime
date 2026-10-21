@@ -18,7 +18,7 @@ api.interceptors.request.use((config) => {
 
 api.interceptors.response.use(
   (res) => res,
-  (error: AxiosError<{ detail?: string }>) => {
+  async (error: AxiosError<{ detail?: string } | Blob>) => {
     if (error.response?.status === 401) {
       const auth = useAuthStore()
       auth.logout()
@@ -26,8 +26,19 @@ api.interceptors.response.use(
         window.location.href = '/login'
       }
     }
-    const detail = error.response?.data?.detail
-    const msg = typeof detail === 'string' ? detail : error.message
-    return Promise.reject(new Error(msg))
+    let detail: string | undefined
+    const data = error.response?.data
+    if (typeof Blob !== 'undefined' && data instanceof Blob) {
+      try {
+        const parsed = JSON.parse(await data.text()) as { detail?: string }
+        if (typeof parsed.detail === 'string') detail = parsed.detail
+      } catch {
+        /* ignore non-JSON error blobs */
+      }
+    } else if (data && typeof data === 'object' && 'detail' in data) {
+      const d = (data as { detail?: unknown }).detail
+      if (typeof d === 'string') detail = d
+    }
+    return Promise.reject(new Error(detail || error.message))
   },
 )

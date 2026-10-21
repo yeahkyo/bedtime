@@ -1,6 +1,6 @@
 # Providers
 
-Text (story LLM) and speech (TTS + voice clone) are **independent**. App clients do not pick providers; defaults come from env / admin runtime override. TTS/clone for a request follow `Voice.provider`.
+Text (story LLM) and speech (TTS + voice clone) are **independent**. App clients do not pick providers; story LLM defaults come from env / admin runtime override. TTS for a request follows the selected **Voice**: `Voice.provider` + optional `Voice.speech_model` (empty → Admin/env speech model for that provider).
 
 ## Selection order
 
@@ -13,6 +13,7 @@ Text (story LLM) and speech (TTS + voice clone) are **independent**. App clients
 |---------|-----------|-------------|
 | `fish`（默认） | 豆包 Ark | Fish Audio |
 | `volc` | 豆包 Ark | 火山豆包语音（槽位暂停时可不用） |
+| `aliyun` | 豆包 Ark | 阿里云百炼 CosyVoice |
 | `openai` | OpenAI | ElevenLabs |
 | `deepseek` | DeepSeek | Fish Audio |
 | （`MOCK_PROVIDERS=1`） | Mock | Mock |
@@ -21,8 +22,13 @@ Independent knobs:
 
 ```bash
 STORY_PROVIDER=doubao          # doubao | openai | deepseek | mock
-SPEECH_PROVIDER=fishaudio      # fishaudio | volc | elevenlabs | mock
+SPEECH_PROVIDER=fishaudio      # fishaudio | volc | elevenlabs | aliyun | mock
+STORY_SKIP_TTS=0               # optional: 1 = skip TTS after LLM (text-only ready)
 ```
+
+Admin **Provider 设置**可在运行时覆盖供应商与模型（Redis 文本字段，无固定模型列表）：`story_model` / `speech_model`，优先于 env 默认。其中 `speech_model` 仅作 **音色未设置 model 时的全局回退**。Admin **音色**页可编辑每条 `Voice.provider` / `Voice.speech_model` / `provider_voice_id`。LLM Agent 行上填写的 `provider` / `model` 仅对该 agent 阶段生效，并优先于 Provider 设置页。
+
+When `STORY_SKIP_TTS=1`, the job finishes after outline/plan/draft with `status=ready` and no audio. Default is off (`0`).
 
 Story rows store `story_provider` + `speech_provider` for admin comparison.
 
@@ -55,15 +61,39 @@ VOLC_DEFAULT_SPEAKER=zh_female_vv_uranus_bigtts
 声音克隆需在控制台单独开通 **声音复刻 / Seed-ICL 2.0**（与「语音合成 2.0」不是同一商品）。未开通时 clone 会返回 `45000030 requested resource not granted`（常见内部 resource：`volc.megatts.timbre`）。
 克隆成功后的朗读走 `seed-icl-2.0`，并在 `additions` 中带 `model_type: 4`。
 
+## Aliyun / 百炼 CosyVoice
+
+```bash
+SPEECH_PROVIDER=aliyun
+# 或 PROVIDER_PROFILE=aliyun
+
+ALIYUN_DASHSCOPE_API_KEY=...    # 或 DASHSCOPE_API_KEY
+ALIYUN_TTS_WORKSPACE_ID=...     # 业务空间 ID（专属域名）；空则回退 dashscope.aliyuncs.com
+ALIYUN_TTS_REGION=cn-beijing    # 或 ap-southeast-1
+ALIYUN_TTS_MODEL=cosyvoice-v3-flash
+ALIYUN_TTS_DEFAULT_VOICE=longanyang
+# ALIYUN_TTS_BASE_URL=          # 可选：覆盖 api/v1 根或完整 SpeechSynthesizer URL
+```
+
+- TTS：`POST …/services/audio/tts/SpeechSynthesizer`（优先 SSE；无流式块时下载 `output.audio.url`）
+- 系统音色：`ALIYUN_TTS_DEFAULT_VOICE`（如 `longanyang`）
+- 克隆：`voice-enrollment` / `create_voice`；样本需**公网可访问 URL**（实现会先上传到 S3/R2 再传 URL）。本地 `STORAGE_BACKEND=local` 时克隆不可用
+- 复刻音色的 `target_model` 必须与 `ALIYUN_TTS_MODEL` / Admin `speech_model` 一致
+
 ## DeepSeek（故事）
 
 ```bash
 DEEPSEEK_API_KEY=...
 DEEPSEEK_BASE_URL=https://api.deepseek.com
 DEEPSEEK_MODEL=deepseek-flash
+# Story CoT (default on). Set DEEPSEEK_THINKING=false to cut latency/cost.
+DEEPSEEK_THINKING=true
+DEEPSEEK_REASONING_EFFORT=low   # ceiling: low | medium | high | max
 ```
 
-设 `STORY_PROVIDER=deepseek` 或 Admin「Provider 设置」切换；语音仍跟 `SPEECH_PROVIDER` / `Voice.provider`。请求固定 `thinking.type=disabled`（关 CoT），并用 JSON `response_format`。
+设 `STORY_PROVIDER=deepseek` 或 Admin「Provider 设置」切换；语音仍跟 `SPEECH_PROVIDER` / `Voice.provider`。
+
+故事请求默认开 thinking；`reasoning_effort` 按 stage 取低值（outline / plan / draft 均为 `low`），`DEEPSEEK_REASONING_EFFORT` 只作上限不能再抬高。API 的 `max_tokens` = **可见 JSON 预算**（agent / `max_tokens_for_story`）+ **该 effort 的 CoT 预留**（共用一个桶）。截断时优先 **关掉 thinking 重试**，而不是胀额度再跑一轮长 CoT。Admin 目录编撰仍关 thinking。
 
 ## OpenAI + ElevenLabs
 
@@ -87,15 +117,17 @@ ELEVENLABS_MODEL_ID=eleven_multilingual_v2
 实现见 `apps/api/app/providers/story_prompt.py`：
 
 - 中文主 system：入睡优先、场景跟主题、禁说教与照搬名著（约束偏软）
-- `age_band`（`2-3` / `3-5` / `6-8`）只注入简短 `age_guidance`
+- `age_band`（`2-3` / `3-5` / `6-8` / `9-12`）只注入简短 `age_guidance`
+- LLM JSON 用短字段名（如 plan：`shape`/`feel`/`hook`；draft 输出 `hook`；系列 `arc`/`cast`/`ep`）；API 请求参数名不变
+- `focus`：仅 axis 级软引力 `{id, axis, label}`；kernel 长文不进成文 prompt；与客观 `element` 分工
 - `POST /stories`：`keywords`、`values`、`development_focus`、`child_cast_role`、`recap`
-- 风格档位（各 3 档，注入 `style_dials` 行为指令）：
+- 风格档位（各 3 档，注入 `dials`：`{lv, tip}`）：
   - `plot_drive`: mood | light | arc
   - `imagery`: sparse | balanced | rich
   - `wonder`: everyday | soft | fantasy
   - `wind_down`: deep | gentle | playful
   - `dialogue`: low | some | more
-- 时长 → 篇幅（`length_target`，按语种分开估算，±12%）：
+- 时长 → 篇幅（`length`：`{n,min,max,unit,tip}`，按语种分开估算，±12%）：
   - 中文：约 **230 字/分钟**（汉字）
   - 英文：约 **130 words/分钟**
 - `keywords` 与孩子 `interests` 合并；`PATCH /children/{id}` 可改昵称/年龄/兴趣

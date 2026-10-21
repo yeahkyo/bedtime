@@ -116,11 +116,18 @@ onMounted(load)
         <el-table-column prop="name" label="名称" />
         <el-table-column prop="kind" label="类型" width="100" />
         <el-table-column prop="provider" label="Provider" width="120" />
+        <el-table-column prop="speech_model" label="Model" min-width="120" show-overflow-tooltip>
+          <template #default="{ row }">{{ row.speech_model || '（默认）' }}</template>
+        </el-table-column>
+        <el-table-column prop="provider_voice_id" label="Voice ID" min-width="140" show-overflow-tooltip />
       </el-table>
 
       <div class="actions">
         <el-button type="primary" @click="router.push({ path: '/stories', query: { user_id: String(user.id) } })">
           查看该用户故事
+        </el-button>
+        <el-button @click="router.push({ path: '/voices', query: { user_id: String(user.id) } })">
+          管理音色
         </el-button>
       </div>
     </template>

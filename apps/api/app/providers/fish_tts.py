@@ -25,6 +25,7 @@ class FishAudioTtsProvider(TtsProvider):
         speech_rate_delta: int = 0,
         loudness_rate: int = 0,
         ssml: str | None = None,
+        model: str | None = None,
     ) -> bytes:
         chunks: list[bytes] = []
         async for chunk in self.synthesize_stream(
@@ -34,6 +35,7 @@ class FishAudioTtsProvider(TtsProvider):
             speech_rate_delta=speech_rate_delta,
             loudness_rate=loudness_rate,
             ssml=ssml,
+            model=model,
         ):
             chunks.append(chunk)
         return b"".join(chunks)
@@ -47,6 +49,7 @@ class FishAudioTtsProvider(TtsProvider):
         speech_rate_delta: int = 0,
         loudness_rate: int = 0,
         ssml: str | None = None,
+        model: str | None = None,
     ) -> AsyncIterator[bytes]:
         _ = ssml  # Fish has no Volc-style SSML; caller uses punctuated plain text.
         cfg = get_settings()
@@ -54,11 +57,14 @@ class FishAudioTtsProvider(TtsProvider):
             raise RuntimeError("FISH_AUDIO_API_KEY is not set")
         speed = max(0.5, min(2.0, settings.speed + speech_rate_delta / 200.0))
         volume = float(max(-20, min(20, loudness_rate / 5.0)))
+        from app.services.provider_settings import resolve_speech_model
+
         base = (cfg.fish_audio_base_url or "https://api.fish.audio").rstrip("/")
+        tts_model = (model or "").strip() or await resolve_speech_model("fishaudio")
         headers = {
             "Authorization": f"Bearer {cfg.fish_audio_api_key}",
             "Content-Type": "application/json",
-            "model": cfg.fish_audio_tts_model or "s2-pro",
+            "model": tts_model or "s2-pro",
         }
         payload = {
             "text": text,

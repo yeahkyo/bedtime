@@ -1,6 +1,7 @@
 from datetime import datetime
 
 from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, func
+from sqlalchemy.dialects.mysql import MEDIUMTEXT
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.db import Base
@@ -21,6 +22,10 @@ class Story(Base):
     status: Mapped[str] = mapped_column(String(32), default="draft")  # draft|generating|ready|failed
     # queued|series_outline|episode_plan|draft|tts|ready|failed
     progress: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    # Last time status/progress changed (orphan reclaim / stuck detection).
+    progress_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     duration_minutes: Mapped[int] = mapped_column(Integer, default=5)
 
@@ -37,8 +42,16 @@ class Story(Base):
     # Generation meta for admin comparison (not chosen by App clients).
     story_provider: Mapped[str | None] = mapped_column(String(32), nullable=True)
     speech_provider: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    # Snapshot of Voice.speech_model (or resolved default) at generation time.
+    speech_model: Mapped[str | None] = mapped_column(String(128), nullable=True)
     # LLM episode_plan JSON (admin quality tooling); null for older rows / failures before plan.
     episode_plan_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Generation timing + token usage JSON for admin detail (null for older rows).
+    metrics_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Submitted system+user text per LLM stage (admin detail). MEDIUMTEXT: prompts exceed TEXT.
+    prompts_json: Mapped[str | None] = mapped_column(
+        Text().with_variant(MEDIUMTEXT(), "mysql"), nullable=True
+    )
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

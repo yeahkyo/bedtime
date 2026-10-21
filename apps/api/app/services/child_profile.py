@@ -17,6 +17,7 @@ _LEGACY_BAND_AGES = {
     "2-3": 2.5,
     "3-5": 4.0,
     "6-8": 7.0,
+    "9-12": 10.5,
 }
 
 
@@ -47,8 +48,34 @@ def age_years_on(birth: date, *, on: date | None = None) -> float:
     return max(0.0, days / 365.25)
 
 
+def age_months_on(birth: date | None, *, on: date | None = None) -> int:
+    """Whole months since birth (calendar months). None birth → 48 (~4y)."""
+    if birth is None:
+        return 48
+    today = on or date.today()
+    if birth > today:
+        return 0
+    months = (today.year - birth.year) * 12 + (today.month - birth.month)
+    if today.day < birth.day:
+        months -= 1
+    return max(0, months)
+
+
+def age_years_int_on(birth: date | None, *, on: date | None = None) -> int:
+    """Whole years since birth (calendar). None birth → 4."""
+    if birth is None:
+        return 4
+    today = on or date.today()
+    if birth > today:
+        return 0
+    years = today.year - birth.year
+    if (today.month, today.day) < (birth.month, birth.day):
+        years -= 1
+    return max(0, years)
+
+
 def age_band_from_birth_date(birth: date | None, *, on: date | None = None) -> str:
-    """Map birth date to bedtime age bands used by story prompts."""
+    """Runtime prompt bucket from birth date — not a stored source of truth."""
     if birth is None:
         return "3-5"
     years = age_years_on(birth, on=on)
@@ -56,7 +83,9 @@ def age_band_from_birth_date(birth: date | None, *, on: date | None = None) -> s
         return "2-3"
     if years < 6:
         return "3-5"
-    return "6-8"
+    if years < 9:
+        return "6-8"
+    return "9-12"
 
 
 def approximate_birth_date_from_age_band(age_band: str | None, *, on: date | None = None) -> date:

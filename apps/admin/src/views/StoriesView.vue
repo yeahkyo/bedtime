@@ -88,6 +88,7 @@ watch(
           <el-option label="fishaudio" value="fishaudio" />
           <el-option label="volc" value="volc" />
           <el-option label="elevenlabs" value="elevenlabs" />
+          <el-option label="aliyun" value="aliyun" />
           <el-option label="mock" value="mock" />
         </el-select>
       </el-form-item>

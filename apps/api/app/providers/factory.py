@@ -1,4 +1,5 @@
 from app.core.config import get_settings
+from app.providers.aliyun_tts import AliyunTtsProvider, AliyunVoiceCloneProvider
 from app.providers.base import StoryProvider, TtsProvider, VoiceCloneProvider
 from app.providers.deepseek_story import DeepSeekStoryProvider
 from app.providers.doubao_story import DoubaoStoryProvider
@@ -42,6 +43,8 @@ def get_tts_provider(name: str | None = None) -> TtsProvider:
         return ElevenLabsTtsProvider()
     if resolved == "fishaudio":
         return FishAudioTtsProvider()
+    if resolved in ("aliyun", "dashscope", "cosyvoice"):
+        return AliyunTtsProvider()
     raise RuntimeError(f"Unknown speech/TTS provider: {resolved}")
 
 
@@ -56,4 +59,6 @@ def get_clone_provider(name: str | None = None) -> VoiceCloneProvider:
         return ElevenLabsVoiceCloneProvider()
     if resolved == "fishaudio":
         return FishAudioVoiceCloneProvider()
+    if resolved in ("aliyun", "dashscope", "cosyvoice"):
+        return AliyunVoiceCloneProvider()
     raise RuntimeError(f"Unknown speech/clone provider: {resolved}")
