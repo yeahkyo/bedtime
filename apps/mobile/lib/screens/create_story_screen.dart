@@ -5,6 +5,7 @@ import '../data/chip_cache.dart';
 import '../data/create_fallbacks.dart';
 import '../theme/app_theme.dart';
 import '../theme/widgets.dart';
+import '../utils/child_age.dart';
 import 'children_manage_screen.dart';
 import 'player_screen.dart';
 import 'voice_picker_sheet.dart';
@@ -39,9 +40,11 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
   final recapCtrl = TextEditingController();
 
   String language = 'zh';
+  /// Internal bucket for suggestion APIs only — never shown in UI.
   String ageBand = '3-5';
+  String? birthDate;
   String gender = 'unspecified';
-  String nickname = '豆豆';
+  String nickname = '';
   List<String> interests = [];
   List<Map<String, dynamic>> children = [];
 
@@ -143,10 +146,26 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
     childId = _asId(c['id']);
     nickname = (c['nickname'] as String?)?.trim().isNotEmpty == true
         ? (c['nickname'] as String).trim()
-        : '豆豆';
+        : '';
+    birthDate = c['birth_date'] as String?;
     ageBand = c['age_band'] as String? ?? ageBand;
     gender = c['gender'] as String? ?? gender;
     interests = (c['interests'] as List<dynamic>? ?? []).cast<String>();
+  }
+
+  void _clearChildSelection() {
+    childId = null;
+    nickname = '';
+    interests = [];
+    gender = 'unspecified';
+    birthDate = null;
+    ageBand = '3-5';
+    voiceId = null;
+    voices = [];
+    inspirationChips = [];
+    thingChips = [];
+    selectedInspirationKey = null;
+    selectedThingKey = null;
   }
 
   Future<void> _prepare() async {
@@ -155,13 +174,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
       final listed = await widget.api.listChildren();
       children = listed.cast<Map<String, dynamic>>();
       if (children.isEmpty) {
-        final child = await widget.api.createChild(
-          nickname: '豆豆',
-          birthDate: _defaultBirth(),
-          gender: 'unspecified',
-        );
-        children = [child];
-        _applyChild(child);
+        _clearChildSelection();
       } else {
         final keep = childId != null
             ? children.cast<Map<String, dynamic>?>().firstWhere(
@@ -171,8 +184,14 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
             : null;
         _applyChild(keep ?? children.first);
       }
+
+      final q = await widget.api.quota();
+      quotaText =
+          '本月故事 ${q['story_used']}/${q['story_limit']} · 克隆 ${q['clone_used']}/${q['clone_limit']}';
+
+      // No child yet: stop after quota; UI prompts to create a profile.
       if (childId == null) {
-        throw ApiException('无法读取孩子档案 id，请下拉重试或重新进入');
+        return;
       }
 
       await _loadSuggestionChips();
@@ -213,13 +232,9 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
             break;
           }
         }
-        chosen = _asId(clone?['id']) ?? _asId(system['id']);
+        chosen = _asId(clone?['id']) ?? _asId(system?['id']);
       }
       voiceId = chosen;
-
-      final q = await widget.api.quota();
-      quotaText =
-          '本月故事 ${q['story_used']}/${q['story_limit']} · 克隆 ${q['clone_used']}/${q['clone_limit']}';
     } catch (e) {
       childId = null;
       if (!mounted) return;
@@ -227,13 +242,6 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
     } finally {
       if (mounted) setState(() => preparing = false);
     }
-  }
-
-  String _defaultBirth() {
-    final d = DateTime(DateTime.now().year - 4, DateTime.now().month, DateTime.now().day);
-    return '${d.year.toString().padLeft(4, '0')}-'
-        '${d.month.toString().padLeft(2, '0')}-'
-        '${d.day.toString().padLeft(2, '0')}';
   }
 
   Future<void> _loadSuggestionChips() async {
@@ -321,18 +329,12 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
   }
 
   Future<void> _generate() async {
-    if (childId == null) {
+    if (children.isEmpty || childId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('档案未就绪，正在重新加载…')),
+        const SnackBar(content: Text('请先添加孩子档案')),
       );
-      await _prepare();
-      if (!mounted) return;
-      if (childId == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('仍无法加载孩子档案，请检查网络后重试')),
-        );
-        return;
-      }
+      await _openChildEditor();
+      return;
     }
     if (nickname.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -534,6 +536,41 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
           backgroundColor: AppColors.background,
         ),
         body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+    if (children.isEmpty) {
+      return Scaffold(
+        backgroundColor: AppColors.background,
+        appBar: AppBar(
+          title: const Text('创作故事'),
+          backgroundColor: AppColors.background,
+        ),
+        body: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 24, 20, 24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              BrandHeader(
+                eyebrow: 'Lullvale · Studio',
+                title: '先添加小主角',
+                subtitle: quotaText ?? '有了孩子档案，才能定制今晚的故事',
+              ),
+              const SizedBox(height: 24),
+              SectionCard(
+                title: '还没有角色',
+                child: Text(
+                  '请先创建孩子档案（昵称、年龄等）。创建后即可回来生成故事。',
+                  style: Theme.of(context).textTheme.bodyLarge,
+                ),
+              ),
+              const Spacer(),
+              AmberCta(
+                label: '去添加孩子档案',
+                onPressed: _openChildEditor,
+              ),
+            ],
+          ),
+        ),
       );
     }
     return Scaffold(
@@ -814,12 +851,12 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            nickname,
+                            nickname.isEmpty ? '未命名' : nickname,
                             style: Theme.of(context).textTheme.titleMedium,
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            '${_genderLabel(gender)} · 故事档 $ageBand',
+                            '${_genderLabel(gender)} · ${formatAgeYearsLabel(birthDate)}',
                             style: Theme.of(context).textTheme.bodySmall,
                           ),
                           const SizedBox(height: 2),

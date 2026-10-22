@@ -25,6 +25,55 @@ async function load() {
   }
 }
 
+async function disableUser() {
+  if (!user.value) return
+  try {
+    await ElMessageBox.confirm('禁用后该用户无法登录，现有会话立即失效。确定？', '禁用用户', {
+      type: 'warning',
+    })
+  } catch {
+    return
+  }
+  try {
+    const { data } = await api.post<AdminUserDetailOut>(`/admin/users/${user.value.id}/disable`)
+    user.value = data
+    ElMessage.success('已禁用')
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '操作失败')
+  }
+}
+
+async function enableUser() {
+  if (!user.value) return
+  try {
+    const { data } = await api.post<AdminUserDetailOut>(`/admin/users/${user.value.id}/enable`)
+    user.value = data
+    ElMessage.success('已启用')
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '操作失败')
+  }
+}
+
+async function forceLogout() {
+  if (!user.value) return
+  try {
+    await ElMessageBox.confirm('将吊销该用户全部 refresh token，需重新登录。确定？', '强制下线', {
+      type: 'warning',
+    })
+  } catch {
+    return
+  }
+  try {
+    const { data } = await api.post<AdminUserDetailOut>(
+      `/admin/users/${user.value.id}/force-logout`,
+    )
+    user.value = data
+    ElMessage.success('已强制下线')
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '操作失败')
+  }
+}
+
 async function resetQuota(kinds: ('story' | 'clone')[] | null) {
   if (!user.value) return
   const label =
@@ -77,7 +126,11 @@ onMounted(load)
       <el-descriptions :column="2" border class="block">
         <el-descriptions-item label="昵称">{{ user.display_name || '—' }}</el-descriptions-item>
         <el-descriptions-item label="语言">{{ user.preferred_language }}</el-descriptions-item>
-        <el-descriptions-item label="Apple Sub">{{ user.apple_sub }}</el-descriptions-item>
+        <el-descriptions-item label="手机">{{ user.phone || '—' }}</el-descriptions-item>
+        <el-descriptions-item label="状态">
+          {{ user.disabled_at ? `已禁用（${formatAdminTime(user.disabled_at)}）` : '正常' }}
+        </el-descriptions-item>
+        <el-descriptions-item label="Subject">{{ user.apple_sub }}</el-descriptions-item>
         <el-descriptions-item label="创建时间">{{ formatAdminTime(user.created_at) }}</el-descriptions-item>
         <el-descriptions-item label="故事配额">
           {{ user.story_used }} / {{ user.story_limit }}
@@ -98,6 +151,9 @@ onMounted(load)
         <el-button type="danger" plain :loading="resetting" @click="resetQuota(null)">
           重置全部配额
         </el-button>
+        <el-button v-if="!user.disabled_at" type="danger" @click="disableUser">禁用</el-button>
+        <el-button v-else type="success" @click="enableUser">启用</el-button>
+        <el-button @click="forceLogout">强制下线</el-button>
       </div>
 
       <h3>孩子</h3>

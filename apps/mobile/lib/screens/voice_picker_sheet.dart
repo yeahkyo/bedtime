@@ -40,6 +40,7 @@ class _VoicePickerSheet extends StatefulWidget {
 class _VoicePickerSheetState extends State<_VoicePickerSheet> {
   late int? _selectedId;
   final _preview = AudioPlayer();
+  int? _loadingId;
   int? _playingId;
   /// Bumps on each preview request so an older load cannot resume after interrupt.
   int _previewGen = 0;
@@ -50,8 +51,19 @@ class _VoicePickerSheetState extends State<_VoicePickerSheet> {
     _selectedId = widget.selectedId;
     _preview.playerStateStream.listen((state) {
       if (!mounted) return;
+      // just_audio's play() Future may not complete until end — drive UI from stream.
+      if (state.playing && _loadingId != null) {
+        setState(() {
+          _playingId = _loadingId;
+          _loadingId = null;
+        });
+        return;
+      }
       if (state.processingState == ProcessingState.completed) {
-        setState(() => _playingId = null);
+        setState(() {
+          _playingId = null;
+          _loadingId = null;
+        });
       }
     });
   }
@@ -87,25 +99,55 @@ class _VoicePickerSheetState extends State<_VoicePickerSheet> {
       );
       return;
     }
-    // Same item while playing → stop (interrupt).
-    if (_playingId == id && _preview.playing) {
+    // Same item while playing (or ready to play) → stop.
+    if (_playingId == id) {
       _previewGen++;
       await _preview.stop();
-      if (mounted) setState(() => _playingId = null);
+      if (mounted) {
+        setState(() {
+          _playingId = null;
+          _loadingId = null;
+        });
+      }
       return;
     }
-    // Switch to another (or restart) → interrupt current immediately.
+    // Same item while loading → cancel.
+    if (_loadingId == id) {
+      _previewGen++;
+      await _preview.stop();
+      if (mounted) {
+        setState(() {
+          _loadingId = null;
+          _playingId = null;
+        });
+      }
+      return;
+    }
     final gen = ++_previewGen;
-    if (mounted) setState(() => _playingId = id);
+    if (mounted) {
+      setState(() {
+        _loadingId = id;
+        _playingId = null;
+      });
+    }
     try {
       await _preview.stop();
       if (gen != _previewGen) return;
       await _preview.setUrl(url);
-      if (gen != _previewGen) return;
+      if (gen != _previewGen || !mounted) return;
+      // Flip to playing as soon as source is ready; do not await play() (it can
+      // complete only when the clip ends on some platforms).
+      setState(() {
+        _loadingId = null;
+        _playingId = id;
+      });
       await _preview.play();
     } catch (_) {
       if (gen != _previewGen || !mounted) return;
-      setState(() => _playingId = null);
+      setState(() {
+        _loadingId = null;
+        _playingId = null;
+      });
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('试听播放失败')),
       );
@@ -152,7 +194,8 @@ class _VoicePickerSheetState extends State<_VoicePickerSheet> {
         : '未命名音色';
     final desc = (voice['description'] as String?)?.trim() ?? '';
     final hasPreview = (voice['preview_audio_url'] as String?)?.isNotEmpty == true;
-    final playing = id != null && _playingId == id;
+    final loading = id != null && _loadingId == id;
+    final playing = id != null && _playingId == id && !loading;
 
     return InkWell(
       onTap: id == null ? null : () => setState(() => _selectedId = id),
@@ -187,14 +230,27 @@ class _VoicePickerSheetState extends State<_VoicePickerSheet> {
               ),
             ),
             IconButton(
-              tooltip: hasPreview ? (playing ? '停止' : '试听') : '暂无试听',
+              tooltip: !hasPreview
+                  ? '暂无试听'
+                  : (loading ? '加载中' : (playing ? '停止' : '试听')),
               onPressed: hasPreview ? () => _togglePreview(voice) : null,
-              icon: Icon(
-                playing ? Icons.stop_circle_outlined : Icons.play_circle_outline,
-                color: hasPreview
-                    ? AppColors.primary
-                    : AppColors.primarySoft.withValues(alpha: 0.35),
-              ),
+              icon: loading
+                  ? const SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: AppColors.primary,
+                      ),
+                    )
+                  : Icon(
+                      playing
+                          ? Icons.stop_circle_outlined
+                          : Icons.play_circle_outline,
+                      color: hasPreview
+                          ? AppColors.primary
+                          : AppColors.primarySoft.withValues(alpha: 0.35),
+                    ),
             ),
           ],
         ),

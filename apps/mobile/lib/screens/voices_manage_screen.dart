@@ -22,6 +22,7 @@ class _VoicesManageScreenState extends State<VoicesManageScreen> {
   bool loading = true;
   String? error;
   final _preview = AudioPlayer();
+  int? _loadingVoiceId;
   int? _playingVoiceId;
   /// Bumps on each preview request so an older load cannot resume after interrupt.
   int _previewGen = 0;
@@ -31,8 +32,19 @@ class _VoicesManageScreenState extends State<VoicesManageScreen> {
     super.initState();
     _preview.playerStateStream.listen((state) {
       if (!mounted) return;
+      // just_audio's play() Future may not complete until end — drive UI from stream.
+      if (state.playing && _loadingVoiceId != null) {
+        setState(() {
+          _playingVoiceId = _loadingVoiceId;
+          _loadingVoiceId = null;
+        });
+        return;
+      }
       if (state.processingState == ProcessingState.completed) {
-        setState(() => _playingVoiceId = null);
+        setState(() {
+          _playingVoiceId = null;
+          _loadingVoiceId = null;
+        });
       }
     });
     _refresh();
@@ -85,23 +97,53 @@ class _VoicesManageScreenState extends State<VoicesManageScreen> {
       );
       return;
     }
-    if (_playingVoiceId == id && _preview.playing) {
+    if (_playingVoiceId == id) {
       _previewGen++;
       await _preview.stop();
-      if (mounted) setState(() => _playingVoiceId = null);
+      if (mounted) {
+        setState(() {
+          _playingVoiceId = null;
+          _loadingVoiceId = null;
+        });
+      }
+      return;
+    }
+    if (_loadingVoiceId == id) {
+      _previewGen++;
+      await _preview.stop();
+      if (mounted) {
+        setState(() {
+          _loadingVoiceId = null;
+          _playingVoiceId = null;
+        });
+      }
       return;
     }
     final gen = ++_previewGen;
-    if (mounted) setState(() => _playingVoiceId = id);
+    if (mounted) {
+      setState(() {
+        _loadingVoiceId = id;
+        _playingVoiceId = null;
+      });
+    }
     try {
       await _preview.stop();
       if (gen != _previewGen) return;
       await _preview.setUrl(url);
-      if (gen != _previewGen) return;
+      if (gen != _previewGen || !mounted) return;
+      // Flip to playing as soon as source is ready; do not await play() before
+      // updating UI (play()'s Future can complete only when the clip ends).
+      setState(() {
+        _loadingVoiceId = null;
+        _playingVoiceId = id;
+      });
       await _preview.play();
     } catch (_) {
       if (gen != _previewGen || !mounted) return;
-      setState(() => _playingVoiceId = null);
+      setState(() {
+        _loadingVoiceId = null;
+        _playingVoiceId = null;
+      });
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('试听播放失败')),
       );
@@ -232,8 +274,11 @@ class _VoicesManageScreenState extends State<VoicesManageScreen> {
                                         (m['preview_audio_url'] as String?)
                                             ?.isNotEmpty ==
                                         true;
-                                    final playing =
-                                        id != null && _playingVoiceId == id;
+                                    final previewLoading =
+                                        id != null && _loadingVoiceId == id;
+                                    final playing = id != null &&
+                                        _playingVoiceId == id &&
+                                        !previewLoading;
                                     final desc =
                                         (m['description'] as String?)?.trim();
                                     final subtitle = (desc != null &&
@@ -280,21 +325,36 @@ class _VoicesManageScreenState extends State<VoicesManageScreen> {
                                           ),
                                         ),
                                         IconButton(
-                                          tooltip: hasPreview
-                                              ? (playing ? '停止试听' : '试听')
-                                              : '暂无试听',
+                                          tooltip: !hasPreview
+                                              ? '暂无试听'
+                                              : (previewLoading
+                                                  ? '加载中'
+                                                  : (playing ? '停止试听' : '试听')),
                                           onPressed: hasPreview
                                               ? () => _togglePreview(m)
                                               : null,
-                                          icon: Icon(
-                                            playing
-                                                ? Icons.stop_circle_outlined
-                                                : Icons.play_circle_outline,
-                                            color: hasPreview
-                                                ? AppColors.primary
-                                                : AppColors.primarySoft
-                                                    .withValues(alpha: 0.35),
-                                          ),
+                                          icon: previewLoading
+                                              ? const SizedBox(
+                                                  width: 22,
+                                                  height: 22,
+                                                  child:
+                                                      CircularProgressIndicator(
+                                                    strokeWidth: 2,
+                                                    color: AppColors.primary,
+                                                  ),
+                                                )
+                                              : Icon(
+                                                  playing
+                                                      ? Icons
+                                                          .stop_circle_outlined
+                                                      : Icons
+                                                          .play_circle_outline,
+                                                  color: hasPreview
+                                                      ? AppColors.primary
+                                                      : AppColors.primarySoft
+                                                          .withValues(
+                                                              alpha: 0.35),
+                                                ),
                                         ),
                                         IconButton(
                                           tooltip: '修改名称',

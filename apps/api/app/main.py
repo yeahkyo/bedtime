@@ -17,9 +17,11 @@ from app.core.db import Base, SessionLocal, engine
 from app.core.redis_client import close_redis
 from app.models import (  # noqa: F401
     Child,
+    InviteCode,
     Memory,
     MemoryAsset,
     MemoryElement,
+    RefreshToken,
     Story,
     StoryAudio,
     StoryElement,
@@ -105,11 +107,22 @@ async def _ensure_story_async_columns(conn) -> None:
         "ALTER TABLE story_shapes DROP COLUMN focus_ids_json",
         "ALTER TABLE story_shapes ADD COLUMN effect TEXT NULL",
         "ALTER TABLE llm_agents ADD COLUMN temperature DOUBLE NULL",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS phone VARCHAR(20) NULL",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash VARCHAR(128) NULL",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS token_version INT NOT NULL DEFAULT 0",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS disabled_at DATETIME NULL",
     ):
         try:
             await conn.execute(text(stmt))
         except Exception:
             # Older MariaDB without IF NOT EXISTS: ignore duplicate column errors.
+            pass
+    for stmt in (
+        "CREATE UNIQUE INDEX IF NOT EXISTS ix_users_phone ON users (phone)",
+    ):
+        try:
+            await conn.execute(text(stmt))
+        except Exception:
             pass
     await _migrate_story_elements_objective_schema(conn)
 

@@ -30,6 +30,8 @@ async def test_anonymous_rejected_when_bypass_off_even_in_dev():
 async def test_anonymous_impersonates_when_bypass_on():
     settings = Settings(env="dev", dev_auth_bypass=True)
     user = MagicMock()
+    user.disabled_at = None
+    user.token_version = 0
     result = MagicMock()
     result.scalar_one_or_none.return_value = user
     db = AsyncMock()

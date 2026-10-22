@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../api/client.dart';
 import '../theme/app_theme.dart';
@@ -9,9 +8,10 @@ import 'voices_manage_screen.dart';
 
 /// Tab 2: profile card + settings entries.
 class MeTab extends StatefulWidget {
-  const MeTab({super.key, required this.api});
+  const MeTab({super.key, required this.api, this.onLoggedOut});
 
   final ApiClient api;
+  final VoidCallback? onLoggedOut;
 
   @override
   State<MeTab> createState() => _MeTabState();
@@ -82,22 +82,20 @@ class _MeTabState extends State<MeTab> {
     }
   }
 
-  Future<void> _devLogin() async {
+  Future<void> _logout() async {
     setState(() => loading = true);
     try {
-      final login = await widget.api.devLogin();
-      final token = login['access_token'] as String?;
-      widget.api.token = token;
-      if (token != null) {
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString('token', token);
-      }
-      await _load();
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => loading = false);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+      await widget.api.logout();
+    } catch (_) {
+      /* ignore */
     }
+    if (!mounted) return;
+    final leave = widget.onLoggedOut;
+    if (leave != null) {
+      leave();
+      return;
+    }
+    await _load();
   }
 
   @override
@@ -118,7 +116,11 @@ class _MeTabState extends State<MeTab> {
         _ProfileCard(
           loggedIn: loggedIn,
           displayName: displayName,
-          onLogin: _devLogin,
+          onLogin: () {
+            // Root gate owns AuthScreen; request session end → login.
+            widget.onLoggedOut?.call();
+          },
+          onLogout: _logout,
           onRefresh: _load,
         ),
         if (error != null) ...[
@@ -142,7 +144,7 @@ class _MeTabState extends State<MeTab> {
         _SettingsTile(
           icon: Icons.child_care_outlined,
           title: '角色管理',
-          subtitle: '孩子档案：昵称、年龄档与兴趣',
+          subtitle: '孩子档案：昵称、年龄与兴趣',
           onTap: () {
             Navigator.of(context).push(
               MaterialPageRoute(builder: (_) => ChildrenManageScreen(api: widget.api)),
@@ -159,12 +161,14 @@ class _ProfileCard extends StatelessWidget {
     required this.loggedIn,
     required this.displayName,
     required this.onLogin,
+    required this.onLogout,
     required this.onRefresh,
   });
 
   final bool loggedIn;
   final String displayName;
   final VoidCallback onLogin;
+  final VoidCallback onLogout;
   final VoidCallback onRefresh;
 
   @override
@@ -215,12 +219,17 @@ class _ProfileCard extends StatelessWidget {
               onPressed: onLogin,
               child: const Text('登录'),
             )
-          else
+          else ...[
             IconButton(
               tooltip: '刷新',
               onPressed: onRefresh,
               icon: const Icon(Icons.refresh, color: AppColors.onSurfaceMuted),
             ),
+            TextButton(
+              onPressed: onLogout,
+              child: const Text('退出'),
+            ),
+          ],
         ],
       ),
     );

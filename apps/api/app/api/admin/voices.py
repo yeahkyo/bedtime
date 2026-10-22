@@ -25,9 +25,9 @@ from app.services.provider_settings import (
 )
 from app.services.storage import storage_service
 from app.services.voice_settings import (
-    SPEED_TIERS,
-    normalize_speed_tier,
+    clamp_speed,
     resolve_voice_settings,
+    tier_for_speed,
 )
 
 logger = logging.getLogger(__name__)
@@ -50,7 +50,7 @@ class AdminVoiceOut(BaseModel):
     provider: str
     provider_voice_id: str
     speech_model: str | None = None
-    speed_tier: str = "medium"
+    speed: float = 1.0
     enabled: bool = True
     sort_order: int = 0
     preview_text: str | None = None
@@ -76,7 +76,7 @@ class AdminVoiceUpdate(BaseModel):
     provider: str | None = None
     provider_voice_id: str | None = Field(default=None, max_length=128)
     speech_model: str | None = None  # empty string clears override
-    speed_tier: str | None = None
+    speed: float | None = Field(default=None, ge=0.5, le=2.0)
     enabled: bool | None = None
     sort_order: int | None = Field(default=None, ge=-9999, le=99999)
 
@@ -92,7 +92,7 @@ class AdminVoiceCreate(BaseModel):
     provider: str
     provider_voice_id: str = Field(min_length=1, max_length=128)
     speech_model: str | None = None
-    speed_tier: str = "medium"
+    speed: float = Field(default=1.0, ge=0.5, le=2.0)
     enabled: bool = True
     sort_order: int = Field(default=0, ge=-9999, le=99999)
 
@@ -104,7 +104,7 @@ class AdminVoicePreviewIn(BaseModel):
     provider_voice_id: str | None = None
     speech_model: str | None = None
     language: str | None = None
-    speed_tier: str | None = None
+    speed: float | None = Field(default=None, ge=0.5, le=2.0)
     text: str | None = Field(default=None, max_length=_PREVIEW_TEXT_MAX)
 
 
@@ -132,7 +132,7 @@ async def _synthesize_preview(
     speech_model: str | None,
     language: str | None,
     text: str | None,
-    speed_tier: str | None = None,
+    speed: float | None = None,
 ) -> tuple[bytes, str]:
     name = (provider or "").strip().lower()
     if name not in SPEECH_PROVIDERS:
@@ -144,7 +144,7 @@ async def _synthesize_preview(
     if len(sample) > _PREVIEW_TEXT_MAX:
         sample = sample[:_PREVIEW_TEXT_MAX]
     model = await resolve_speech_model(name, voice_model=speech_model)
-    vs = resolve_voice_settings(normalize_speed_tier(speed_tier), "gentle", False)
+    vs = resolve_voice_settings(speed=clamp_speed(speed if speed is not None else 1.0))
     tts = get_tts_provider(name)
     try:
         audio, _ = await synthesize_with_prosody(
@@ -189,7 +189,7 @@ async def _to_out(voice: Voice, user: User | None = None) -> AdminVoiceOut:
         provider=voice.provider or "",
         provider_voice_id=voice.provider_voice_id or "",
         speech_model=voice.speech_model,
-        speed_tier=normalize_speed_tier(getattr(voice, "speed_tier", None)),
+        speed=clamp_speed(getattr(voice, "speed", None)),
         enabled=bool(getattr(voice, "enabled", True)),
         sort_order=int(getattr(voice, "sort_order", 0) or 0),
         preview_text=voice.preview_text,
@@ -285,7 +285,7 @@ async def preview_voice_adhoc(
         speech_model=body.speech_model,
         language=body.language,
         text=body.text,
-        speed_tier=body.speed_tier,
+        speed=body.speed,
     )
     return Response(
         content=audio,
@@ -349,7 +349,7 @@ async def generate_stored_preview(
         speech_model=voice.speech_model,
         language=voice.language,
         text=text,
-        speed_tier=getattr(voice, "speed_tier", None),
+        speed=getattr(voice, "speed", None),
     )
     key = _preview_storage_key(voice.id)
     await storage_service.put_bytes(key, audio, "audio/mpeg")
@@ -391,10 +391,7 @@ async def create_voice(
         owner_id = owner.id
 
     mid = (body.speech_model or "").strip() or None
-    raw_tier = (body.speed_tier or "").strip().lower()
-    if raw_tier and raw_tier not in SPEED_TIERS:
-        raise HTTPException(status_code=400, detail="speed_tier must be slow|medium|fast")
-    tier = normalize_speed_tier(raw_tier or None)
+    speed = clamp_speed(body.speed)
     desc = (body.description or "").strip() or None
     if desc and len(desc) > 200:
         desc = desc[:200]
@@ -407,7 +404,8 @@ async def create_voice(
         provider=provider,
         provider_voice_id=body.provider_voice_id.strip(),
         speech_model=mid,
-        speed_tier=tier,
+        speed=speed,
+        speed_tier=tier_for_speed(speed),
         enabled=bool(body.enabled),
         sort_order=int(body.sort_order),
     )
@@ -457,11 +455,10 @@ async def update_voice(
     if body.speech_model is not None:
         mid = body.speech_model.strip()
         voice.speech_model = mid or None
-    if body.speed_tier is not None:
-        tier = body.speed_tier.strip().lower()
-        if tier not in SPEED_TIERS:
-            raise HTTPException(status_code=400, detail="speed_tier must be slow|medium|fast")
-        voice.speed_tier = tier
+    if body.speed is not None:
+        speed = clamp_speed(body.speed)
+        voice.speed = speed
+        voice.speed_tier = tier_for_speed(speed)
     if body.enabled is not None:
         voice.enabled = bool(body.enabled)
     if body.sort_order is not None:

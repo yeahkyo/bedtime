@@ -17,8 +17,8 @@ Use with Cursor rules under `.cursor/rules/`. Depth: **baseline** (security, aut
 
 | Item | Expectation |
 |------|-------------|
-| JWT / bypass | Production rejects unsafe defaults at startup |
-| Apple login | JWKS verify, or disabled outside `dev` |
+| JWT / bypass | Production rejects unsafe defaults at startup; app uses short access + revocable refresh |
+| Apple login | JWKS verify, or disabled outside `dev` (closed beta: invite + phone/password) |
 | `/media` | Not anonymously mounted outside local `dev` + `local` storage |
 | CORS | Explicit origins in non-dev; no `*` + credentials |
 | Retention run | Admin token (any env) or `dev` authenticated user — not arbitrary non-dev clients |

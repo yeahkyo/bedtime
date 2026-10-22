@@ -25,8 +25,10 @@ class Voice(Base):
     provider_voice_id: Mapped[str] = mapped_column(String(128))
     # Optional per-voice TTS model (e.g. CosyVoice target_model). Empty → provider default.
     speech_model: Mapped[str | None] = mapped_column(String(128), nullable=True)
-    # Catalog default narration speed for all users: slow | medium | fast.
+    # Legacy tier label (slow|medium|fast); prefer numeric ``speed`` for TTS.
     speed_tier: Mapped[str] = mapped_column(String(16), default="medium")
+    # Catalog default narration speed multiplier for all users (e.g. 0.85–1.2).
+    speed: Mapped[float] = mapped_column(Float, default=1.0)
     # Disabled voices are hidden from the app catalog (admin can still edit).
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     # App picker order: lower first (admin-editable).

@@ -24,6 +24,7 @@ def _voice(**kwargs):
         provider_voice_id="longanyang",
         speech_model=None,
         speed_tier="medium",
+        speed=1.0,
         enabled=True,
         sort_order=0,
         preview_text=None,
@@ -117,7 +118,7 @@ async def test_admin_voice_preview_generate_persists():
     voice = _voice(
         provider="mock",
         provider_voice_id="mock_system_voice",
-        speed_tier="slow",
+        speed=0.85,
         user_id=None,
     )
     session = MagicMock()
@@ -173,7 +174,7 @@ async def test_admin_voice_preview_generate_persists():
                     "provider": "mock",
                     "provider_voice_id": "mock_system_voice",
                     "language": "zh",
-                    "speed_tier": "fast",
+                    "speed": 1.1,
                     "text": "Night soft",
                 },
             )

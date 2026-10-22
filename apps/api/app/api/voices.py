@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 import logging
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import Response
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -12,6 +12,7 @@ from app.models.user import User
 from app.models.voice import Voice
 from app.providers.factory import get_clone_provider
 from app.schemas.common import VoiceOut, VoiceUpdate
+from app.services.auth_rate_limit import rate_limit_clone_ip
 from app.services.provider_settings import (
     first_configured_speech_provider,
     resolve_speech_model,
@@ -46,6 +47,7 @@ async def _to_voice_out(voice: Voice) -> VoiceOut:
         provider_voice_id=voice.provider_voice_id or "",
         speech_model=voice.speech_model,
         speed_tier=getattr(voice, "speed_tier", None) or "medium",
+        speed=float(getattr(voice, "speed", None) or 1.0),
         enabled=bool(getattr(voice, "enabled", True)),
         description=desc,
         sort_order=int(getattr(voice, "sort_order", 0) or 0),
@@ -146,6 +148,7 @@ async def ensure_system_voice_route(
 
 @router.post("/clone", response_model=VoiceOut)
 async def clone_voice(
+    request: Request,
     consent: bool = Form(...),
     name: str = Form("My voice"),
     language: str = Form("zh"),
@@ -156,6 +159,7 @@ async def clone_voice(
     if not consent:
         raise HTTPException(status_code=400, detail="Consent required to clone your voice")
 
+    await rate_limit_clone_ip(request)
     await check_and_increment(db, user.id, "clone")
     audio = await file.read()
     if len(audio) < 1000:
@@ -201,6 +205,7 @@ async def clone_voice(
         provider_voice_id=provider_voice_id,
         speech_model=speech_model,
         speed_tier="medium",
+        speed=1.0,
         language=language,
         consent_at=datetime.now(timezone.utc),
         raw_object_key=None,

@@ -15,16 +15,27 @@ from app.models.user import User
 bearer = HTTPBearer(auto_error=False)
 
 
-def create_access_token(subject: str, extra: dict[str, Any] | None = None) -> str:
+def create_access_token(
+    subject: str,
+    *,
+    token_version: int = 0,
+    extra: dict[str, Any] | None = None,
+) -> str:
     settings = get_settings()
     payload: dict[str, Any] = {
         "sub": subject,
         "aud": "app",
-        "exp": datetime.now(timezone.utc) + timedelta(days=settings.jwt_expire_days),
+        "ver": int(token_version),
+        "exp": datetime.now(timezone.utc)
+        + timedelta(minutes=settings.jwt_access_expire_minutes),
     }
     if extra:
         payload.update(extra)
     return jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
+
+
+def access_expires_in_seconds() -> int:
+    return max(1, get_settings().jwt_access_expire_minutes * 60)
 
 
 def create_admin_token(username: str) -> tuple[str, datetime]:
@@ -60,10 +71,19 @@ async def get_current_user(
             result = await db.execute(select(User).where(User.apple_sub == "dev-parent"))
             user = result.scalar_one_or_none()
             if user is None:
-                user = User(apple_sub="dev-parent", display_name="Dev Parent", preferred_language="zh")
+                user = User(
+                    apple_sub="dev-parent",
+                    display_name="Dev Parent",
+                    preferred_language="zh",
+                    token_version=0,
+                )
                 db.add(user)
                 await db.commit()
                 await db.refresh(user)
+            if user.disabled_at is not None:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED, detail="Account disabled"
+                )
             return user
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
 
@@ -74,6 +94,7 @@ async def get_current_user(
         sub = payload.get("sub")
         if not sub:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+        ver = payload.get("ver", 0)
     except JWTError as exc:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token") from exc
 
@@ -81,6 +102,10 @@ async def get_current_user(
     user = result.scalar_one_or_none()
     if user is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
+    if user.disabled_at is not None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Account disabled")
+    if int(user.token_version or 0) != int(ver or 0):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
     return user
 
 

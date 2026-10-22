@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, String, func
+from sqlalchemy import DateTime, Integer, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.db import Base
@@ -11,6 +11,10 @@ class User(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     apple_sub: Mapped[str] = mapped_column(String(128), unique=True, index=True)
+    phone: Mapped[str | None] = mapped_column(String(20), unique=True, nullable=True, index=True)
+    password_hash: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    token_version: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    disabled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     display_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
     preferred_language: Mapped[str] = mapped_column(String(8), default="zh")
     story_retention_months: Mapped[int] = mapped_column(default=24)

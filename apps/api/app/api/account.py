@@ -31,6 +31,10 @@ async def get_quota(user: User = Depends(get_current_user), db: AsyncSession = D
 
 @router.delete("")
 async def delete_account(user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)) -> dict:
+    settings = get_settings()
+    # Non-dev: disabled to prevent scanner/cascade wipe (re-enable with password confirm later).
+    if not settings.is_dev:
+        raise HTTPException(status_code=403, detail="Account deletion is disabled")
     await cascade_delete_user(db, user.id)
     return {"ok": True, "message": "Account and related data deleted"}
 

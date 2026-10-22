@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../api/client.dart';
 import '../theme/app_theme.dart';
 import '../theme/widgets.dart';
+import '../utils/child_age.dart';
 
 /// Manage child profiles (角色).
 class ChildrenManageScreen extends StatefulWidget {
@@ -204,6 +205,41 @@ class _ChildrenManageScreenState extends State<ChildrenManageScreen> {
     if (saved == true) await _load();
   }
 
+  Future<void> _confirmDelete(Map<String, dynamic> c) async {
+    final id = c['id'];
+    final childId = id is int ? id : int.tryParse('$id');
+    if (childId == null) return;
+    final name = (c['nickname'] as String?)?.trim().isNotEmpty == true
+        ? (c['nickname'] as String).trim()
+        : '该角色';
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('删除角色'),
+        content: Text('确定删除「$name」？\n已生成的故事会保留，但不再关联此档案。'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('取消')),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('删除'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    try {
+      await widget.api.deleteChild(childId);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('已删除「$name」')),
+      );
+      await _load();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -228,9 +264,19 @@ class _ChildrenManageScreenState extends State<ChildrenManageScreen> {
                   if (children.isEmpty)
                     SectionCard(
                       title: '还没有角色',
-                      child: Text(
-                        '添加孩子档案后，创作故事时可选用。',
-                        style: Theme.of(context).textTheme.bodyLarge,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Text(
+                            '添加孩子档案后，创作故事时可选用。',
+                            style: Theme.of(context).textTheme.bodyLarge,
+                          ),
+                          const SizedBox(height: 14),
+                          FilledButton(
+                            onPressed: () => _editChild(),
+                            child: const Text('添加第一个角色'),
+                          ),
+                        ],
                       ),
                     )
                   else
@@ -270,8 +316,7 @@ class _ChildrenManageScreenState extends State<ChildrenManageScreen> {
                                       ),
                                       Text(
                                         '${_genderLabel(c['gender'] as String?)} · '
-                                        '${c['birth_date'] ?? '-'} · '
-                                        '档 ${c['age_band'] ?? '-'}',
+                                        '${formatAgeYearsLabel(c['birth_date'] as String?)}',
                                         style: Theme.of(context).textTheme.bodySmall,
                                       ),
                                       if ((c['intro'] as String?)?.trim().isNotEmpty == true)
@@ -285,6 +330,11 @@ class _ChildrenManageScreenState extends State<ChildrenManageScreen> {
                                         ),
                                     ],
                                   ),
+                                ),
+                                IconButton(
+                                  tooltip: '删除',
+                                  onPressed: () => _confirmDelete(c),
+                                  icon: const Icon(Icons.delete_outline, color: AppColors.onSurfaceDim),
                                 ),
                                 const Icon(Icons.edit_outlined, color: AppColors.onSurfaceDim),
                               ],

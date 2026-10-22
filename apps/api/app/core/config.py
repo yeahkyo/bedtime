@@ -20,6 +20,11 @@ class Settings(BaseSettings):
 
     jwt_secret: str = DEFAULT_JWT_SECRET
     jwt_algorithm: str = "HS256"
+    # App access JWT lifetime (minutes). Short-lived; use refresh_tokens to renew.
+    jwt_access_expire_minutes: int = 60
+    # Opaque refresh token lifetime (days); sliding on successful rotate.
+    jwt_refresh_expire_days: int = 7
+    # Deprecated: ignored for app access tokens (kept so old .env still loads).
     jwt_expire_days: int = 30
 
     # Comma-separated browser origins for non-dev CORS (empty = no browser CORS).

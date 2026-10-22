@@ -11,6 +11,8 @@ export interface AdminUserListItem {
   display_name: string | null
   preferred_language: string
   apple_sub: string
+  phone?: string | null
+  disabled?: boolean
   created_at: string | null
   story_used: number
   story_limit: number
@@ -18,6 +20,30 @@ export interface AdminUserListItem {
   clone_limit: number
   children_count: number
   stories_count: number
+}
+
+export interface InviteOut {
+  id: number
+  code: string
+  note: string | null
+  created_by: string | null
+  created_at: string | null
+  expires_at: string | null
+  used_at: string | null
+  used_by_user_id: number | null
+  revoked_at: string | null
+  status: string
+}
+
+export interface InviteListOut {
+  items: InviteOut[]
+  total: number
+  page: number
+  page_size: number
+}
+
+export interface InviteCreateOut {
+  items: InviteOut[]
 }
 
 export interface AdminUserListOut {
@@ -32,6 +58,9 @@ export interface AdminUserDetailOut {
   display_name: string | null
   preferred_language: string
   apple_sub: string
+  phone?: string | null
+  disabled_at?: string | null
+  token_version?: number
   created_at: string | null
   deleted_at: string | null
   story_retention_months: number

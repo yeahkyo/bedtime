@@ -105,6 +105,21 @@ async def create_child(
     return _to_out(child)
 
 
+@router.delete("/{child_id}")
+async def delete_child(
+    child_id: int,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Remove a child profile. Stories/series keep rows with child_id set null (DB FK)."""
+    child = await db.get(Child, child_id)
+    if child is None or child.user_id != user.id:
+        raise HTTPException(status_code=404, detail="Child not found")
+    await db.delete(child)
+    await db.commit()
+    return {"ok": True, "id": child_id}
+
+
 @router.patch("/{child_id}", response_model=ChildOut)
 async def update_child(
     child_id: int,

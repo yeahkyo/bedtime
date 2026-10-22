@@ -37,10 +37,11 @@ Override SSH target: `DEPLOY_SSH=root@lullvale01 REMOTE_REPO_ROOT=/srv/bedtime .
 
 | Phase | Auth | Notes |
 |-------|------|--------|
-| **App internal testing (now)** | `ENV=dev` + `DEV_AUTH_BYPASS=0` + `EXPOSE_API_DOCS=0` + App `devLogin` | Explicit `POST /v1/auth/dev-login` still works. **Anonymous** requests must not impersonate Dev Parent (bypass off). Docs/OpenAPI off so scanners cannot enumerate delete endpoints. Prefer Cloudflare Access / IP allowlist on the hostname. |
-| **Public / store-ready** | `ENV=staging\|prod`, `DEV_AUTH_BYPASS=0`, Apple Sign-In with **JWKS verify** | Not implemented yet. |
+| **Staging / closed beta (now)** | `ENV=staging` + `DEV_AUTH_BYPASS=0` + `EXPOSE_API_DOCS=0` | Invite code register + phone/password login. Access JWT (~60m) + opaque refresh (7d, rotate). `dev-login` **disabled**. `DELETE /v1/account` disabled outside `dev`. Admin UI: generate invites; disable users. |
+| **Local engineering** | `ENV=dev` | `POST /v1/auth/dev-login` still available for engineers only. |
+| **Store-ready later** | Apple Sign-In with **JWKS verify** | Not implemented yet; phone/password + invite remains. |
 
-**Do not** set `DEV_AUTH_BYPASS=1` on a publicly reachable host — unauthenticated `DELETE /v1/account` will cascade-delete stories.
+**Do not** set `DEV_AUTH_BYPASS=1` on a publicly reachable host.
 
 ## Checklist
 
@@ -129,8 +130,8 @@ curl -fsS -X POST -H "X-Retention-Admin-Token: $RETENTION_ADMIN_TOKEN" \
 
 ## Before public prod
 
-- [ ] Apple JWKS + Flutter Sign in with Apple  
-- [ ] `ENV=prod`, `DEV_AUTH_BYPASS=0`, `EXPOSE_API_DOCS=0`  
-- [ ] Cloudflare Access (or equivalent) on the API hostname while `ENV=dev` /dev-login remains  
+- [ ] `ENV=staging|prod`, `DEV_AUTH_BYPASS=0`, `EXPOSE_API_DOCS=0`, strong `JWT_SECRET`  
+- [ ] Admin `:8083` not bare on the public internet  
+- [ ] Apple JWKS + Flutter Sign in with Apple (optional next)  
 - [ ] Strong DB passwords  
 ---

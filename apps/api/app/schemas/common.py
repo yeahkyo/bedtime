@@ -5,7 +5,9 @@ from pydantic import BaseModel, Field, field_validator
 
 class TokenResponse(BaseModel):
     access_token: str
+    refresh_token: str
     token_type: str = "bearer"
+    expires_in: int
 
 
 class DevLoginRequest(BaseModel):
@@ -17,6 +19,27 @@ class AppleLoginRequest(BaseModel):
     identity_token: str
     display_name: str | None = None
     preferred_language: str = "zh"
+
+
+class RegisterRequest(BaseModel):
+    invite_code: str = Field(min_length=4, max_length=32)
+    phone: str = Field(min_length=8, max_length=20)
+    password: str = Field(min_length=8, max_length=128)
+    display_name: str | None = Field(default=None, max_length=128)
+    preferred_language: str = "zh"
+
+
+class LoginRequest(BaseModel):
+    phone: str = Field(min_length=8, max_length=20)
+    password: str = Field(min_length=8, max_length=128)
+
+
+class RefreshRequest(BaseModel):
+    refresh_token: str = Field(min_length=16, max_length=256)
+
+
+class LogoutRequest(BaseModel):
+    refresh_token: str = Field(min_length=16, max_length=256)
 
 
 class ChildCreate(BaseModel):
@@ -82,6 +105,7 @@ class VoiceOut(BaseModel):
     provider_voice_id: str
     speech_model: str | None = None
     speed_tier: str = "medium"
+    speed: float = 1.0
     enabled: bool = True
     description: str | None = None
     sort_order: int = 0

@@ -6,9 +6,11 @@ import 'me_tab.dart';
 import 'stories_tab.dart';
 
 class HomeShell extends StatefulWidget {
-  const HomeShell({super.key, required this.api});
+  const HomeShell({super.key, required this.api, this.onLoggedOut});
 
   final ApiClient api;
+  /// Called after credentials are cleared so the root gate can show AuthScreen.
+  final VoidCallback? onLoggedOut;
 
   @override
   State<HomeShell> createState() => _HomeShellState();
@@ -20,7 +22,7 @@ class _HomeShellState extends State<HomeShell> {
 
   late final List<Widget> _pages = [
     StoriesTab(key: _storiesKey, api: widget.api),
-    MeTab(api: widget.api),
+    MeTab(api: widget.api, onLoggedOut: widget.onLoggedOut),
   ];
 
   @override

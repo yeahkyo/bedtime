@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
 import '../config.dart';
+import 'auth_storage.dart';
 
 class ApiException implements Exception {
   ApiException(
@@ -22,10 +24,13 @@ class ApiException implements Exception {
 }
 
 class ApiClient {
-  ApiClient({this.token, this.onUnauthorized});
+  ApiClient({this.token, this.refreshToken, this.onUnauthorized});
 
   String? token;
+  String? refreshToken;
   void Function()? onUnauthorized;
+
+  Future<void>? _refreshInFlight;
 
   static const _timeout = Duration(seconds: 20);
   // Story LLM + TTS for 5–8 min targets can exceed 4 minutes end-to-end.
@@ -39,24 +44,118 @@ class ApiClient {
 
   Uri _u(String path) => Uri.parse('$apiBaseUrl$path');
 
-  Future<Map<String, dynamic>> devLogin() async {
+  Future<Map<String, dynamic>> register({
+    required String inviteCode,
+    required String phone,
+    required String password,
+    String? displayName,
+  }) async {
     final res = await http
         .post(
-          _u('/v1/auth/dev-login'),
-          headers: _headers,
+          _u('/v1/auth/register'),
+          headers: {'Content-Type': 'application/json'},
           body: jsonEncode({
-            'display_name': 'Dev Parent',
+            'invite_code': inviteCode,
+            'phone': phone,
+            'password': password,
+            if (displayName != null) 'display_name': displayName,
             'preferred_language': 'zh',
           }),
         )
         .timeout(_timeout);
-    _ensure(res);
+    _ensureAuthResponse(res);
     return jsonDecode(res.body) as Map<String, dynamic>;
   }
 
+  Future<Map<String, dynamic>> login({
+    required String phone,
+    required String password,
+  }) async {
+    final res = await http
+        .post(
+          _u('/v1/auth/login'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({
+            'phone': phone,
+            'password': password,
+          }),
+        )
+        .timeout(_timeout);
+    _ensureAuthResponse(res);
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> refreshSession() async {
+    final rt = refreshToken;
+    if (rt == null || rt.isEmpty) {
+      throw ApiException('登录已失效，请重新进入', statusCode: 401, unauthorized: true);
+    }
+    final res = await http
+        .post(
+          _u('/v1/auth/refresh'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({'refresh_token': rt}),
+        )
+        .timeout(_timeout);
+    if (res.statusCode >= 400) {
+      throw ApiException(
+        _friendlyError(res.statusCode, res.body),
+        statusCode: res.statusCode,
+        unauthorized: res.statusCode == 401,
+      );
+    }
+    final data = jsonDecode(res.body) as Map<String, dynamic>;
+    final access = data['access_token'] as String?;
+    final refresh = data['refresh_token'] as String?;
+    if (access == null || refresh == null) {
+      throw ApiException('刷新登录失败', statusCode: 401, unauthorized: true);
+    }
+    token = access;
+    refreshToken = refresh;
+    await AuthStorage.save(access: access, refresh: refresh);
+    return data;
+  }
+
+  Future<void> logout() async {
+    final rt = refreshToken;
+    try {
+      if (rt != null && rt.isNotEmpty) {
+        await http
+            .post(
+              _u('/v1/auth/logout'),
+              headers: _headers,
+              body: jsonEncode({'refresh_token': rt}),
+            )
+            .timeout(_timeout);
+      }
+    } catch (_) {
+      /* best-effort */
+    }
+    token = null;
+    refreshToken = null;
+    await AuthStorage.clear();
+  }
+
+  /// Single-flight refresh used by 401 retry path.
+  Future<bool> tryRefresh() async {
+    if (refreshToken == null || refreshToken!.isEmpty) return false;
+    _refreshInFlight ??= () async {
+      try {
+        await refreshSession();
+      } finally {
+        _refreshInFlight = null;
+      }
+    }();
+    try {
+      await _refreshInFlight;
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   Future<List<dynamic>> listChildren() async {
-    final res = await http.get(_u('/v1/children'), headers: _headers).timeout(_timeout);
-    _ensure(res);
+    final res = await _get(_u('/v1/children'));
     return jsonDecode(res.body) as List<dynamic>;
   }
 
@@ -71,10 +170,10 @@ class ApiClient {
       'limit': '$limit',
       if (childId != null) 'child_id': '$childId',
     };
-    final res = await http
-        .get(_u('/v1/kernels').replace(queryParameters: qp), headers: _headers)
-        .timeout(const Duration(seconds: 8));
-    _ensure(res);
+    final res = await _get(
+      _u('/v1/kernels').replace(queryParameters: qp),
+      timeout: const Duration(seconds: 8),
+    );
     final data = jsonDecode(res.body) as Map<String, dynamic>;
     final items = data['items'] as List<dynamic>? ?? [];
     return items.cast<Map<String, dynamic>>();
@@ -91,20 +190,17 @@ class ApiClient {
       'limit': '$limit',
       if (childId != null) 'child_id': '$childId',
     };
-    final res = await http
-        .get(_u('/v1/elements').replace(queryParameters: qp), headers: _headers)
-        .timeout(const Duration(seconds: 8));
-    _ensure(res);
+    final res = await _get(
+      _u('/v1/elements').replace(queryParameters: qp),
+      timeout: const Duration(seconds: 8),
+    );
     final data = jsonDecode(res.body) as Map<String, dynamic>;
     final items = data['items'] as List<dynamic>? ?? [];
     return items.cast<Map<String, dynamic>>();
   }
 
   Future<Map<String, dynamic>> getVoicePrefs(int childId) async {
-    final res = await http
-        .get(_u('/v1/children/$childId/voice-prefs'), headers: _headers)
-        .timeout(_timeout);
-    _ensure(res);
+    final res = await _get(_u('/v1/children/$childId/voice-prefs'));
     return jsonDecode(res.body) as Map<String, dynamic>;
   }
 
@@ -127,14 +223,7 @@ class ApiClient {
       payload['age_band'] = ageBand;
     }
     if (intro != null) payload['intro'] = intro;
-    final res = await http
-        .post(
-          _u('/v1/children'),
-          headers: _headers,
-          body: jsonEncode(payload),
-        )
-        .timeout(_timeout);
-    _ensure(res);
+    final res = await _post(_u('/v1/children'), body: jsonEncode(payload));
     return jsonDecode(res.body) as Map<String, dynamic>;
   }
 
@@ -154,15 +243,12 @@ class ApiClient {
     if (gender != null) body['gender'] = gender;
     if (intro != null) body['intro'] = intro;
     if (interests != null) body['interests'] = interests;
-    final res = await http
-        .patch(
-          _u('/v1/children/$childId'),
-          headers: _headers,
-          body: jsonEncode(body),
-        )
-        .timeout(_timeout);
-    _ensure(res);
+    final res = await _patch(_u('/v1/children/$childId'), body: jsonEncode(body));
     return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
+  Future<void> deleteChild(int childId) async {
+    await _delete(_u('/v1/children/$childId'));
   }
 
   Future<void> updateVoicePrefs({
@@ -172,31 +258,24 @@ class ApiClient {
     required bool likenessBoost,
     int? defaultVoiceId,
   }) async {
-    final res = await http
-        .patch(
-          _u('/v1/children/$childId/voice-prefs'),
-          headers: _headers,
-          body: jsonEncode({
-            'speed_tier': speedTier,
-            'tone_preset': tonePreset,
-            'likeness_boost': likenessBoost,
-            'default_voice_id': defaultVoiceId,
-          }),
-        )
-        .timeout(_timeout);
-    _ensure(res);
+    await _patch(
+      _u('/v1/children/$childId/voice-prefs'),
+      body: jsonEncode({
+        'speed_tier': speedTier,
+        'tone_preset': tonePreset,
+        'likeness_boost': likenessBoost,
+        'default_voice_id': defaultVoiceId,
+      }),
+    );
   }
 
   Future<Map<String, dynamic>> ensureSystemVoice() async {
-    final res =
-        await http.post(_u('/v1/voices/system-default'), headers: _headers).timeout(_timeout);
-    _ensure(res);
+    final res = await _post(_u('/v1/voices/system-default'));
     return jsonDecode(res.body) as Map<String, dynamic>;
   }
 
   Future<List<dynamic>> listVoices() async {
-    final res = await http.get(_u('/v1/voices'), headers: _headers).timeout(_timeout);
-    _ensure(res);
+    final res = await _get(_u('/v1/voices'));
     return jsonDecode(res.body) as List<dynamic>;
   }
 
@@ -204,14 +283,7 @@ class ApiClient {
     required int voiceId,
     required String name,
   }) async {
-    final res = await http
-        .patch(
-          _u('/v1/voices/$voiceId'),
-          headers: _headers,
-          body: jsonEncode({'name': name}),
-        )
-        .timeout(_timeout);
-    _ensure(res);
+    final res = await _patch(_u('/v1/voices/$voiceId'), body: jsonEncode({'name': name}));
     return jsonDecode(res.body) as Map<String, dynamic>;
   }
 
@@ -221,29 +293,30 @@ class ApiClient {
     required String name,
     required String language,
   }) async {
-    final req = http.MultipartRequest('POST', _u('/v1/voices/clone'));
-    if (token != null) {
-      req.headers['Authorization'] = 'Bearer $token';
+    Future<http.Response> sendOnce() async {
+      final req = http.MultipartRequest('POST', _u('/v1/voices/clone'));
+      if (token != null) {
+        req.headers['Authorization'] = 'Bearer $token';
+      }
+      req.fields['consent'] = 'true';
+      req.fields['name'] = name;
+      req.fields['language'] = language;
+      req.files.add(http.MultipartFile.fromBytes('file', bytes, filename: filename));
+      final streamed = await req.send().timeout(_longTimeout);
+      return http.Response.fromStream(streamed).timeout(_longTimeout);
     }
-    req.fields['consent'] = 'true';
-    req.fields['name'] = name;
-    req.fields['language'] = language;
-    req.files.add(http.MultipartFile.fromBytes('file', bytes, filename: filename));
-    final streamed = await req.send().timeout(_longTimeout);
-    final res = await http.Response.fromStream(streamed).timeout(_longTimeout);
-    _ensure(res);
+
+    final res = await _send(sendOnce);
     return jsonDecode(res.body) as Map<String, dynamic>;
   }
 
   Future<List<dynamic>> listStories() async {
-    final res = await http.get(_u('/v1/stories'), headers: _headers).timeout(_timeout);
-    _ensure(res);
+    final res = await _get(_u('/v1/stories'));
     return jsonDecode(res.body) as List<dynamic>;
   }
 
   Future<Map<String, dynamic>> getStory(int storyId) async {
-    final res = await http.get(_u('/v1/stories/$storyId'), headers: _headers).timeout(_timeout);
-    _ensure(res);
+    final res = await _get(_u('/v1/stories/$storyId'));
     return jsonDecode(res.body) as Map<String, dynamic>;
   }
 
@@ -270,11 +343,9 @@ class ApiClient {
     String dialogue = 'some',
     String leadIn = 'soft',
   }) async {
-    final res = await http
-        .post(
-          _u('/v1/stories'),
-          headers: _headers,
-          body: jsonEncode({
+    final res = await _post(
+      _u('/v1/stories'),
+      body: jsonEncode({
             'child_id': childId,
             'theme': theme,
             'language': language,
@@ -298,9 +369,8 @@ class ApiClient {
             'lead_in': leadIn,
             'source': 'manual',
           }),
-        )
-        .timeout(const Duration(seconds: 45));
-    _ensure(res);
+      timeout: const Duration(seconds: 45),
+    );
     return jsonDecode(res.body) as Map<String, dynamic>;
   }
 
@@ -367,10 +437,10 @@ class ApiClient {
 
   /// Re-enqueue a failed story (no extra story quota charge).
   Future<Map<String, dynamic>> retryStory(int storyId) async {
-    final res = await http
-        .post(_u('/v1/stories/$storyId/retry'), headers: _headers)
-        .timeout(const Duration(seconds: 45));
-    _ensure(res);
+    final res = await _post(
+      _u('/v1/stories/$storyId/retry'),
+      timeout: const Duration(seconds: 45),
+    );
     return jsonDecode(res.body) as Map<String, dynamic>;
   }
 
@@ -418,25 +488,76 @@ class ApiClient {
   }
 
   Future<Map<String, dynamic>> me() async {
-    final res = await http.get(_u('/v1/account/me'), headers: _headers).timeout(_timeout);
-    _ensure(res);
+    final res = await _get(_u('/v1/account/me'));
     return jsonDecode(res.body) as Map<String, dynamic>;
   }
 
   Future<Map<String, dynamic>> quota() async {
-    final res = await http.get(_u('/v1/account/quota'), headers: _headers).timeout(_timeout);
-    _ensure(res);
+    final res = await _get(_u('/v1/account/quota'));
     return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
+  void _ensureAuthResponse(http.Response res) {
+    if (res.statusCode < 400) return;
+    throw ApiException(_friendlyError(res.statusCode, res.body), statusCode: res.statusCode);
   }
 
   void _ensure(http.Response res) {
     if (res.statusCode < 400) return;
     if (res.statusCode == 401) {
-      token = null;
-      onUnauthorized?.call();
       throw ApiException('登录已失效，请重新进入', statusCode: 401, unauthorized: true);
     }
     throw ApiException(_friendlyError(res.statusCode, res.body), statusCode: res.statusCode);
+  }
+
+  Future<http.Response> _get(Uri uri, {Duration? timeout}) async {
+    return _send(() => http.get(uri, headers: _headers).timeout(timeout ?? _timeout));
+  }
+
+  Future<http.Response> _post(Uri uri, {Object? body, Duration? timeout}) async {
+    return _send(
+      () => http
+          .post(uri, headers: _headers, body: body)
+          .timeout(timeout ?? _timeout),
+    );
+  }
+
+  Future<http.Response> _patch(Uri uri, {Object? body, Duration? timeout}) async {
+    return _send(
+      () => http
+          .patch(uri, headers: _headers, body: body)
+          .timeout(timeout ?? _timeout),
+    );
+  }
+
+  Future<http.Response> _delete(Uri uri, {Duration? timeout}) async {
+    return _send(() => http.delete(uri, headers: _headers).timeout(timeout ?? _timeout));
+  }
+
+  Future<http.Response> _send(Future<http.Response> Function() once) async {
+    var res = await once();
+    if (res.statusCode != 401) {
+      _ensure(res);
+      return res;
+    }
+    final ok = await tryRefresh();
+    if (!ok) {
+      token = null;
+      refreshToken = null;
+      await AuthStorage.clear();
+      onUnauthorized?.call();
+      throw ApiException('登录已失效，请重新进入', statusCode: 401, unauthorized: true);
+    }
+    res = await once();
+    if (res.statusCode == 401) {
+      token = null;
+      refreshToken = null;
+      await AuthStorage.clear();
+      onUnauthorized?.call();
+      throw ApiException('登录已失效，请重新进入', statusCode: 401, unauthorized: true);
+    }
+    _ensure(res);
+    return res;
   }
 
   static String _friendlyError(int statusCode, String body) {

@@ -15,7 +15,7 @@ export interface AdminVoiceRow {
   provider: string
   provider_voice_id: string
   speech_model: string | null
-  speed_tier: string
+  speed: number
   enabled: boolean
   sort_order: number
   preview_text: string | null
@@ -23,12 +23,6 @@ export interface AdminVoiceRow {
   preview_generated_at: string | null
   created_at: string | null
 }
-
-const SPEED_OPTIONS = [
-  { value: 'slow', label: '慢速 (0.85)' },
-  { value: 'medium', label: '正常 (1.0)' },
-  { value: 'fast', label: '偏快 (1.1)' },
-] as const
 
 const DEFAULT_PREVIEW_ZH =
   '夜深了，星星轻轻眨眼。我们听一个很软的故事，慢慢地，安心地，准备入睡。'
@@ -67,7 +61,7 @@ const form = ref({
   provider: 'fishaudio',
   provider_voice_id: '',
   speech_model: '',
-  speed_tier: 'medium',
+  speed: 1.0,
   enabled: true,
   sort_order: 0,
   preview_text: DEFAULT_PREVIEW_ZH,
@@ -267,7 +261,7 @@ async function previewFormLive() {
       provider_voice_id: form.value.provider_voice_id.trim(),
       speech_model: form.value.speech_model.trim() || null,
       language: form.value.language || 'zh',
-      speed_tier: form.value.speed_tier || 'medium',
+      speed: form.value.speed ?? 1.0,
       text: form.value.preview_text.trim() || null,
     })
     ElMessage.success('正在播放（未落库）')
@@ -367,7 +361,7 @@ function openCreate() {
     provider: speechProviders.value[0] || 'fishaudio',
     provider_voice_id: '',
     speech_model: '',
-    speed_tier: 'medium',
+    speed: 1.0,
     enabled: true,
     sort_order: 0,
     preview_text: DEFAULT_PREVIEW_ZH,
@@ -389,7 +383,7 @@ function openEdit(row: AdminVoiceRow) {
     provider: row.provider,
     provider_voice_id: row.provider_voice_id,
     speech_model: row.speech_model || '',
-    speed_tier: row.speed_tier || 'medium',
+    speed: typeof row.speed === 'number' ? row.speed : 1.0,
     enabled: row.enabled !== false,
     sort_order: row.sort_order ?? 0,
     preview_text: row.preview_text || DEFAULT_PREVIEW_ZH,
@@ -416,7 +410,7 @@ async function save() {
         provider: form.value.provider,
         provider_voice_id: form.value.provider_voice_id.trim(),
         speech_model: form.value.speech_model.trim() || null,
-        speed_tier: form.value.speed_tier || 'medium',
+        speed: form.value.speed ?? 1.0,
         enabled: form.value.enabled,
         sort_order: form.value.sort_order ?? 0,
       })
@@ -430,7 +424,7 @@ async function save() {
         provider: form.value.provider,
         provider_voice_id: form.value.provider_voice_id.trim(),
         speech_model: form.value.speech_model.trim(),
-        speed_tier: form.value.speed_tier || 'medium',
+        speed: form.value.speed ?? 1.0,
         enabled: form.value.enabled,
         sort_order: form.value.sort_order ?? 0,
       })
@@ -565,7 +559,11 @@ onMounted(() => {
           {{ row.speech_model || '（默认）' }}
         </template>
       </el-table-column>
-      <el-table-column prop="speed_tier" label="语速" width="80" />
+      <el-table-column label="语速" width="80">
+        <template #default="{ row }">
+          {{ typeof row.speed === 'number' ? row.speed.toFixed(2) : '—' }}
+        </template>
+      </el-table-column>
       <el-table-column label="试听" width="90">
         <template #default="{ row }">
           <span v-if="row.preview_audio_url" class="global-tag">已生成</span>
@@ -657,15 +655,16 @@ onMounted(() => {
             :placeholder="`空=用默认（${envHint}）`"
           />
         </el-form-item>
-        <el-form-item label="默认语速">
-          <el-select v-model="form.speed_tier" style="width: 100%">
-            <el-option
-              v-for="opt in SPEED_OPTIONS"
-              :key="opt.value"
-              :label="opt.label"
-              :value="opt.value"
-            />
-          </el-select>
+        <el-form-item label="语速">
+          <el-input-number
+            v-model="form.speed"
+            :min="0.5"
+            :max="2"
+            :step="0.05"
+            :precision="2"
+            controls-position="right"
+          />
+          <div class="field-hint">相对语速，1.0 为正常；范围 0.50–2.00</div>
         </el-form-item>
         <el-form-item label="试听文本">
           <el-input

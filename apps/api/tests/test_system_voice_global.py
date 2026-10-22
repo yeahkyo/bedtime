@@ -141,9 +141,9 @@ def test_apply_voice_speed_overrides_prefs():
     from app.services.voice_settings import apply_voice_speed
 
     base = VoiceSettings(speed=1.0, stability=0.65, style=0.05, similarity_boost=0.75)
-    voice = SimpleNamespace(speed_tier="slow")
+    voice = SimpleNamespace(speed=0.9, speed_tier="medium")
     out = apply_voice_speed(base, voice)
-    assert out.speed == 0.85
+    assert out.speed == 0.9
     assert out.stability == 0.65
 
 
@@ -189,13 +189,13 @@ async def test_admin_create_system_voice_is_global():
                 "provider": "aliyun",
                 "provider_voice_id": "longanyang",
                 "speech_model": "cosyvoice-v3.5-flash",
-                "speed_tier": "slow",
+                "speed": 0.85,
             },
         )
     assert res.status_code == 201, res.text
     body = res.json()
     assert body["user_id"] is None
     assert body["name"] == "全局柔声"
-    assert body["speed_tier"] == "slow"
+    assert body["speed"] == 0.85
     assert created and created[0].user_id is None
-    assert created[0].speed_tier == "slow"
+    assert created[0].speed == 0.85

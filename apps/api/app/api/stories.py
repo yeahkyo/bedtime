@@ -2,7 +2,7 @@ import json
 from collections.abc import AsyncIterator
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,6 +10,7 @@ from sqlalchemy.orm import selectinload
 
 from app.core.db import get_db
 from app.core.security import get_current_user
+from app.services.auth_rate_limit import rate_limit_story_ip
 from app.models.child import Child
 from app.models.story import Story, StoryAudio
 from app.models.story_series import StorySeries
@@ -319,10 +320,12 @@ async def get_story(
 async def create_story_batch(
     body: StoryCreate,
     background_tasks: BackgroundTasks,
+    request: Request,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> StoryOut:
     """Enqueue story generation; poll GET /stories/{id} until status ready|failed."""
+    await rate_limit_story_ip(request)
     child = await db.get(Child, body.child_id)
     if child is None or child.user_id != user.id:
         raise HTTPException(status_code=404, detail="Child not found")
@@ -658,11 +661,15 @@ async def stream_story_audio(
 
 @router.post("/stream")
 async def create_story_streaming(
-    body: StoryCreate, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
+    body: StoryCreate,
+    request: Request,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ) -> StreamingResponse:
     """v0.2-ish: stream NDJSON events — text chunks then audio chunks (base64) for progressive UX."""
     import base64
 
+    await rate_limit_story_ip(request)
     child = await db.get(Child, body.child_id)
     if child is None or child.user_id != user.id:
         raise HTTPException(status_code=404, detail="Child not found")

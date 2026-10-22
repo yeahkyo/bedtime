@@ -44,14 +44,18 @@ onMounted(load)
     </div>
     <el-form inline @submit.prevent="search">
       <el-form-item label="搜索">
-        <el-input v-model="q" placeholder="昵称 / apple_sub" clearable style="width: 240px" />
+        <el-input v-model="q" placeholder="昵称 / 手机 / apple_sub" clearable style="width: 240px" />
       </el-form-item>
       <el-button type="primary" @click="search">查询</el-button>
     </el-form>
     <el-table v-loading="loading" :data="items" stripe @row-click="(row) => router.push(`/users/${row.id}`)">
       <el-table-column prop="id" label="ID" width="80" />
       <el-table-column prop="display_name" label="昵称" min-width="120" />
-      <el-table-column prop="apple_sub" label="Apple Sub" min-width="160" show-overflow-tooltip />
+      <el-table-column prop="phone" label="手机" width="120" />
+      <el-table-column prop="apple_sub" label="Subject" min-width="160" show-overflow-tooltip />
+      <el-table-column label="状态" width="90">
+        <template #default="{ row }">{{ row.disabled ? '已禁用' : '正常' }}</template>
+      </el-table-column>
       <el-table-column label="配额" min-width="140">
         <template #default="{ row }">
           故事 {{ row.story_used }}/{{ row.story_limit }} · 克隆 {{ row.clone_used }}/{{ row.clone_limit }}

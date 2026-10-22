@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy import func, or_, select
@@ -11,6 +13,7 @@ from app.models.story import Story
 from app.models.user import User
 from app.models.voice import Voice
 from app.services.quota import QUOTA_KINDS, reset_monthly_quota, usage_summary
+from app.services.refresh_tokens import bump_token_version_and_revoke
 
 router = APIRouter(prefix="/users", tags=["admin-users"])
 
@@ -20,6 +23,8 @@ class AdminUserListItem(BaseModel):
     display_name: str | None
     preferred_language: str
     apple_sub: str
+    phone: str | None = None
+    disabled: bool = False
     created_at: str | None
     story_used: int = 0
     story_limit: int = 0
@@ -59,6 +64,9 @@ class AdminUserDetailOut(BaseModel):
     display_name: str | None
     preferred_language: str
     apple_sub: str
+    phone: str | None = None
+    disabled_at: str | None = None
+    token_version: int = 0
     created_at: str | None
     deleted_at: str | None
     story_retention_months: int
@@ -97,7 +105,13 @@ async def list_users(
     filters = [User.deleted_at.is_(None)]
     if q and q.strip():
         like = f"%{q.strip()}%"
-        filters.append(or_(User.display_name.ilike(like), User.apple_sub.ilike(like)))
+        filters.append(
+            or_(
+                User.display_name.ilike(like),
+                User.apple_sub.ilike(like),
+                User.phone.ilike(like),
+            )
+        )
     total = int(
         (
             await db.execute(select(func.count()).select_from(User).where(*filters))
@@ -136,6 +150,8 @@ async def list_users(
                 display_name=user.display_name,
                 preferred_language=user.preferred_language,
                 apple_sub=user.apple_sub,
+                phone=user.phone,
+                disabled=user.disabled_at is not None,
                 created_at=user.created_at.isoformat() if user.created_at else None,
                 story_used=usage["story_used"],
                 story_limit=usage["story_limit"],
@@ -176,6 +192,9 @@ async def get_user(
         display_name=user.display_name,
         preferred_language=user.preferred_language,
         apple_sub=user.apple_sub,
+        phone=user.phone,
+        disabled_at=user.disabled_at.isoformat() if user.disabled_at else None,
+        token_version=int(user.token_version or 0),
         created_at=user.created_at.isoformat() if user.created_at else None,
         deleted_at=user.deleted_at.isoformat() if user.deleted_at else None,
         story_retention_months=user.story_retention_months,
@@ -208,6 +227,50 @@ async def get_user(
         ],
         stories_count=stories_count,
     )
+
+
+@router.post("/{user_id}/disable", response_model=AdminUserDetailOut)
+async def disable_user(
+    user_id: int,
+    _: str = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> AdminUserDetailOut:
+    user = await db.get(User, user_id)
+    if user is None or user.deleted_at is not None:
+        raise HTTPException(status_code=404, detail="User not found")
+    if user.disabled_at is None:
+        user.disabled_at = datetime.now(timezone.utc)
+        await bump_token_version_and_revoke(db, user)
+        await db.commit()
+    return await get_user(user_id, _, db)
+
+
+@router.post("/{user_id}/enable", response_model=AdminUserDetailOut)
+async def enable_user(
+    user_id: int,
+    _: str = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> AdminUserDetailOut:
+    user = await db.get(User, user_id)
+    if user is None or user.deleted_at is not None:
+        raise HTTPException(status_code=404, detail="User not found")
+    user.disabled_at = None
+    await db.commit()
+    return await get_user(user_id, _, db)
+
+
+@router.post("/{user_id}/force-logout", response_model=AdminUserDetailOut)
+async def force_logout_user(
+    user_id: int,
+    _: str = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> AdminUserDetailOut:
+    user = await db.get(User, user_id)
+    if user is None or user.deleted_at is not None:
+        raise HTTPException(status_code=404, detail="User not found")
+    await bump_token_version_and_revoke(db, user)
+    await db.commit()
+    return await get_user(user_id, _, db)
 
 
 @router.post("/{user_id}/quota/reset", response_model=AdminQuotaOut)

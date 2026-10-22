@@ -13,6 +13,7 @@ const router = createRouter({
         { path: '', redirect: '/users' },
         { path: 'users', name: 'users', component: () => import('@/views/UsersView.vue') },
         { path: 'users/:id', name: 'user-detail', component: () => import('@/views/UserDetailView.vue') },
+        { path: 'invites', name: 'invites', component: () => import('@/views/InvitesView.vue') },
         { path: 'stories', name: 'stories', component: () => import('@/views/StoriesView.vue') },
         {
           path: 'stories/:id',
