@@ -17,6 +17,7 @@ dependencies:
   record: ^6.0.0
   shared_preferences: ^2.3.4
   flutter_secure_storage: ^9.2.4
+  flutter_native_splash: ^2.4.6
 
 dev_dependencies:
   flutter_test:
@@ -30,6 +31,19 @@ flutter_launcher_icons:
   image_path: assets/branding/app_icon.png
   # logo is already a full-bleed square; keep opaque background for iOS
   remove_alpha_ios: true
+
+flutter_native_splash:
+  color: "#080D1A"
+  # Dark (extinguished) logo for native → Flutter ignite handoff.
+  # Size/position patched to SplashColors.logoSize @ SplashLayout.logoCenterFraction.
+  # Regenerate: bash tool/regenerate_native_splash.sh
+  image: assets/branding/splash_logo_dark.png
+  android_12:
+    color: "#080D1A"
+    icon_background_color: "#080D1A"
+    image: assets/branding/splash_logo_dark.png
+  ios: true
+  android: true
 
 flutter:
   uses-material-design: true

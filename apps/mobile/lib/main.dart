@@ -1,14 +1,20 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
+import 'package:flutter_native_splash/flutter_native_splash.dart';
 
 import 'api/auth_storage.dart';
 import 'api/client.dart';
 import 'config.dart';
 import 'screens/auth_screen.dart';
 import 'screens/home_shell.dart';
+import 'splash/splash_screen.dart';
 import 'theme/app_theme.dart';
 
 void main() {
-  WidgetsFlutterBinding.ensureInitialized();
+  final widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
+  FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
   runApp(const BedtimeApp());
 }
 
@@ -33,7 +39,8 @@ class BootstrapGate extends StatefulWidget {
   State<BootstrapGate> createState() => _BootstrapGateState();
 }
 
-class _BootstrapGateState extends State<BootstrapGate> with WidgetsBindingObserver {
+class _BootstrapGateState extends State<BootstrapGate>
+    with WidgetsBindingObserver, SingleTickerProviderStateMixin {
   late final ApiClient api = ApiClient(onUnauthorized: _handleUnauthorized);
   String? error;
   bool loading = true;
@@ -41,24 +48,52 @@ class _BootstrapGateState extends State<BootstrapGate> with WidgetsBindingObserv
   int _bootEpoch = 0;
   bool _reauthing = false;
 
+  bool _splashRemoved = false;
+  late final AnimationController _exitController;
+  late final Animation<double> _splashOpacity;
+  DateTime? _splashStartedAt;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _exitController = AnimationController(
+      vsync: this,
+      duration: SplashMotion.exitFadeDuration,
+    );
+    _splashOpacity = Tween<double>(begin: 1, end: 0).animate(
+      CurvedAnimation(
+        parent: _exitController,
+        curve: SplashMotion.exitFadeCurve,
+      ),
+    );
+    _exitController.addStatusListener((status) {
+      if (status == AnimationStatus.completed && mounted) {
+        setState(() => _splashRemoved = true);
+      }
+    });
     // Paint first frame before any LAN/HTTP work — iOS Local Network permission
     // can otherwise leave users on a blank launch screen while Wi‑Fi is on.
-    WidgetsBinding.instance.addPostFrameCallback((_) => _boot());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      FlutterNativeSplash.remove();
+      _splashStartedAt = DateTime.now();
+      unawaited(_boot());
+    });
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _exitController.dispose();
     super.dispose();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed && !loading && !needsAuth && api.refreshToken != null) {
+    if (state == AppLifecycleState.resumed &&
+        !loading &&
+        !needsAuth &&
+        api.refreshToken != null) {
       api.tryRefresh();
     }
   }
@@ -115,22 +150,24 @@ class _BootstrapGateState extends State<BootstrapGate> with WidgetsBindingObserv
         }
       }
 
+      if (!mounted || epoch != _bootEpoch) return;
+
       if (api.token != null && api.token!.isNotEmpty) {
-        if (!mounted || epoch != _bootEpoch) return;
         setState(() {
           loading = false;
           needsAuth = false;
           error = null;
         });
+        await _finishSplash(skipDwell: false);
         return;
       }
 
-      if (!mounted || epoch != _bootEpoch) return;
       setState(() {
         loading = false;
         needsAuth = true;
         error = null;
       });
+      await _finishSplash(skipDwell: false);
     } catch (e) {
       if (!mounted || epoch != _bootEpoch) return;
       final hint = apiBaseUrlLooksRemote
@@ -144,28 +181,42 @@ class _BootstrapGateState extends State<BootstrapGate> with WidgetsBindingObserv
         loading = false;
         needsAuth = false;
       });
+      await _finishSplash(skipDwell: true);
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
+  Future<void> _finishSplash({required bool skipDwell}) async {
+    if (!mounted || _splashRemoved || _exitController.isAnimating) return;
+    if (!skipDwell) {
+      final started = _splashStartedAt ?? DateTime.now();
+      final remaining = SplashMotion.minimumVisible - DateTime.now().difference(started);
+      if (remaining > Duration.zero) {
+        await Future<void>.delayed(remaining);
+      }
+    }
+    if (!mounted || _splashRemoved || _exitController.isAnimating) return;
+    _scheduleExitFade();
+  }
+
+  /// Let the underlay paint a couple of frames before revealing it.
+  void _scheduleExitFade() {
+    var framesWaited = 0;
+    void waitForPaint(Duration _) {
+      if (!mounted || _exitController.isAnimating || _splashRemoved) return;
+      framesWaited += 1;
+      if (framesWaited >= 2) {
+        _exitController.forward();
+        return;
+      }
+      SchedulerBinding.instance.addPostFrameCallback(waitForPaint);
+    }
+
+    SchedulerBinding.instance.addPostFrameCallback(waitForPaint);
+  }
+
+  Widget _underlay(BuildContext context) {
     if (loading) {
-      return Scaffold(
-        body: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const CircularProgressIndicator(),
-              const SizedBox(height: 16),
-              Text(
-                '枕边灯亮起…\n$apiBaseUrl',
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
-            ],
-          ),
-        ),
-      );
+      return const ColoredBox(color: SplashColors.background);
     }
     if (error != null) {
       return Scaffold(
@@ -184,7 +235,7 @@ class _BootstrapGateState extends State<BootstrapGate> with WidgetsBindingObserv
                     loading = true;
                     error = null;
                   });
-                  _boot();
+                  unawaited(_boot());
                 },
                 child: const Text('重试'),
               ),
@@ -215,6 +266,30 @@ class _BootstrapGateState extends State<BootstrapGate> with WidgetsBindingObserv
           loading = false;
         });
       },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        Positioned.fill(
+          child: IgnorePointer(
+            ignoring: !_splashRemoved,
+            child: _underlay(context),
+          ),
+        ),
+        if (!_splashRemoved)
+          Positioned.fill(
+            child: IgnorePointer(
+              child: FadeTransition(
+                opacity: _splashOpacity,
+                child: const SplashScreen(),
+              ),
+            ),
+          ),
+      ],
     );
   }
 }

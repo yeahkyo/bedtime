@@ -23,3 +23,12 @@ flutter run --dart-define=API_BASE_URL=https://bedtime-api.lullvale.com
 Boot restores access/refresh from secure storage; refreshes session on launch. Staging uses **invite register** + **phone/password login** (`ENV=staging`, no `dev-login`). Local `ENV=dev` still allows engineer `dev-login` on the API, but the App no longer auto-calls it.
 
 Edge/TLS: Cloudflare orange-cloud → origin **:8080**. See [docs/deploy-staging.md](../../docs/deploy-staging.md).
+
+## Splash
+
+Native + Flutter branded splash (Bandage-style): `flutter_native_splash` handoff → animated `SplashScreen` → fade into auth/home.
+
+```bash
+# After changing assets/branding/splash_logo.png (384×384):
+bash tool/regenerate_native_splash.sh
+```
