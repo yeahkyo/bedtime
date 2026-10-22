@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -12,6 +12,7 @@ from app.models.child import Child
 from app.models.story import Story
 from app.models.user import User
 from app.models.voice import Voice
+from app.services.passwords import hash_password
 from app.services.quota import QUOTA_KINDS, reset_monthly_quota, usage_summary
 from app.services.refresh_tokens import bump_token_version_and_revoke
 
@@ -84,6 +85,12 @@ class AdminQuotaResetIn(BaseModel):
     """Reset current-month Redis counters. kinds: story | clone | omit for both."""
 
     kinds: list[str] | None = None
+
+
+class AdminPasswordResetIn(BaseModel):
+    """Set a new password for phone/password accounts; revokes existing sessions."""
+
+    password: str = Field(min_length=8, max_length=128)
 
 
 class AdminQuotaOut(BaseModel):
@@ -268,6 +275,28 @@ async def force_logout_user(
     user = await db.get(User, user_id)
     if user is None or user.deleted_at is not None:
         raise HTTPException(status_code=404, detail="User not found")
+    await bump_token_version_and_revoke(db, user)
+    await db.commit()
+    return await get_user(user_id, _, db)
+
+
+@router.post("/{user_id}/reset-password", response_model=AdminUserDetailOut)
+async def reset_user_password(
+    user_id: int,
+    body: AdminPasswordResetIn,
+    _: str = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> AdminUserDetailOut:
+    """Admin sets a new password; bumps token_version and revokes refresh tokens."""
+    user = await db.get(User, user_id)
+    if user is None or user.deleted_at is not None:
+        raise HTTPException(status_code=404, detail="User not found")
+    if not user.phone:
+        raise HTTPException(
+            status_code=400,
+            detail="User has no phone login; password reset is not applicable",
+        )
+    user.password_hash = hash_password(body.password)
     await bump_token_version_and_revoke(db, user)
     await db.commit()
     return await get_user(user_id, _, db)

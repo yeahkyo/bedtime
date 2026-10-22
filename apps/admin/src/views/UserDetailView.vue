@@ -74,6 +74,45 @@ async function forceLogout() {
   }
 }
 
+async function resetPassword() {
+  if (!user.value) return
+  if (!user.value.phone) {
+    ElMessage.warning('该用户没有手机号登录，无法重置密码')
+    return
+  }
+  let password: string
+  try {
+    const { value } = await ElMessageBox.prompt(
+      `为 ${user.value.phone} 设置新密码（至少 8 位）。重置后现有会话立即失效。`,
+      '重置密码',
+      {
+        inputType: 'password',
+        inputPlaceholder: '新密码',
+        confirmButtonText: '重置',
+        cancelButtonText: '取消',
+        inputValidator: (v) => {
+          if (!v || v.length < 8) return '密码至少 8 位'
+          if (v.length > 128) return '密码过长'
+          return true
+        },
+      },
+    )
+    password = value
+  } catch {
+    return
+  }
+  try {
+    const { data } = await api.post<AdminUserDetailOut>(
+      `/admin/users/${user.value.id}/reset-password`,
+      { password },
+    )
+    user.value = data
+    ElMessage.success('密码已重置，请用新密码登录')
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '重置失败')
+  }
+}
+
 async function resetQuota(kinds: ('story' | 'clone')[] | null) {
   if (!user.value) return
   const label =
@@ -154,6 +193,9 @@ onMounted(load)
         <el-button v-if="!user.disabled_at" type="danger" @click="disableUser">禁用</el-button>
         <el-button v-else type="success" @click="enableUser">启用</el-button>
         <el-button @click="forceLogout">强制下线</el-button>
+        <el-button type="primary" plain :disabled="!user.phone" @click="resetPassword">
+          重置密码
+        </el-button>
       </div>
 
       <h3>孩子</h3>

@@ -18,22 +18,38 @@ class AuthScreen extends StatefulWidget {
 class _AuthScreenState extends State<AuthScreen> {
   final _phone = TextEditingController();
   final _password = TextEditingController();
+  final _passwordConfirm = TextEditingController();
   final _invite = TextEditingController();
   final _name = TextEditingController();
   bool _registerMode = false;
   bool _busy = false;
+  bool _obscurePassword = true;
+  bool _obscureConfirm = true;
   String? _error;
 
   @override
   void dispose() {
     _phone.dispose();
     _password.dispose();
+    _passwordConfirm.dispose();
     _invite.dispose();
     _name.dispose();
     super.dispose();
   }
 
   Future<void> _submit() async {
+    final password = _password.text;
+    if (_registerMode) {
+      if (password.length < 8) {
+        setState(() => _error = '密码至少 8 位');
+        return;
+      }
+      if (password != _passwordConfirm.text) {
+        setState(() => _error = '两次输入的密码不一致');
+        return;
+      }
+    }
+
     setState(() {
       _busy = true;
       _error = null;
@@ -44,13 +60,13 @@ class _AuthScreenState extends State<AuthScreen> {
         tokens = await widget.api.register(
           inviteCode: _invite.text.trim(),
           phone: _phone.text.trim(),
-          password: _password.text,
+          password: password,
           displayName: _name.text.trim().isEmpty ? null : _name.text.trim(),
         );
       } else {
         tokens = await widget.api.login(
           phone: _phone.text.trim(),
-          password: _password.text,
+          password: password,
         );
       }
       final access = tokens['access_token'] as String?;
@@ -72,6 +88,33 @@ class _AuthScreenState extends State<AuthScreen> {
     } finally {
       if (mounted) setState(() => _busy = false);
     }
+  }
+
+  Widget _passwordField({
+    required TextEditingController controller,
+    required String label,
+    required String hint,
+    required bool obscure,
+    required VoidCallback onToggle,
+    TextInputAction? textInputAction,
+  }) {
+    return TextField(
+      controller: controller,
+      obscureText: obscure,
+      textInputAction: textInputAction,
+      decoration: InputDecoration(
+        labelText: label,
+        hintText: hint,
+        suffixIcon: IconButton(
+          tooltip: obscure ? '显示密码' : '隐藏密码',
+          onPressed: onToggle,
+          icon: Icon(
+            obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+            color: AppColors.onSurfaceMuted,
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -117,14 +160,26 @@ class _AuthScreenState extends State<AuthScreen> {
               ),
             ),
             const SizedBox(height: 12),
-            TextField(
+            _passwordField(
               controller: _password,
-              obscureText: true,
-              decoration: const InputDecoration(
-                labelText: '密码',
-                hintText: '至少 8 位',
-              ),
+              label: '密码',
+              hint: '至少 8 位',
+              obscure: _obscurePassword,
+              onToggle: () => setState(() => _obscurePassword = !_obscurePassword),
+              textInputAction:
+                  _registerMode ? TextInputAction.next : TextInputAction.done,
             ),
+            if (_registerMode) ...[
+              const SizedBox(height: 12),
+              _passwordField(
+                controller: _passwordConfirm,
+                label: '确认密码',
+                hint: '再输入一次',
+                obscure: _obscureConfirm,
+                onToggle: () => setState(() => _obscureConfirm = !_obscureConfirm),
+                textInputAction: TextInputAction.done,
+              ),
+            ],
             if (_error != null) ...[
               const SizedBox(height: 12),
               Text(_error!, style: const TextStyle(color: Colors.redAccent)),
@@ -147,6 +202,7 @@ class _AuthScreenState extends State<AuthScreen> {
                   : () => setState(() {
                         _registerMode = !_registerMode;
                         _error = null;
+                        _passwordConfirm.clear();
                       }),
               child: Text(_registerMode ? '已有账号？去登录' : '有邀请码？注册'),
             ),
