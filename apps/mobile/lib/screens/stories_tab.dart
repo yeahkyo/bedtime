@@ -1,6 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../api/client.dart';
+import '../local/local_store.dart';
+import '../local/network_errors.dart';
 import '../theme/app_theme.dart';
 import '../theme/widgets.dart';
 import 'create_story_screen.dart';
@@ -8,9 +12,10 @@ import 'player_screen.dart';
 
 /// Tab 1: story library (newest first) + entry to create flow.
 class StoriesTab extends StatefulWidget {
-  const StoriesTab({super.key, required this.api});
+  const StoriesTab({super.key, required this.api, this.localStore});
 
   final ApiClient api;
+  final LocalStore? localStore;
 
   @override
   State<StoriesTab> createState() => StoriesTabState();
@@ -29,15 +34,72 @@ class StoriesTabState extends State<StoriesTab> {
     _load();
   }
 
+  @override
+  void didUpdateWidget(covariant StoriesTab oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.localStore == null && widget.localStore != null) {
+      unawaited(_load());
+    }
+  }
+
   Future<void> reload() => _load();
 
   Future<void> _load() async {
+    final store = widget.localStore;
+    setState(() => loading = stories.isEmpty);
+    if (store != null) {
+      try {
+        final list = await store.stories.refresh(
+          onCached: (cached) {
+            if (!mounted || cached.isEmpty) return;
+            setState(() {
+              stories = cached;
+              loading = false;
+            });
+          },
+          onNetworkError: (msg) {
+            if (!mounted) return;
+            if (stories.isEmpty) {
+              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+            }
+          },
+        );
+        if (!mounted) return;
+        setState(() {
+          stories = list;
+          loading = false;
+        });
+        unawaited(store.media.prefetchReadyStories(
+          list.cast<Map<String, dynamic>>(),
+        ));
+        return;
+      } on ApiException catch (e) {
+        if (e.unauthorized) rethrow;
+        if (mounted && stories.isEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(friendlyNetworkError(e))),
+          );
+        }
+      } catch (e) {
+        if (mounted && stories.isEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(friendlyNetworkError(e))),
+          );
+        }
+      } finally {
+        if (mounted) setState(() => loading = false);
+      }
+      return;
+    }
+
     setState(() => loading = true);
     try {
       stories = await widget.api.listStories();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(friendlyNetworkError(e))),
+        );
       }
     } finally {
       if (mounted) setState(() => loading = false);
@@ -47,7 +109,10 @@ class StoriesTabState extends State<StoriesTab> {
   Future<void> _openCreate() async {
     await Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => CreateStoryScreen(api: widget.api),
+        builder: (_) => CreateStoryScreen(
+          api: widget.api,
+          localStore: widget.localStore,
+        ),
       ),
     );
     if (!mounted) return;
@@ -82,19 +147,74 @@ class StoriesTabState extends State<StoriesTab> {
         softSeriesMode: true,
         seriesId: seriesId,
       );
+      await widget.localStore?.stories.upsertOne(story);
       if (!mounted) return;
       await Navigator.of(context).push(
         MaterialPageRoute(
-          builder: (_) => PlayerScreen.fromStory(story),
+          builder: (_) => PlayerScreen.fromStory(
+            story,
+            localStore: widget.localStore,
+          ),
         ),
       );
       await _load();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+        final id = e is ApiException ? e.storyId : null;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(friendlyNetworkError(e)),
+            action: id == null
+                ? null
+                : SnackBarAction(
+                    label: '继续等待',
+                    onPressed: () => unawaited(_resumeWait(id)),
+                  ),
+          ),
+        );
       }
     } finally {
       if (mounted) setState(() => continuing = false);
+    }
+  }
+
+  Future<void> _resumeWait(int storyId) async {
+    setState(() {
+      continuing = true;
+      retryProgress = '继续等待生成…';
+    });
+    try {
+      final story = await widget.api.waitForStory(
+        storyId,
+        onProgress: (p) {
+          if (!mounted) return;
+          setState(() => retryProgress = _progressLabel(p));
+        },
+      );
+      await widget.localStore?.stories.upsertOne(story);
+      if (!mounted) return;
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => PlayerScreen.fromStory(
+            story,
+            localStore: widget.localStore,
+          ),
+        ),
+      );
+      await _load();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(friendlyNetworkError(e))),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          continuing = false;
+          retryProgress = null;
+        });
+      }
     }
   }
 
@@ -112,7 +232,10 @@ class StoriesTabState extends State<StoriesTab> {
     }
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => PlayerScreen.fromStory(s),
+        builder: (_) => PlayerScreen.fromStory(
+          s,
+          localStore: widget.localStore,
+        ),
       ),
     );
   }
@@ -153,16 +276,31 @@ class StoriesTabState extends State<StoriesTab> {
           setState(() => retryProgress = _progressLabel(p));
         },
       );
+      await widget.localStore?.stories.upsertOne(story);
       if (!mounted) return;
       await Navigator.of(context).push(
         MaterialPageRoute(
-          builder: (_) => PlayerScreen.fromStory(story),
+          builder: (_) => PlayerScreen.fromStory(
+            story,
+            localStore: widget.localStore,
+          ),
         ),
       );
       await _load();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+        final resumeId = e is ApiException ? e.storyId : id;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(friendlyNetworkError(e)),
+            action: resumeId == null
+                ? null
+                : SnackBarAction(
+                    label: '继续等待',
+                    onPressed: () => unawaited(_resumeWait(resumeId)),
+                  ),
+          ),
+        );
         await _load();
       }
     } finally {

@@ -7,6 +7,8 @@ import 'package:just_audio/just_audio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../config.dart';
+import '../local/local_store.dart';
+import '../local/network_errors.dart';
 import '../theme/app_theme.dart';
 
 class _BedTrack {
@@ -76,31 +78,42 @@ class PlayerScreen extends StatefulWidget {
     super.key,
     required this.title,
     required this.body,
+    this.storyId,
     this.audioUrl,
     this.softHook,
     this.theme,
     this.voiceName,
     this.developmentFocusLabel,
+    this.localStore,
   });
 
   final String title;
   final String body;
+  final int? storyId;
   final String? audioUrl;
   final String? softHook;
   final String? theme;
   final String? voiceName;
   final String? developmentFocusLabel;
+  final LocalStore? localStore;
 
   /// Convenience for story JSON from API / list.
-  factory PlayerScreen.fromStory(Map<String, dynamic> story) {
+  factory PlayerScreen.fromStory(
+    Map<String, dynamic> story, {
+    LocalStore? localStore,
+  }) {
+    final id = story['id'];
+    final storyId = id is int ? id : int.tryParse('$id');
     return PlayerScreen(
       title: story['title'] as String? ?? 'Story',
       body: story['body'] as String? ?? '',
+      storyId: storyId,
       audioUrl: story['audio_url'] as String?,
       softHook: story['soft_hook'] as String?,
       theme: story['theme'] as String?,
       voiceName: story['voice_name'] as String?,
       developmentFocusLabel: story['development_focus_label'] as String?,
+      localStore: localStore,
     );
   }
 
@@ -126,9 +139,12 @@ class _PlayerScreenState extends State<PlayerScreen> {
   final narration = AudioPlayer();
   final bed = AudioPlayer(handleInterruptions: false);
   StreamSubscription<PlayerState>? _narrationStateSub;
+  StreamSubscription<double>? _cacheProgressSub;
   Timer? _outroTimer;
   final _passageScroll = ScrollController();
   final Map<int, GlobalKey> _sentenceKeys = {};
+  /// Story id currently being filled via LockCaching (cleared in dispose).
+  int? _playbackCachingStoryId;
 
   late final List<String> _sentences = _splitSentences(widget.body);
 
@@ -166,9 +182,89 @@ class _PlayerScreenState extends State<PlayerScreen> {
     return '$apiBaseUrl$url';
   }
 
-  Future<void> _load() async {
-    final url = _resolveUrl(widget.audioUrl);
+  Future<void> _persistProgress() async {
+    final store = widget.localStore;
+    final id = widget.storyId;
+    if (store == null || id == null) return;
+    try {
+      final pos = narration.position;
+      final total = narration.duration;
+      if (total != null &&
+          total.inMilliseconds > 0 &&
+          pos.inMilliseconds >= total.inMilliseconds - 1500) {
+        await store.playback.clear(id);
+        return;
+      }
+      await store.playback.savePositionMs(id, pos.inMilliseconds);
+    } catch (_) {}
+  }
+
+  Future<void> _loadNarrationSource({
+    required LocalStore? store,
+    required int? storyId,
+    required String? localPath,
+    required String? url,
+  }) async {
+    if (localPath != null) {
+      try {
+        await narration.setFilePath(localPath);
+        if (store != null && storyId != null) {
+          await store.media.touchPlayed(storyId);
+        }
+        return;
+      } catch (_) {
+        // Corrupt / wrong-extension cache (e.g. legacy `.audio` on iOS).
+        if (store != null && storyId != null) {
+          await store.media.invalidate(storyId);
+        }
+      }
+    }
+
+    if (store != null && storyId != null && url != null) {
+      store.media.beginPlaybackCaching(storyId);
+      _playbackCachingStoryId = storyId;
+      final cacheFile = await store.media.cacheFileFor(storyId);
+      final headers = store.media.downloadHeaders(url);
+      final source = LockCachingAudioSource(
+        Uri.parse(url),
+        cacheFile: cacheFile,
+        headers: headers.isEmpty ? null : headers,
+      );
+      await _cacheProgressSub?.cancel();
+      _cacheProgressSub = source.downloadProgressStream.listen((p) {
+        if (p >= 1.0) {
+          unawaited(store.media.markReadyIfComplete(storyId));
+        }
+      });
+      try {
+        await narration.setAudioSource(source);
+        return;
+      } catch (_) {
+        store.media.endPlaybackCaching(storyId);
+        _playbackCachingStoryId = null;
+        await store.media.invalidate(storyId);
+        await _cacheProgressSub?.cancel();
+        _cacheProgressSub = null;
+        // Fall through to plain streaming.
+      }
+    }
+
     if (url == null) {
+      throw StateError('暂无音频');
+    }
+    await narration.setUrl(url);
+  }
+
+  Future<void> _load() async {
+    final store = widget.localStore;
+    final storyId = widget.storyId;
+    String? localPath;
+    if (store != null && storyId != null) {
+      localPath = await store.media.localPathIfReady(storyId);
+    }
+
+    final url = _resolveUrl(widget.audioUrl);
+    if (localPath == null && url == null) {
       if (!mounted) return;
       setState(() => error = '暂无音频');
       return;
@@ -183,26 +279,53 @@ class _PlayerScreenState extends State<PlayerScreen> {
       final session = await AudioSession.instance;
       await session.configure(const AudioSessionConfiguration.music());
 
+      await _cacheProgressSub?.cancel();
+      _cacheProgressSub = null;
+
       await Future.wait([
-        narration.setUrl(url),
+        _loadNarrationSource(
+          store: store,
+          storyId: storyId,
+          localPath: localPath,
+          url: url,
+        ),
         bed.setAsset(_bedTrack.asset),
       ]);
       if (!mounted) return;
       await bed.setLoopMode(LoopMode.one);
       await bed.setVolume(bedEnabled ? bedVolume : 0);
       await narration.setSpeed(playSpeed);
+
+      if (store != null && storyId != null) {
+        final resumeMs = await store.playback.getPositionMs(storyId);
+        if (resumeMs != null && resumeMs > 1500) {
+          await narration.seek(Duration(milliseconds: resumeMs));
+        }
+      }
+
       if (mounted) setState(() {});
       await Future.wait([
         narration.play(),
         if (bedEnabled) bed.play(),
       ]);
     } catch (e) {
+      final cachingId = _playbackCachingStoryId;
+      if (cachingId != null) {
+        widget.localStore?.media.endPlaybackCaching(cachingId);
+        _playbackCachingStoryId = null;
+      }
       if (!mounted) return;
-      setState(() => error = e.toString());
+      setState(() => error = friendlyNetworkError(e));
     }
   }
 
   Future<void> _onNarrationCompleted() async {
+    final store = widget.localStore;
+    final id = widget.storyId;
+    if (store != null && id != null) {
+      unawaited(store.playback.clear(id));
+      unawaited(store.media.markReadyIfComplete(id));
+    }
     if (!bedEnabled) {
       await bed.pause();
       return;
@@ -645,6 +768,29 @@ class _PlayerScreenState extends State<PlayerScreen> {
   void dispose() {
     _outroTimer?.cancel();
     _narrationStateSub?.cancel();
+    unawaited(_cacheProgressSub?.cancel() ?? Future<void>.value());
+    _cacheProgressSub = null;
+    final store = widget.localStore;
+    final id = widget.storyId;
+    final cachingId = _playbackCachingStoryId;
+    if (store != null && cachingId != null) {
+      unawaited(store.media.markReadyIfComplete(cachingId));
+      store.media.endPlaybackCaching(cachingId);
+      _playbackCachingStoryId = null;
+    }
+    if (store != null && id != null) {
+      try {
+        final pos = narration.position;
+        final total = narration.duration;
+        if (total != null &&
+            total.inMilliseconds > 0 &&
+            pos.inMilliseconds >= total.inMilliseconds - 1500) {
+          unawaited(store.playback.clear(id));
+        } else if (pos.inMilliseconds > 0) {
+          unawaited(store.playback.savePositionMs(id, pos.inMilliseconds));
+        }
+      } catch (_) {}
+    }
     _passageScroll.dispose();
     narration.dispose();
     bed.dispose();
@@ -656,24 +802,28 @@ class _PlayerScreenState extends State<PlayerScreen> {
     final tt = Theme.of(context).textTheme;
     final outroRemain = _outroEndsAt?.difference(DateTime.now());
 
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        title: const Text('伴读'),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, size: 20),
-          onPressed: () => Navigator.of(context).maybePop(),
+    return PopScope(
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) unawaited(_persistProgress());
+      },
+      child: Scaffold(
+        backgroundColor: AppColors.background,
+        appBar: AppBar(
+          title: const Text('伴读'),
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back_ios_new, size: 20),
+            onPressed: () => Navigator.of(context).maybePop(),
+          ),
         ),
-      ),
-      body: Column(
-        children: [
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  if (error != null)
+        body: Column(
+          children: [
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (error != null)
                     Padding(
                       padding: const EdgeInsets.only(bottom: 8),
                       child: Text(
@@ -823,20 +973,21 @@ class _PlayerScreenState extends State<PlayerScreen> {
                       ),
                     ],
                   ],
-                  const SizedBox(height: 10),
-                  Expanded(
-                    child: AnimatedOpacity(
-                      opacity: showText ? 1 : 0.28,
-                      duration: const Duration(milliseconds: 280),
-                      child: _buildPassageCard(tt),
+                    const SizedBox(height: 10),
+                    Expanded(
+                      child: AnimatedOpacity(
+                        opacity: showText ? 1 : 0.28,
+                        duration: const Duration(milliseconds: 280),
+                        child: _buildPassageCard(tt),
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
-          ),
-          _buildDock(tt, outroRemain),
-        ],
+            _buildDock(tt, outroRemain),
+          ],
+        ),
       ),
     );
   }

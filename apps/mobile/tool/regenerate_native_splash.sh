@@ -13,12 +13,25 @@ if [[ ! -f "$SRC" ]]; then
   exit 1
 fi
 
+# Bake rounded corners (splash bg fill) so iOS open-zoom / native splash match Flutter ClipRRect.
+ROUND_PY="${ROUND_PY:-}"
+if [[ -z "$ROUND_PY" ]]; then
+  if [[ -x /tmp/pilvenv/bin/python ]]; then
+    ROUND_PY=/tmp/pilvenv/bin/python
+  else
+    ROUND_PY=python3
+  fi
+fi
+"$ROUND_PY" "$ROOT/tool/round_splash_logo.py" "$SRC" "$ROOT/assets/branding/splash_logo.png"
+
 (cd "$ROOT" && dart run flutter_native_splash:create && dart run tool/patch_native_splash.dart)
 
 resize() {
   local px="$1" out="$2"
   mkdir -p "$(dirname "$out")"
   sips -z "$px" "$px" "$SRC" --out "$out" >/dev/null
+  # Re-apply mask after downscale — resampling otherwise softens/eats corner transparency.
+  "$ROUND_PY" "$ROOT/tool/round_splash_logo.py" "$out"
 }
 
 RES="$ROOT/android/app/src/main/res"

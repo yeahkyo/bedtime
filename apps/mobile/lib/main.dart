@@ -7,6 +7,9 @@ import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'api/auth_storage.dart';
 import 'api/client.dart';
 import 'config.dart';
+import 'local/local_store.dart';
+import 'local/network_errors.dart';
+import 'local/user_scope.dart';
 import 'screens/auth_screen.dart';
 import 'screens/home_shell.dart';
 import 'splash/splash_screen.dart';
@@ -45,7 +48,12 @@ class _BootstrapGateState extends State<BootstrapGate>
   String? error;
   bool loading = true;
   bool needsAuth = false;
+  bool offlineMode = false;
+  LocalStore? localStore;
   int _bootEpoch = 0;
+  /// Bumped on session clear so in-flight [_ensureStoreFromMe] cannot repopulate
+  /// [localStore] / [UserScope] after logout or 401.
+  int _storeEnsureGen = 0;
   bool _reauthing = false;
 
   bool _splashRemoved = false;
@@ -94,14 +102,27 @@ class _BootstrapGateState extends State<BootstrapGate>
         !loading &&
         !needsAuth &&
         api.refreshToken != null) {
-      api.tryRefresh();
+      // Soft renew only — network failures must not clear the session.
+      unawaited(() async {
+        final outcome = await api.tryRefresh();
+        if (outcome == RefreshOutcome.unauthorized && mounted) {
+          _handleUnauthorized();
+        }
+      }());
     }
   }
 
-  Future<void> _clearSession() async {
+  Future<void> _clearSession({bool clearLocal = true}) async {
+    _storeEnsureGen++;
+    if (clearLocal) {
+      try {
+        await LocalStore.clearActiveUserCache(api);
+      } catch (_) {}
+    }
     api.token = null;
     api.refreshToken = null;
     await AuthStorage.clear();
+    localStore = null;
   }
 
   void _handleUnauthorized() {
@@ -112,10 +133,51 @@ class _BootstrapGateState extends State<BootstrapGate>
       setState(() {
         loading = false;
         needsAuth = true;
+        offlineMode = false;
         error = null;
+        localStore = null;
       });
       _reauthing = false;
     });
+  }
+
+  Future<LocalStore?> _resolveStore() async {
+    final existing = await LocalStore.open(api: api);
+    if (existing != null) return existing;
+    return null;
+  }
+
+  bool _storeEnsureStillValid(int bootEpoch, int ensureGen) {
+    if (!mounted || bootEpoch != _bootEpoch || ensureGen != _storeEnsureGen) {
+      return false;
+    }
+    if (needsAuth || _reauthing) return false;
+    final hasAccess = api.token != null && api.token!.isNotEmpty;
+    final hasRefresh = api.refreshToken != null && api.refreshToken!.isNotEmpty;
+    return hasAccess || hasRefresh;
+  }
+
+  Future<void> _ensureStoreFromMe() async {
+    final bootEpoch = _bootEpoch;
+    final ensureGen = _storeEnsureGen;
+    try {
+      final me = await api.me();
+      if (!_storeEnsureStillValid(bootEpoch, ensureGen)) return;
+      final id = me['id'];
+      final userId = id is int ? id : int.tryParse('$id');
+      if (userId == null || userId <= 0) return;
+      await UserScope.save(userId);
+      if (!_storeEnsureStillValid(bootEpoch, ensureGen)) return;
+      final store = await LocalStore.openOrBootstrap(api: api, userId: userId);
+      if (!_storeEnsureStillValid(bootEpoch, ensureGen)) return;
+      try {
+        final q = await api.quota();
+        if (!_storeEnsureStillValid(bootEpoch, ensureGen)) return;
+        await store.account.saveSnapshot(me: me, quota: q);
+      } catch (_) {}
+      if (!_storeEnsureStillValid(bootEpoch, ensureGen)) return;
+      setState(() => localStore = store);
+    } catch (_) {}
   }
 
   Future<void> _boot({bool forceRelogin = false}) async {
@@ -129,22 +191,39 @@ class _BootstrapGateState extends State<BootstrapGate>
         api.refreshToken = stored.refresh;
       }
 
+      var enteredOffline = false;
+
       if (api.refreshToken != null && api.refreshToken!.isNotEmpty) {
         final prev = api.onUnauthorized;
         api.onUnauthorized = null;
         try {
-          final refreshed = await api.tryRefresh();
-          if (!refreshed && (api.token == null || api.token!.isEmpty)) {
-            await _clearSession();
-          } else if (api.token != null && api.token!.isNotEmpty) {
-            await api.quota();
+          final outcome = await api.tryRefresh();
+          switch (outcome) {
+            case RefreshOutcome.success:
+              try {
+                await api.quota();
+              } catch (e) {
+                if (e is ApiException && e.unauthorized) {
+                  await _clearSession();
+                } else {
+                  enteredOffline = true;
+                }
+              }
+            case RefreshOutcome.unauthorized:
+            case RefreshOutcome.missing:
+              await _clearSession(clearLocal: false);
+            case RefreshOutcome.network:
+              // Keep tokens; allow home with cache while access may be stale.
+              enteredOffline = true;
           }
         } on ApiException catch (e) {
           if (e.unauthorized) {
             await _clearSession();
           } else {
-            rethrow;
+            enteredOffline = true;
           }
+        } catch (_) {
+          enteredOffline = true;
         } finally {
           api.onUnauthorized = prev;
         }
@@ -152,10 +231,18 @@ class _BootstrapGateState extends State<BootstrapGate>
 
       if (!mounted || epoch != _bootEpoch) return;
 
-      if (api.token != null && api.token!.isNotEmpty) {
+      final hasAccess = api.token != null && api.token!.isNotEmpty;
+      final hasRefresh = api.refreshToken != null && api.refreshToken!.isNotEmpty;
+
+      if (hasAccess || (enteredOffline && hasRefresh)) {
+        localStore = await _resolveStore();
+        if (hasAccess && !enteredOffline) {
+          unawaited(_ensureStoreFromMe());
+        }
         setState(() {
           loading = false;
           needsAuth = false;
+          offlineMode = enteredOffline;
           error = null;
         });
         await _finishSplash(skipDwell: false);
@@ -165,11 +252,29 @@ class _BootstrapGateState extends State<BootstrapGate>
       setState(() {
         loading = false;
         needsAuth = true;
+        offlineMode = false;
         error = null;
+        localStore = null;
       });
       await _finishSplash(skipDwell: false);
     } catch (e) {
       if (!mounted || epoch != _bootEpoch) return;
+      // Last resort: if we still have credentials + prior user, enter offline.
+      final hasCreds = (api.token != null && api.token!.isNotEmpty) ||
+          (api.refreshToken != null && api.refreshToken!.isNotEmpty);
+      final scope = await UserScope.load();
+      if (hasCreds && scope != null) {
+        localStore = await _resolveStore();
+        setState(() {
+          loading = false;
+          needsAuth = false;
+          offlineMode = true;
+          error = null;
+        });
+        await _finishSplash(skipDwell: false);
+        return;
+      }
+
       final hint = apiBaseUrlLooksRemote
           ? '线上/内测请用 Cloudflare HTTPS 域名：\n'
               '--dart-define=API_BASE_URL=https://bedtime-api.<你的域名>\n'
@@ -177,9 +282,10 @@ class _BootstrapGateState extends State<BootstrapGate>
           : '若卡在白屏或连不上：系统设置 → 隐私与安全性 → 本地网络 → 打开本 App；\n'
               '并确认用 --dart-define=API_BASE_URL=http://<电脑局域网IP>:8000 启动。';
       setState(() {
-        error = '$e\n\nAPI: $apiBaseUrl\n\n$hint';
+        error = '${friendlyNetworkError(e)}\n\nAPI: $apiBaseUrl\n\n$hint';
         loading = false;
         needsAuth = false;
+        offlineMode = false;
       });
       await _finishSplash(skipDwell: true);
     }
@@ -249,8 +355,10 @@ class _BootstrapGateState extends State<BootstrapGate>
         api: api,
         onSuccess: () {
           if (!mounted) return;
+          unawaited(_ensureStoreFromMe());
           setState(() {
             needsAuth = false;
+            offlineMode = false;
             error = null;
           });
         },
@@ -258,12 +366,21 @@ class _BootstrapGateState extends State<BootstrapGate>
     }
     return HomeShell(
       api: api,
+      localStore: localStore,
+      offlineMode: offlineMode,
+      onLocalStoreReady: (store) {
+        if (!mounted) return;
+        setState(() => localStore = store);
+      },
       onLoggedOut: () {
         if (!mounted) return;
+        unawaited(_clearSession());
         setState(() {
           needsAuth = true;
+          offlineMode = false;
           error = null;
           loading = false;
+          localStore = null;
         });
       },
     );

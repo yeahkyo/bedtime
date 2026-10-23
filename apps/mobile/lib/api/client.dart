@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:http/http.dart' as http;
 
@@ -23,6 +24,22 @@ class ApiException implements Exception {
   String toString() => message;
 }
 
+/// Outcome of [ApiClient.tryRefresh] — callers must only clear the session on
+/// [RefreshOutcome.unauthorized], never on [RefreshOutcome.network].
+enum RefreshOutcome {
+  /// New access + refresh saved.
+  success,
+
+  /// Server rejected the refresh token (expired / revoked / reuse).
+  unauthorized,
+
+  /// Timeout / socket / 5xx — credentials may still be valid; do not log out.
+  network,
+
+  /// No refresh token in memory.
+  missing,
+}
+
 class ApiClient {
   ApiClient({this.token, this.refreshToken, this.onUnauthorized});
 
@@ -30,7 +47,7 @@ class ApiClient {
   String? refreshToken;
   void Function()? onUnauthorized;
 
-  Future<void>? _refreshInFlight;
+  Future<RefreshOutcome>? _refreshInFlight;
 
   static const _timeout = Duration(seconds: 20);
   // Story LLM + TTS for 5–8 min targets can exceed 4 minutes end-to-end.
@@ -136,22 +153,57 @@ class ApiClient {
     await AuthStorage.clear();
   }
 
-  /// Single-flight refresh used by 401 retry path.
-  Future<bool> tryRefresh() async {
-    if (refreshToken == null || refreshToken!.isEmpty) return false;
-    _refreshInFlight ??= () async {
-      try {
-        await refreshSession();
-      } finally {
+  /// Single-flight refresh. Prefer this over treating all failures as logout.
+  Future<RefreshOutcome> tryRefresh() async {
+    if (refreshToken == null || refreshToken!.isEmpty) {
+      return RefreshOutcome.missing;
+    }
+    final existing = _refreshInFlight;
+    if (existing != null) return existing;
+
+    final future = _doRefresh();
+    _refreshInFlight = future;
+    try {
+      return await future;
+    } finally {
+      if (identical(_refreshInFlight, future)) {
         _refreshInFlight = null;
       }
-    }();
-    try {
-      await _refreshInFlight;
-      return true;
-    } catch (_) {
-      return false;
     }
+  }
+
+  Future<RefreshOutcome> _doRefresh() async {
+    try {
+      await refreshSession();
+      return RefreshOutcome.success;
+    } on ApiException catch (e) {
+      if (e.unauthorized || e.statusCode == 401) {
+        return RefreshOutcome.unauthorized;
+      }
+      // 5xx / 429 from refresh endpoint — keep session.
+      return RefreshOutcome.network;
+    } on TimeoutException {
+      return RefreshOutcome.network;
+    } on SocketException {
+      return RefreshOutcome.network;
+    } catch (e) {
+      final s = e.toString();
+      if (s.contains('SocketException') ||
+          s.contains('Failed host lookup') ||
+          s.contains('Connection refused') ||
+          s.contains('timed out') ||
+          s.contains('TimeoutException')) {
+        return RefreshOutcome.network;
+      }
+      // Unknown — do not wipe login; treat as transient.
+      return RefreshOutcome.network;
+    }
+  }
+
+  Future<void> _clearAuthTokens() async {
+    token = null;
+    refreshToken = null;
+    await AuthStorage.clear();
   }
 
   Future<List<dynamic>> listChildren() async {
@@ -467,18 +519,48 @@ class ApiClient {
   }) async {
     onProgress?.call('queued');
     final deadline = DateTime.now().add(_longTimeout);
+    var consecutiveNetworkErrors = 0;
     while (DateTime.now().isBefore(deadline)) {
       await Future<void>.delayed(const Duration(seconds: 2));
-      final story = await getStory(id);
-      final st = story['status'] as String? ?? '';
-      final prog = story['progress'] as String? ?? st;
-      onProgress?.call(prog);
-      if (st == 'ready') return story;
-      if (st == 'failed') {
-        throw ApiException(
-          story['error_message'] as String? ?? '故事生成失败',
-          storyId: id,
-        );
+      try {
+        final story = await getStory(id);
+        consecutiveNetworkErrors = 0;
+        final st = story['status'] as String? ?? '';
+        final prog = story['progress'] as String? ?? st;
+        onProgress?.call(prog);
+        if (st == 'ready') return story;
+        if (st == 'failed') {
+          throw ApiException(
+            story['error_message'] as String? ?? '故事生成失败',
+            storyId: id,
+          );
+        }
+      } on ApiException catch (e) {
+        if (e.unauthorized) rethrow;
+        if (e.storyId != null && e.message.contains('生成失败')) rethrow;
+        consecutiveNetworkErrors++;
+        if (consecutiveNetworkErrors >= 5) {
+          throw ApiException(
+            '网络不稳定，生成可能仍在进行。可稍后在「故事」刷新，或点继续等待',
+            storyId: id,
+          );
+        }
+      } on TimeoutException {
+        consecutiveNetworkErrors++;
+        if (consecutiveNetworkErrors >= 5) {
+          throw ApiException(
+            '网络超时，生成可能仍在进行。可稍后刷新或点继续等待',
+            storyId: id,
+          );
+        }
+      } on SocketException {
+        consecutiveNetworkErrors++;
+        if (consecutiveNetworkErrors >= 5) {
+          throw ApiException(
+            '网络不可用，生成可能仍在进行。恢复网络后可点继续等待',
+            storyId: id,
+          );
+        }
       }
     }
     throw ApiException(
@@ -540,24 +622,26 @@ class ApiClient {
       _ensure(res);
       return res;
     }
-    final ok = await tryRefresh();
-    if (!ok) {
-      token = null;
-      refreshToken = null;
-      await AuthStorage.clear();
+    final outcome = await tryRefresh();
+    if (outcome == RefreshOutcome.success) {
+      res = await once();
+      if (res.statusCode == 401) {
+        // Access still rejected after a fresh pair — treat as hard logout.
+        await _clearAuthTokens();
+        onUnauthorized?.call();
+        throw ApiException('登录已失效，请重新进入', statusCode: 401, unauthorized: true);
+      }
+      _ensure(res);
+      return res;
+    }
+    if (outcome == RefreshOutcome.unauthorized ||
+        outcome == RefreshOutcome.missing) {
+      await _clearAuthTokens();
       onUnauthorized?.call();
       throw ApiException('登录已失效，请重新进入', statusCode: 401, unauthorized: true);
     }
-    res = await once();
-    if (res.statusCode == 401) {
-      token = null;
-      refreshToken = null;
-      await AuthStorage.clear();
-      onUnauthorized?.call();
-      throw ApiException('登录已失效，请重新进入', statusCode: 401, unauthorized: true);
-    }
-    _ensure(res);
-    return res;
+    // Network blip while renewing — keep stored refresh; surface a soft error.
+    throw ApiException('网络不稳定，请稍后重试', statusCode: res.statusCode);
   }
 
   static String _friendlyError(int statusCode, String body) {
