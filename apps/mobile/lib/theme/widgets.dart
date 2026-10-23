@@ -130,6 +130,11 @@ class SoftChip extends StatelessWidget {
       side: BorderSide(
         color: selected ? AppColors.primary : const Color(0xFF3A5248),
       ),
+      // Keep chip rows flush with section labels (default M3 padding indents).
+      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      visualDensity: VisualDensity.compact,
+      padding: EdgeInsets.zero,
+      labelPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
     );
   }
 }

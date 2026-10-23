@@ -158,62 +158,6 @@ class _VoicesManageScreenState extends State<VoicesManageScreen> {
     }
   }
 
-  Future<void> _rename(Map<String, dynamic> voice) async {
-    final id = voice['id'] as int?;
-    if (id == null) return;
-    final ctrl = TextEditingController(text: voice['name'] as String? ?? '');
-    final next = await showDialog<String>(
-      context: context,
-      builder: (ctx) {
-        return AlertDialog(
-          backgroundColor: AppColors.surfaceLow,
-          title: const Text('修改名称'),
-          content: TextField(
-            controller: ctrl,
-            autofocus: true,
-            maxLength: 64,
-            decoration: const InputDecoration(
-              labelText: '音色名称',
-              hintText: '例如：妈妈的声音',
-            ),
-            textInputAction: TextInputAction.done,
-            onSubmitted: (v) => Navigator.of(ctx).pop(v.trim()),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text('取消'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(ctrl.text.trim()),
-              child: const Text('保存'),
-            ),
-          ],
-        );
-      },
-    );
-    ctrl.dispose();
-    if (next == null || !mounted) return;
-    if (next.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('名称不能为空')),
-      );
-      return;
-    }
-    if (next == (voice['name'] as String?)) return;
-    try {
-      await widget.api.updateVoice(voiceId: id, name: next);
-      await _refresh();
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('已更新名称')),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
-    }
-  }
-
   String _kindLabel(String? kind) {
     switch (kind) {
       case 'clone':
@@ -267,7 +211,7 @@ class _VoicesManageScreenState extends State<VoicesManageScreen> {
                     title: '已有音色',
                     subtitle: voices.isEmpty
                         ? '暂无音色'
-                        : '共 ${voices.length} 个 · 可试听 / 改名',
+                        : '共 ${voices.length} 个 · 可试听',
                     child: voices.isEmpty
                         ? Text(
                             kFeatureVoiceClone
@@ -369,14 +313,6 @@ class _VoicesManageScreenState extends State<VoicesManageScreen> {
                                                           .withValues(
                                                               alpha: 0.35),
                                                 ),
-                                        ),
-                                        IconButton(
-                                          tooltip: '修改名称',
-                                          onPressed: () => _rename(m),
-                                          icon: const Icon(
-                                            Icons.edit_outlined,
-                                            color: AppColors.primarySoft,
-                                          ),
                                         ),
                                       ],
                                     );

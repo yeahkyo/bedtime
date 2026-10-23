@@ -106,6 +106,12 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
     ('some', '一点对话'),
     ('more', '对话多些'),
   ];
+  static const languages = [
+    ('zh', '中文'),
+    ('en', 'English'),
+  ];
+  /// Discrete duration ticks (minutes).
+  static const durationTicks = [3, 5, 8, 10, 12];
 
   @override
   void initState() {
@@ -822,28 +828,17 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
                   title: '叙事风格',
                   subtitle: '其余听感交给系统默认',
                   child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       _labeledChips('生活 / 想象', wonders, wonder, (v) => wonder = v),
                       _labeledChips('对话多少', dialogues, dialogue, (v) => dialogue = v),
-                      const SizedBox(height: 8),
-                      DropdownButtonFormField<String>(
-                        value: language,
-                        decoration: const InputDecoration(labelText: '语言'),
-                        items: const [
-                          DropdownMenuItem(value: 'zh', child: Text('中文')),
-                          DropdownMenuItem(value: 'en', child: Text('English')),
-                        ],
-                        onChanged: (v) => setState(() => language = v ?? 'zh'),
+                      _labeledChips(
+                        '语言',
+                        languages,
+                        language,
+                        (v) => language = v,
                       ),
-                      const SizedBox(height: 12),
-                      DropdownButtonFormField<int>(
-                        value: duration,
-                        decoration: const InputDecoration(labelText: '时长（分钟）'),
-                        items: [3, 5, 8, 10, 12]
-                            .map((m) => DropdownMenuItem(value: m, child: Text('$m')))
-                            .toList(),
-                        onChanged: (v) => setState(() => duration = v ?? 5),
-                      ),
+                      _durationTickPicker(),
                       if (kFeatureSoftSeries) ...[
                         SwitchListTile(
                           contentPadding: EdgeInsets.zero,
@@ -1121,6 +1116,65 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
           Text(label, style: Theme.of(context).textTheme.labelLarge),
           const SizedBox(height: 8),
           _softChipRow(options, selected, (v) => setState(() => assign(v))),
+        ],
+      ),
+    );
+  }
+
+  Widget _durationTickPicker() {
+    final ticks = durationTicks;
+    var idx = ticks.indexOf(duration);
+    if (idx < 0) idx = ticks.indexOf(5).clamp(0, ticks.length - 1);
+    final tt = Theme.of(context).textTheme;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('时长（分钟）', style: tt.labelLarge),
+          const SizedBox(height: 4),
+          SliderTheme(
+            data: SliderTheme.of(context).copyWith(
+              trackHeight: 3,
+              activeTrackColor: AppColors.primary,
+              inactiveTrackColor: AppColors.surfaceHighest,
+              thumbColor: AppColors.primary,
+              overlayColor: AppColors.primary.withValues(alpha: 0.16),
+              activeTickMarkColor: AppColors.onPrimary,
+              inactiveTickMarkColor: AppColors.onSurfaceDim,
+              valueIndicatorColor: AppColors.primary,
+              showValueIndicator: ShowValueIndicator.never,
+            ),
+            child: Slider(
+              value: idx.toDouble(),
+              min: 0,
+              max: (ticks.length - 1).toDouble(),
+              divisions: ticks.length - 1,
+              onChanged: (v) {
+                setState(() => duration = ticks[v.round()]);
+                unawaited(_saveDraft());
+              },
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                for (final m in ticks)
+                  Text(
+                    '$m',
+                    style: tt.labelSmall?.copyWith(
+                      color: m == duration
+                          ? AppColors.primary
+                          : AppColors.onSurfaceDim,
+                      fontWeight:
+                          m == duration ? FontWeight.w700 : FontWeight.w500,
+                    ),
+                  ),
+              ],
+            ),
+          ),
         ],
       ),
     );
