@@ -211,6 +211,60 @@ class ApiClient {
     return jsonDecode(res.body) as List<dynamic>;
   }
 
+  Future<List<dynamic>> listCharacters({int? relatedChildId}) async {
+    final qp = <String, String>{
+      if (relatedChildId != null) 'related_child_id': '$relatedChildId',
+    };
+    final uri = qp.isEmpty
+        ? _u('/v1/characters')
+        : _u('/v1/characters').replace(queryParameters: qp);
+    final res = await _get(uri);
+    return jsonDecode(res.body) as List<dynamic>;
+  }
+
+  Future<Map<String, dynamic>> createCharacter({
+    required String kind,
+    required String name,
+    required int relatedChildId,
+    String? relation,
+    String? note,
+  }) async {
+    final payload = <String, dynamic>{
+      'kind': kind,
+      'name': name,
+      'related_child_id': relatedChildId,
+      if (relation != null) 'relation': relation,
+      if (note != null) 'note': note,
+    };
+    final res = await _post(_u('/v1/characters'), body: jsonEncode(payload));
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> updateCharacter({
+    required int characterId,
+    String? name,
+    String? relation,
+    String? note,
+    bool? enabled,
+    int? relatedChildId,
+  }) async {
+    final payload = <String, dynamic>{};
+    if (name != null) payload['name'] = name;
+    if (relation != null) payload['relation'] = relation;
+    if (note != null) payload['note'] = note;
+    if (enabled != null) payload['enabled'] = enabled;
+    if (relatedChildId != null) payload['related_child_id'] = relatedChildId;
+    final res = await _patch(
+      _u('/v1/characters/$characterId'),
+      body: jsonEncode(payload),
+    );
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
+  Future<void> deleteCharacter(int characterId) async {
+    await _delete(_u('/v1/characters/$characterId'));
+  }
+
   /// Developmental theme kernels (inspiration chips) for an age band.
   Future<List<Map<String, dynamic>>> listKernels({
     String ageBand = '3-5',
@@ -383,6 +437,7 @@ class ApiClient {
     int? seriesId,
     int episodeCount = 4,
     List<String> keywords = const [],
+    List<int> characterIds = const [],
     List<String> values = const [],
     String? developmentFocus,
     String? storyElementId,
@@ -407,6 +462,7 @@ class ApiClient {
             if (seriesId != null) 'series_id': seriesId,
             'episode_count': episodeCount,
             'keywords': keywords,
+            'character_ids': characterIds,
             'values': values,
             'development_focus': developmentFocus,
             if (storyElementId != null && storyElementId.isNotEmpty)
@@ -437,6 +493,7 @@ class ApiClient {
     int? seriesId,
     int episodeCount = 4,
     List<String> keywords = const [],
+    List<int> characterIds = const [],
     List<String> values = const [],
     String? developmentFocus,
     String? storyElementId,
@@ -460,6 +517,7 @@ class ApiClient {
       seriesId: seriesId,
       episodeCount: episodeCount,
       keywords: keywords,
+      characterIds: characterIds,
       values: values,
       developmentFocus: developmentFocus,
       storyElementId: storyElementId,

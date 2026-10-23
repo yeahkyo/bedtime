@@ -59,12 +59,11 @@ def _parse_stage_json(stage: str, raw: str) -> dict:
 
 
 def _story_extra_vars(request: StoryRequest) -> dict[str, Any]:
+    """Scalars for Agent templates outside user_payload (outline lead needs count)."""
+    from app.providers.story_prompt import clamp_episode_count
+
     return {
-        "age_band": request.age_band or "",
-        "theme": request.theme or "",
-        "child_nickname": request.child_nickname or "",
-        "language": request.language or "",
-        "duration_minutes": int(request.duration_minutes or 5),
+        "episode_count": clamp_episode_count(request.episode_count),
     }
 
 

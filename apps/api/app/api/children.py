@@ -17,6 +17,11 @@ from app.services.child_profile import (
     normalize_gender,
     sync_age_band,
 )
+from app.services.characters import (
+    delete_characters_for_child,
+    ensure_child_character,
+    sync_child_character_name,
+)
 from app.services.voice_settings import resolve_voice_settings
 
 
@@ -100,6 +105,7 @@ async def create_child(
             similarity_boost=vs.similarity_boost,
         )
     )
+    await ensure_child_character(db, user_id=user.id, child=child)
     await db.commit()
     await db.refresh(child)
     return _to_out(child)
@@ -115,6 +121,7 @@ async def delete_child(
     child = await db.get(Child, child_id)
     if child is None or child.user_id != user.id:
         raise HTTPException(status_code=404, detail="Child not found")
+    await delete_characters_for_child(db, user_id=user.id, child_id=child_id)
     await db.delete(child)
     await db.commit()
     return {"ok": True, "id": child_id}
@@ -132,6 +139,9 @@ async def update_child(
         raise HTTPException(status_code=404, detail="Child not found")
     if body.nickname is not None:
         child.nickname = body.nickname
+        await sync_child_character_name(
+            db, child_id=child.id, nickname=body.nickname
+        )
     if body.birth_date is not None:
         birth, band = _resolve_birth_and_band(
             birth_date=body.birth_date,
@@ -159,6 +169,7 @@ async def update_child(
         child.intro = body.intro.strip() or None
     if body.interests is not None:
         child.interests_json = json.dumps(body.interests, ensure_ascii=False)
+    await ensure_child_character(db, user_id=user.id, child=child)
     await db.commit()
     await db.refresh(child)
     return _to_out(child)

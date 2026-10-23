@@ -20,6 +20,8 @@ class StoryRequest:
     interests: list[str] | None = None
     # Recent people / things / events (manual now; photo-extracted later).
     keywords: list[str] | None = None
+    # Tonight structured roster from /v1/characters: [{k,n,rel?,note?}].
+    roster: list[dict[str, Any]] | None = None
     # Profile extras for casting / personalization (optional).
     child_gender: str | None = None  # girl|boy|other|unspecified
     # Whole years from birth_date (preferred for LLM age); None → derive from age_band.

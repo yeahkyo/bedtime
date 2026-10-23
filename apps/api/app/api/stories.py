@@ -52,6 +52,11 @@ from app.services.story_kernels import (
     record_kernel_usage,
     resolve_story_kernel_for_create,
 )
+from app.services.characters import (
+    character_snapshot,
+    load_characters_for_story,
+    roster_entry,
+)
 from app.services.system_voice import ensure_system_voice, voice_accessible_to_user
 from app.services.voice_settings import apply_voice_speed, resolve_voice_settings
 
@@ -149,6 +154,51 @@ async def _resolve_series_state(
     return None, None, 1, body.recap, False
 
 
+async def _resolve_roster(
+    db: AsyncSession,
+    *,
+    user_id: int,
+    body: StoryCreate,
+    listener_child_id: int,
+) -> tuple[list[dict], list[dict], list[int]]:
+    """Load tonight characters → (roster prompt entries, snapshots, ids)."""
+    rows = await load_characters_for_story(
+        db,
+        user_id=user_id,
+        character_ids=list(body.character_ids or []),
+        listener_child_id=listener_child_id,
+    )
+    roster = [roster_entry(r) for r in rows]
+    snaps = [character_snapshot(r) for r in rows]
+    ids = [r.id for r in rows]
+    return roster, snaps, ids
+
+
+def _roster_from_snapshot(raw: object) -> list[dict] | None:
+    """Rebuild prompt roster from persisted characters_snapshot."""
+    if not isinstance(raw, list) or not raw:
+        return None
+    out: list[dict] = []
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        name = str(item.get("name") or item.get("n") or "").strip()
+        if not name:
+            continue
+        entry: dict = {
+            "k": str(item.get("kind") or item.get("k") or "person").strip() or "person",
+            "n": name,
+        }
+        rel = str(item.get("relation") or item.get("rel") or "").strip()
+        note = str(item.get("note") or "").strip()
+        if rel:
+            entry["rel"] = rel
+        if note:
+            entry["note"] = note
+        out.append(entry)
+    return out or None
+
+
 async def _build_story_request(
     db: AsyncSession,
     *,
@@ -162,6 +212,7 @@ async def _build_story_request(
     soft_series_mode: bool | None = None,
     preferred_kernel: str | None = None,
     exclude_story_id: int | None = None,
+    roster: list[dict] | None = None,
 ) -> tuple[StoryRequest, str, str, str | None]:
     age_band = sync_age_band(child.birth_date)
     recent_history = await load_recent_story_history(
@@ -194,6 +245,7 @@ async def _build_story_request(
         values=body.values,
         interests=interests,
         keywords=body.keywords,
+        roster=roster or None,
         child_gender=normalize_gender(child.gender),
         child_age_years=age_years_int_on(child.birth_date),
         child_intro=(child.intro or "").strip() or None,
@@ -350,6 +402,9 @@ async def create_story_batch(
     )
     if series_row is not None:
         body = await _inherit_series_create_body(db, series_row, body)
+    roster, snaps, char_ids = await _resolve_roster(
+        db, user_id=user.id, body=body, listener_child_id=child.id
+    )
     story_req, focus_id, focus_label, kernel_id = await _build_story_request(
         db,
         child=child,
@@ -360,6 +415,7 @@ async def create_story_batch(
         need_series_outline=need_outline,
         recap=recap,
         soft_series_mode=body.soft_series_mode or series_row is not None or need_outline,
+        roster=roster,
     )
     from app.services.story_kernels import axis_for_focus
 
@@ -371,6 +427,8 @@ async def create_story_batch(
     axis_id, _ = axis_for_focus(focus_id)
     params["story_axis"] = axis_id
     params["episode_no"] = episode_no
+    params["character_ids"] = char_ids
+    params["characters_snapshot"] = snaps
     if kernel_id:
         params["story_kernel_id"] = kernel_id
 
@@ -452,6 +510,7 @@ def _story_create_from_params(story: Story, params: dict) -> StoryCreate:
         "source": story.source or params.get("source") or "manual",
         "memory_ids": params.get("memory_ids") or [],
         "keywords": params.get("keywords") or [],
+        "character_ids": params.get("character_ids") or [],
         "development_focus": params.get("development_focus"),
         "story_element_id": params.get("story_element_id"),
         "child_cast_role": params.get("child_cast_role") or "auto",
@@ -542,10 +601,16 @@ async def retry_failed_story(
             pass
 
     prev_kernel = None
+    roster: list[dict] | None = None
     if isinstance(params, dict):
         raw_k = params.get("story_kernel_id")
         if isinstance(raw_k, str) and raw_k.strip():
             prev_kernel = raw_k.strip()
+        roster = _roster_from_snapshot(params.get("characters_snapshot"))
+    if roster is None:
+        roster, _, _ = await _resolve_roster(
+            db, user_id=user.id, body=body, listener_child_id=child.id
+        )
     story_req, focus_id, focus_label, kernel_id = await _build_story_request(
         db,
         child=child,
@@ -558,6 +623,7 @@ async def retry_failed_story(
         soft_series_mode=body.soft_series_mode or series_row is not None or need_outline,
         preferred_kernel=prev_kernel,
         exclude_story_id=story.id,
+        roster=roster,
     )
     if resume_draft_only:
         saved_plan = load_episode_plan_json(story.episode_plan_json)
@@ -693,6 +759,9 @@ async def create_story_streaming(
     )
     if series_row is not None:
         body = await _inherit_series_create_body(db, series_row, body)
+    roster, snaps, char_ids = await _resolve_roster(
+        db, user_id=user.id, body=body, listener_child_id=child.id
+    )
     story_req, focus_id, focus_label, kernel_id = await _build_story_request(
         db,
         child=child,
@@ -703,6 +772,7 @@ async def create_story_streaming(
         need_series_outline=need_outline,
         recap=recap,
         soft_series_mode=body.soft_series_mode or series_row is not None or need_outline,
+        roster=roster,
     )
     from app.services.story_kernels import axis_for_focus
 
@@ -712,6 +782,8 @@ async def create_story_streaming(
     params["development_focus_label"] = focus_label
     params["story_axis"] = axis_for_focus(focus_id)[0]
     params["episode_no"] = episode_no
+    params["character_ids"] = char_ids
+    params["characters_snapshot"] = snaps
     if kernel_id:
         params["story_kernel_id"] = kernel_id
 

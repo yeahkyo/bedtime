@@ -27,6 +27,23 @@ _PLACEHOLDER_RE = re.compile(r"\{\{\s*([a-zA-Z0-9_]+)\s*\}\}")
 DEFAULT_USER_TEMPLATE = "{{user_payload}}"
 DEFAULT_TEMPERATURE = 0.7
 
+# Task leads live in Agent user templates (editable in Admin); code only supplies JSON.
+OUTLINE_USER_TEMPLATE = (
+    "请为软系列设计 {{episode_count}} 集睡前大纲。只输出 JSON（短字段名）。"
+    "arc/premise 跟 theme；kw/likes 只是可选点缀，禁止整季围着某个兴趣转。\n"
+    "{{user_payload}}"
+)
+PLAN_USER_TEMPLATE = (
+    "请根据以下输入构思今晚睡前故事大纲。"
+    "只输出 JSON（字段：title、theme、casts、beats、shape），不要正文、不要 markdown。\n"
+    "{{user_payload}}"
+)
+DRAFT_USER_TEMPLATE = (
+    "请根据以下大纲写睡前故事正文。"
+    "只输出 JSON 对象（字段 title、body；不要 markdown）。\n"
+    "{{user_payload}}"
+)
+
 AGENT_IDS = (
     "story_series_outline",
     "story_episode_plan",
@@ -46,62 +63,60 @@ def _ph(*items: tuple[str, str]) -> str:
 CODE_DEFAULTS: dict[str, dict[str, Any]] = {
     "story_series_outline": {
         "label_zh": "软系列大纲",
-        "description": "为软系列设计多集温和大纲（不写正文）。",
+        "description": "为软系列设计多集温和大纲（不写正文）。任务说明在 User 模板；JSON 由代码组装。",
         "provider": None,
         "model": None,
         "system_prompt": SERIES_OUTLINE_SYSTEM_PROMPT,
-        "user_prompt_template": DEFAULT_USER_TEMPLATE,
+        "user_prompt_template": OUTLINE_USER_TEMPLATE,
         "max_tokens": 4096,
         "timeout_seconds": 180,
         "temperature": None,
+        # Only list placeholders used by the default User template (docs for Admin).
         "placeholders_json": _ph(
-            ("user_payload", "代码组装的大纲用户 JSON（含 episode_count/theme 等）"),
-            ("age_band", "故事年龄档，如 3-5"),
-            ("theme", "家长填写的主题"),
-            ("child_nickname", "孩子昵称"),
-            ("language", "语言代码"),
+            (
+                "user_payload",
+                "代码组装的纯 JSON：n/theme/lang/age/gender/age_how/kw/roster/"
+                "likes/cast_tip/dials/focus_pool/focus_seed/values",
+            ),
+            ("episode_count", "系列集数（已钳制 2–8），供 User 模板 lead 使用"),
         ),
         "enabled": True,
     },
     "story_episode_plan": {
         "label_zh": "单集构思",
-        "description": "根据 theme/keywords/age/gender/fantasy 产出今晚大纲（不写正文）。",
+        "description": "根据今晚输入产出大纲 JSON（不写正文）。任务说明在 User 模板。",
         "provider": None,
         "model": None,
         "system_prompt": PLAN_SYSTEM_PROMPT,
-        "user_prompt_template": DEFAULT_USER_TEMPLATE,
+        "user_prompt_template": PLAN_USER_TEMPLATE,
         "max_tokens": 2048,
         "timeout_seconds": 120,
         "temperature": None,
         "placeholders_json": _ph(
-            ("user_payload", "代码组装的 plan 用户 JSON（theme/keywords/age/gender/fantasy）"),
-            ("age_band", "故事年龄档（内部）"),
-            ("theme", "主题"),
-            ("child_nickname", "孩子昵称"),
-            ("language", "语言代码"),
+            (
+                "user_payload",
+                "代码组装的纯 JSON：theme/keywords/roster/age/gender/fantasy/len"
+                "（len 为「下限-上限」字符串，按时长×180字/分±20%）",
+            ),
         ),
         "enabled": True,
     },
     "story_draft": {
         "label_zh": "正文润色",
-        "description": "按大纲 JSON 写成可听口语正文。",
+        "description": "按大纲 JSON 写成可听口语正文。任务说明在 User 模板。",
         "provider": None,
         "model": None,
         "system_prompt": DRAFT_SYSTEM_PROMPT,
-        "user_prompt_template": DEFAULT_USER_TEMPLATE,
+        "user_prompt_template": DRAFT_USER_TEMPLATE,
         "max_tokens": None,  # duration-based in code
         "timeout_seconds": None,  # duration-based in code
         "temperature": None,
         "placeholders_json": _ph(
             (
                 "user_payload",
-                "代码组装的 draft 用户 JSON（title/theme/casts/beats/age/gender/dialog/len）",
+                "代码组装的纯 JSON：title/theme/casts/beats/age/gender/dialog/len/roster"
+                "（len 为「下限-上限」字符串，按时长×180字/分±20%）",
             ),
-            ("age_band", "故事年龄档（内部）"),
-            ("theme", "主题"),
-            ("child_nickname", "孩子昵称"),
-            ("language", "语言代码"),
-            ("duration_minutes", "目标时长（分钟）"),
         ),
         "enabled": True,
     },
@@ -116,11 +131,7 @@ CODE_DEFAULTS: dict[str, dict[str, Any]] = {
         "timeout_seconds": 300,
         "temperature": None,
         "placeholders_json": _ph(
-            ("user_payload", "代码组装的元素生成用户 JSON"),
-            ("age_stage", "发展阶段 id"),
-            ("axis_or_subcategory", "子类标签"),
-            ("count", "本批条数"),
-            ("theory_hint", "发展阶段理论提示"),
+            ("user_payload", "代码组装的元素生成用户 JSON（含 age_stage/count/子类等）"),
         ),
         "enabled": True,
     },
@@ -135,11 +146,7 @@ CODE_DEFAULTS: dict[str, dict[str, Any]] = {
         "timeout_seconds": 300,
         "temperature": None,
         "placeholders_json": _ph(
-            ("user_payload", "代码组装的内核生成用户 JSON"),
-            ("age_stage", "发展阶段 id"),
-            ("axis_or_subcategory", "主题轴 id/标签"),
-            ("count", "本批条数"),
-            ("theory_hint", "发展阶段或轴的理论提示"),
+            ("user_payload", "代码组装的内核生成用户 JSON（含 age_stage/axis/count 等）"),
         ),
         "enabled": True,
     },
@@ -295,14 +302,25 @@ async def seed_llm_agents_if_missing(db: AsyncSession) -> int:
             )
             inserted += 1
             continue
+        # Placeholders are Admin docs only (not editable); keep in sync with CODE_DEFAULTS.
+        if (
+            hasattr(existing, "placeholders_json")
+            and (getattr(existing, "placeholders_json", None) or "")
+            != d["placeholders_json"]
+        ):
+            existing.placeholders_json = d["placeholders_json"]
+            migrated += 1
         # One-time migration: old locked-structure / short-key prompts → simplified.
+        # Also lift task leads out of code into user_prompt_template (JSON-only payload).
         if agent_id in ("story_episode_plan", "story_draft", "story_series_outline"):
             prompt = getattr(existing, "system_prompt", None) or ""
             user_tpl = getattr(existing, "user_prompt_template", None) or ""
             broken_user_tpl = (
                 "{{user_payload}" in user_tpl and "{{user_payload}}" not in user_tpl
             )
-            legacy = broken_user_tpl or (
+            # Bare {{user_payload}} means lead used to be baked into code JSON.
+            needs_lead_template = user_tpl.strip() in ("", DEFAULT_USER_TEMPLATE)
+            legacy_system = (
                 "wish / snag" in prompt
                 or "wish/snag" in prompt
                 or "填满 wish" in prompt
@@ -357,6 +375,31 @@ async def seed_llm_agents_if_missing(db: AsyncSession) -> int:
                     and "gender" not in prompt.lower()
                 )
                 or (
+                    # minutes / object len → compact "min-max" string docs.
+                    agent_id in ("story_episode_plan", "story_draft")
+                    and (
+                        "minutes：" in prompt
+                        or "minutes:" in prompt
+                        or "len：建议的文本长度" in prompt
+                        or "len:建议的文本长度" in prompt
+                        or "含 min、max" in prompt
+                        or "len={min,max}" in prompt
+                    )
+                    and "下限-上限" not in prompt
+                )
+                or (
+                    # Plan/draft missing roster input field docs.
+                    agent_id in ("story_episode_plan", "story_draft")
+                    and "roster：" not in prompt
+                    and "roster:" not in prompt
+                    and (
+                        "fantasy:" in prompt
+                        or "fantasy：" in prompt
+                        or "dialog:" in prompt
+                        or "dialog：" in prompt
+                    )
+                )
+                or (
                     agent_id == "story_series_outline"
                     and (
                         "cast_spine" in prompt
@@ -366,11 +409,23 @@ async def seed_llm_agents_if_missing(db: AsyncSession) -> int:
                     )
                 )
             )
-            if legacy and hasattr(existing, "system_prompt"):
+            if not hasattr(existing, "system_prompt"):
+                continue
+            if legacy_system or broken_user_tpl:
                 existing.system_prompt = d["system_prompt"]
                 existing.user_prompt_template = (
                     d.get("user_prompt_template") or DEFAULT_USER_TEMPLATE
                 )
+                existing.description = d.get("description") or existing.description
+                existing.placeholders_json = d["placeholders_json"]
+                migrated += 1
+            elif needs_lead_template:
+                # Keep custom system; only lift task lead into user template.
+                existing.user_prompt_template = (
+                    d.get("user_prompt_template") or DEFAULT_USER_TEMPLATE
+                )
+                existing.description = d.get("description") or existing.description
+                existing.placeholders_json = d["placeholders_json"]
                 migrated += 1
     if inserted or migrated:
         await db.commit()

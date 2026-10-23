@@ -1778,6 +1778,623 @@ class CachedChildrenCompanion extends UpdateCompanion<CachedChildrenData> {
   }
 }
 
+class $CachedCharactersTable extends CachedCharacters
+    with TableInfo<$CachedCharactersTable, CachedCharacter> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $CachedCharactersTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _userIdMeta = const VerificationMeta('userId');
+  @override
+  late final GeneratedColumn<int> userId = GeneratedColumn<int>(
+    'user_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _kindMeta = const VerificationMeta('kind');
+  @override
+  late final GeneratedColumn<String> kind = GeneratedColumn<String>(
+    'kind',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  @override
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+    'name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _relatedChildIdMeta = const VerificationMeta(
+    'relatedChildId',
+  );
+  @override
+  late final GeneratedColumn<int> relatedChildId = GeneratedColumn<int>(
+    'related_child_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _relationMeta = const VerificationMeta(
+    'relation',
+  );
+  @override
+  late final GeneratedColumn<String> relation = GeneratedColumn<String>(
+    'relation',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _noteMeta = const VerificationMeta('note');
+  @override
+  late final GeneratedColumn<String> note = GeneratedColumn<String>(
+    'note',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _listenerChildIdMeta = const VerificationMeta(
+    'listenerChildId',
+  );
+  @override
+  late final GeneratedColumn<int> listenerChildId = GeneratedColumn<int>(
+    'listener_child_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _enabledMeta = const VerificationMeta(
+    'enabled',
+  );
+  @override
+  late final GeneratedColumn<bool> enabled = GeneratedColumn<bool>(
+    'enabled',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("enabled" IN (0, 1))',
+    ),
+    defaultValue: const Constant(true),
+  );
+  static const VerificationMeta _syncedAtMeta = const VerificationMeta(
+    'syncedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> syncedAt = GeneratedColumn<DateTime>(
+    'synced_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    userId,
+    id,
+    kind,
+    name,
+    relatedChildId,
+    relation,
+    note,
+    listenerChildId,
+    enabled,
+    syncedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'cached_characters';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<CachedCharacter> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('user_id')) {
+      context.handle(
+        _userIdMeta,
+        userId.isAcceptableOrUnknown(data['user_id']!, _userIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_userIdMeta);
+    }
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('kind')) {
+      context.handle(
+        _kindMeta,
+        kind.isAcceptableOrUnknown(data['kind']!, _kindMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_kindMeta);
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+        _nameMeta,
+        name.isAcceptableOrUnknown(data['name']!, _nameMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_nameMeta);
+    }
+    if (data.containsKey('related_child_id')) {
+      context.handle(
+        _relatedChildIdMeta,
+        relatedChildId.isAcceptableOrUnknown(
+          data['related_child_id']!,
+          _relatedChildIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('relation')) {
+      context.handle(
+        _relationMeta,
+        relation.isAcceptableOrUnknown(data['relation']!, _relationMeta),
+      );
+    }
+    if (data.containsKey('note')) {
+      context.handle(
+        _noteMeta,
+        note.isAcceptableOrUnknown(data['note']!, _noteMeta),
+      );
+    }
+    if (data.containsKey('listener_child_id')) {
+      context.handle(
+        _listenerChildIdMeta,
+        listenerChildId.isAcceptableOrUnknown(
+          data['listener_child_id']!,
+          _listenerChildIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('enabled')) {
+      context.handle(
+        _enabledMeta,
+        enabled.isAcceptableOrUnknown(data['enabled']!, _enabledMeta),
+      );
+    }
+    if (data.containsKey('synced_at')) {
+      context.handle(
+        _syncedAtMeta,
+        syncedAt.isAcceptableOrUnknown(data['synced_at']!, _syncedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_syncedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {userId, id};
+  @override
+  CachedCharacter map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return CachedCharacter(
+      userId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}user_id'],
+      )!,
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      kind: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}kind'],
+      )!,
+      name: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}name'],
+      )!,
+      relatedChildId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}related_child_id'],
+      ),
+      relation: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}relation'],
+      ),
+      note: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}note'],
+      ),
+      listenerChildId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}listener_child_id'],
+      ),
+      enabled: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}enabled'],
+      )!,
+      syncedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}synced_at'],
+      )!,
+    );
+  }
+
+  @override
+  $CachedCharactersTable createAlias(String alias) {
+    return $CachedCharactersTable(attachedDatabase, alias);
+  }
+}
+
+class CachedCharacter extends DataClass implements Insertable<CachedCharacter> {
+  final int userId;
+  final int id;
+  final String kind;
+  final String name;
+  final int? relatedChildId;
+  final String? relation;
+  final String? note;
+  final int? listenerChildId;
+  final bool enabled;
+  final DateTime syncedAt;
+  const CachedCharacter({
+    required this.userId,
+    required this.id,
+    required this.kind,
+    required this.name,
+    this.relatedChildId,
+    this.relation,
+    this.note,
+    this.listenerChildId,
+    required this.enabled,
+    required this.syncedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['user_id'] = Variable<int>(userId);
+    map['id'] = Variable<int>(id);
+    map['kind'] = Variable<String>(kind);
+    map['name'] = Variable<String>(name);
+    if (!nullToAbsent || relatedChildId != null) {
+      map['related_child_id'] = Variable<int>(relatedChildId);
+    }
+    if (!nullToAbsent || relation != null) {
+      map['relation'] = Variable<String>(relation);
+    }
+    if (!nullToAbsent || note != null) {
+      map['note'] = Variable<String>(note);
+    }
+    if (!nullToAbsent || listenerChildId != null) {
+      map['listener_child_id'] = Variable<int>(listenerChildId);
+    }
+    map['enabled'] = Variable<bool>(enabled);
+    map['synced_at'] = Variable<DateTime>(syncedAt);
+    return map;
+  }
+
+  CachedCharactersCompanion toCompanion(bool nullToAbsent) {
+    return CachedCharactersCompanion(
+      userId: Value(userId),
+      id: Value(id),
+      kind: Value(kind),
+      name: Value(name),
+      relatedChildId: relatedChildId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(relatedChildId),
+      relation: relation == null && nullToAbsent
+          ? const Value.absent()
+          : Value(relation),
+      note: note == null && nullToAbsent ? const Value.absent() : Value(note),
+      listenerChildId: listenerChildId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(listenerChildId),
+      enabled: Value(enabled),
+      syncedAt: Value(syncedAt),
+    );
+  }
+
+  factory CachedCharacter.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return CachedCharacter(
+      userId: serializer.fromJson<int>(json['userId']),
+      id: serializer.fromJson<int>(json['id']),
+      kind: serializer.fromJson<String>(json['kind']),
+      name: serializer.fromJson<String>(json['name']),
+      relatedChildId: serializer.fromJson<int?>(json['relatedChildId']),
+      relation: serializer.fromJson<String?>(json['relation']),
+      note: serializer.fromJson<String?>(json['note']),
+      listenerChildId: serializer.fromJson<int?>(json['listenerChildId']),
+      enabled: serializer.fromJson<bool>(json['enabled']),
+      syncedAt: serializer.fromJson<DateTime>(json['syncedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'userId': serializer.toJson<int>(userId),
+      'id': serializer.toJson<int>(id),
+      'kind': serializer.toJson<String>(kind),
+      'name': serializer.toJson<String>(name),
+      'relatedChildId': serializer.toJson<int?>(relatedChildId),
+      'relation': serializer.toJson<String?>(relation),
+      'note': serializer.toJson<String?>(note),
+      'listenerChildId': serializer.toJson<int?>(listenerChildId),
+      'enabled': serializer.toJson<bool>(enabled),
+      'syncedAt': serializer.toJson<DateTime>(syncedAt),
+    };
+  }
+
+  CachedCharacter copyWith({
+    int? userId,
+    int? id,
+    String? kind,
+    String? name,
+    Value<int?> relatedChildId = const Value.absent(),
+    Value<String?> relation = const Value.absent(),
+    Value<String?> note = const Value.absent(),
+    Value<int?> listenerChildId = const Value.absent(),
+    bool? enabled,
+    DateTime? syncedAt,
+  }) => CachedCharacter(
+    userId: userId ?? this.userId,
+    id: id ?? this.id,
+    kind: kind ?? this.kind,
+    name: name ?? this.name,
+    relatedChildId: relatedChildId.present
+        ? relatedChildId.value
+        : this.relatedChildId,
+    relation: relation.present ? relation.value : this.relation,
+    note: note.present ? note.value : this.note,
+    listenerChildId: listenerChildId.present
+        ? listenerChildId.value
+        : this.listenerChildId,
+    enabled: enabled ?? this.enabled,
+    syncedAt: syncedAt ?? this.syncedAt,
+  );
+  CachedCharacter copyWithCompanion(CachedCharactersCompanion data) {
+    return CachedCharacter(
+      userId: data.userId.present ? data.userId.value : this.userId,
+      id: data.id.present ? data.id.value : this.id,
+      kind: data.kind.present ? data.kind.value : this.kind,
+      name: data.name.present ? data.name.value : this.name,
+      relatedChildId: data.relatedChildId.present
+          ? data.relatedChildId.value
+          : this.relatedChildId,
+      relation: data.relation.present ? data.relation.value : this.relation,
+      note: data.note.present ? data.note.value : this.note,
+      listenerChildId: data.listenerChildId.present
+          ? data.listenerChildId.value
+          : this.listenerChildId,
+      enabled: data.enabled.present ? data.enabled.value : this.enabled,
+      syncedAt: data.syncedAt.present ? data.syncedAt.value : this.syncedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('CachedCharacter(')
+          ..write('userId: $userId, ')
+          ..write('id: $id, ')
+          ..write('kind: $kind, ')
+          ..write('name: $name, ')
+          ..write('relatedChildId: $relatedChildId, ')
+          ..write('relation: $relation, ')
+          ..write('note: $note, ')
+          ..write('listenerChildId: $listenerChildId, ')
+          ..write('enabled: $enabled, ')
+          ..write('syncedAt: $syncedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    userId,
+    id,
+    kind,
+    name,
+    relatedChildId,
+    relation,
+    note,
+    listenerChildId,
+    enabled,
+    syncedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is CachedCharacter &&
+          other.userId == this.userId &&
+          other.id == this.id &&
+          other.kind == this.kind &&
+          other.name == this.name &&
+          other.relatedChildId == this.relatedChildId &&
+          other.relation == this.relation &&
+          other.note == this.note &&
+          other.listenerChildId == this.listenerChildId &&
+          other.enabled == this.enabled &&
+          other.syncedAt == this.syncedAt);
+}
+
+class CachedCharactersCompanion extends UpdateCompanion<CachedCharacter> {
+  final Value<int> userId;
+  final Value<int> id;
+  final Value<String> kind;
+  final Value<String> name;
+  final Value<int?> relatedChildId;
+  final Value<String?> relation;
+  final Value<String?> note;
+  final Value<int?> listenerChildId;
+  final Value<bool> enabled;
+  final Value<DateTime> syncedAt;
+  final Value<int> rowid;
+  const CachedCharactersCompanion({
+    this.userId = const Value.absent(),
+    this.id = const Value.absent(),
+    this.kind = const Value.absent(),
+    this.name = const Value.absent(),
+    this.relatedChildId = const Value.absent(),
+    this.relation = const Value.absent(),
+    this.note = const Value.absent(),
+    this.listenerChildId = const Value.absent(),
+    this.enabled = const Value.absent(),
+    this.syncedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  CachedCharactersCompanion.insert({
+    required int userId,
+    required int id,
+    required String kind,
+    required String name,
+    this.relatedChildId = const Value.absent(),
+    this.relation = const Value.absent(),
+    this.note = const Value.absent(),
+    this.listenerChildId = const Value.absent(),
+    this.enabled = const Value.absent(),
+    required DateTime syncedAt,
+    this.rowid = const Value.absent(),
+  }) : userId = Value(userId),
+       id = Value(id),
+       kind = Value(kind),
+       name = Value(name),
+       syncedAt = Value(syncedAt);
+  static Insertable<CachedCharacter> custom({
+    Expression<int>? userId,
+    Expression<int>? id,
+    Expression<String>? kind,
+    Expression<String>? name,
+    Expression<int>? relatedChildId,
+    Expression<String>? relation,
+    Expression<String>? note,
+    Expression<int>? listenerChildId,
+    Expression<bool>? enabled,
+    Expression<DateTime>? syncedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (userId != null) 'user_id': userId,
+      if (id != null) 'id': id,
+      if (kind != null) 'kind': kind,
+      if (name != null) 'name': name,
+      if (relatedChildId != null) 'related_child_id': relatedChildId,
+      if (relation != null) 'relation': relation,
+      if (note != null) 'note': note,
+      if (listenerChildId != null) 'listener_child_id': listenerChildId,
+      if (enabled != null) 'enabled': enabled,
+      if (syncedAt != null) 'synced_at': syncedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  CachedCharactersCompanion copyWith({
+    Value<int>? userId,
+    Value<int>? id,
+    Value<String>? kind,
+    Value<String>? name,
+    Value<int?>? relatedChildId,
+    Value<String?>? relation,
+    Value<String?>? note,
+    Value<int?>? listenerChildId,
+    Value<bool>? enabled,
+    Value<DateTime>? syncedAt,
+    Value<int>? rowid,
+  }) {
+    return CachedCharactersCompanion(
+      userId: userId ?? this.userId,
+      id: id ?? this.id,
+      kind: kind ?? this.kind,
+      name: name ?? this.name,
+      relatedChildId: relatedChildId ?? this.relatedChildId,
+      relation: relation ?? this.relation,
+      note: note ?? this.note,
+      listenerChildId: listenerChildId ?? this.listenerChildId,
+      enabled: enabled ?? this.enabled,
+      syncedAt: syncedAt ?? this.syncedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (userId.present) {
+      map['user_id'] = Variable<int>(userId.value);
+    }
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (kind.present) {
+      map['kind'] = Variable<String>(kind.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
+    if (relatedChildId.present) {
+      map['related_child_id'] = Variable<int>(relatedChildId.value);
+    }
+    if (relation.present) {
+      map['relation'] = Variable<String>(relation.value);
+    }
+    if (note.present) {
+      map['note'] = Variable<String>(note.value);
+    }
+    if (listenerChildId.present) {
+      map['listener_child_id'] = Variable<int>(listenerChildId.value);
+    }
+    if (enabled.present) {
+      map['enabled'] = Variable<bool>(enabled.value);
+    }
+    if (syncedAt.present) {
+      map['synced_at'] = Variable<DateTime>(syncedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('CachedCharactersCompanion(')
+          ..write('userId: $userId, ')
+          ..write('id: $id, ')
+          ..write('kind: $kind, ')
+          ..write('name: $name, ')
+          ..write('relatedChildId: $relatedChildId, ')
+          ..write('relation: $relation, ')
+          ..write('note: $note, ')
+          ..write('listenerChildId: $listenerChildId, ')
+          ..write('enabled: $enabled, ')
+          ..write('syncedAt: $syncedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $CachedVoicesTable extends CachedVoices
     with TableInfo<$CachedVoicesTable, CachedVoice> {
   @override
@@ -5082,6 +5699,9 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
   late final $CachedStoriesTable cachedStories = $CachedStoriesTable(this);
   late final $CachedChildrenTable cachedChildren = $CachedChildrenTable(this);
+  late final $CachedCharactersTable cachedCharacters = $CachedCharactersTable(
+    this,
+  );
   late final $CachedVoicesTable cachedVoices = $CachedVoicesTable(this);
   late final $CachedVoicePrefsTable cachedVoicePrefs = $CachedVoicePrefsTable(
     this,
@@ -5102,6 +5722,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   List<DatabaseSchemaEntity> get allSchemaEntities => [
     cachedStories,
     cachedChildren,
+    cachedCharacters,
     cachedVoices,
     cachedVoicePrefs,
     accountSnapshots,
@@ -5929,6 +6550,311 @@ typedef $$CachedChildrenTableProcessedTableManager =
         BaseReferences<_$AppDatabase, $CachedChildrenTable, CachedChildrenData>,
       ),
       CachedChildrenData,
+      PrefetchHooks Function()
+    >;
+typedef $$CachedCharactersTableCreateCompanionBuilder =
+    CachedCharactersCompanion Function({
+      required int userId,
+      required int id,
+      required String kind,
+      required String name,
+      Value<int?> relatedChildId,
+      Value<String?> relation,
+      Value<String?> note,
+      Value<int?> listenerChildId,
+      Value<bool> enabled,
+      required DateTime syncedAt,
+      Value<int> rowid,
+    });
+typedef $$CachedCharactersTableUpdateCompanionBuilder =
+    CachedCharactersCompanion Function({
+      Value<int> userId,
+      Value<int> id,
+      Value<String> kind,
+      Value<String> name,
+      Value<int?> relatedChildId,
+      Value<String?> relation,
+      Value<String?> note,
+      Value<int?> listenerChildId,
+      Value<bool> enabled,
+      Value<DateTime> syncedAt,
+      Value<int> rowid,
+    });
+
+class $$CachedCharactersTableFilterComposer
+    extends Composer<_$AppDatabase, $CachedCharactersTable> {
+  $$CachedCharactersTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get userId => $composableBuilder(
+    column: $table.userId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get relatedChildId => $composableBuilder(
+    column: $table.relatedChildId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get relation => $composableBuilder(
+    column: $table.relation,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get note => $composableBuilder(
+    column: $table.note,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get listenerChildId => $composableBuilder(
+    column: $table.listenerChildId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get enabled => $composableBuilder(
+    column: $table.enabled,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get syncedAt => $composableBuilder(
+    column: $table.syncedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$CachedCharactersTableOrderingComposer
+    extends Composer<_$AppDatabase, $CachedCharactersTable> {
+  $$CachedCharactersTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get userId => $composableBuilder(
+    column: $table.userId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get relatedChildId => $composableBuilder(
+    column: $table.relatedChildId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get relation => $composableBuilder(
+    column: $table.relation,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get note => $composableBuilder(
+    column: $table.note,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get listenerChildId => $composableBuilder(
+    column: $table.listenerChildId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get enabled => $composableBuilder(
+    column: $table.enabled,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get syncedAt => $composableBuilder(
+    column: $table.syncedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$CachedCharactersTableAnnotationComposer
+    extends Composer<_$AppDatabase, $CachedCharactersTable> {
+  $$CachedCharactersTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get userId =>
+      $composableBuilder(column: $table.userId, builder: (column) => column);
+
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get kind =>
+      $composableBuilder(column: $table.kind, builder: (column) => column);
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<int> get relatedChildId => $composableBuilder(
+    column: $table.relatedChildId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get relation =>
+      $composableBuilder(column: $table.relation, builder: (column) => column);
+
+  GeneratedColumn<String> get note =>
+      $composableBuilder(column: $table.note, builder: (column) => column);
+
+  GeneratedColumn<int> get listenerChildId => $composableBuilder(
+    column: $table.listenerChildId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get enabled =>
+      $composableBuilder(column: $table.enabled, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get syncedAt =>
+      $composableBuilder(column: $table.syncedAt, builder: (column) => column);
+}
+
+class $$CachedCharactersTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $CachedCharactersTable,
+          CachedCharacter,
+          $$CachedCharactersTableFilterComposer,
+          $$CachedCharactersTableOrderingComposer,
+          $$CachedCharactersTableAnnotationComposer,
+          $$CachedCharactersTableCreateCompanionBuilder,
+          $$CachedCharactersTableUpdateCompanionBuilder,
+          (
+            CachedCharacter,
+            BaseReferences<
+              _$AppDatabase,
+              $CachedCharactersTable,
+              CachedCharacter
+            >,
+          ),
+          CachedCharacter,
+          PrefetchHooks Function()
+        > {
+  $$CachedCharactersTableTableManager(
+    _$AppDatabase db,
+    $CachedCharactersTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$CachedCharactersTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$CachedCharactersTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$CachedCharactersTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> userId = const Value.absent(),
+                Value<int> id = const Value.absent(),
+                Value<String> kind = const Value.absent(),
+                Value<String> name = const Value.absent(),
+                Value<int?> relatedChildId = const Value.absent(),
+                Value<String?> relation = const Value.absent(),
+                Value<String?> note = const Value.absent(),
+                Value<int?> listenerChildId = const Value.absent(),
+                Value<bool> enabled = const Value.absent(),
+                Value<DateTime> syncedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => CachedCharactersCompanion(
+                userId: userId,
+                id: id,
+                kind: kind,
+                name: name,
+                relatedChildId: relatedChildId,
+                relation: relation,
+                note: note,
+                listenerChildId: listenerChildId,
+                enabled: enabled,
+                syncedAt: syncedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required int userId,
+                required int id,
+                required String kind,
+                required String name,
+                Value<int?> relatedChildId = const Value.absent(),
+                Value<String?> relation = const Value.absent(),
+                Value<String?> note = const Value.absent(),
+                Value<int?> listenerChildId = const Value.absent(),
+                Value<bool> enabled = const Value.absent(),
+                required DateTime syncedAt,
+                Value<int> rowid = const Value.absent(),
+              }) => CachedCharactersCompanion.insert(
+                userId: userId,
+                id: id,
+                kind: kind,
+                name: name,
+                relatedChildId: relatedChildId,
+                relation: relation,
+                note: note,
+                listenerChildId: listenerChildId,
+                enabled: enabled,
+                syncedAt: syncedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$CachedCharactersTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $CachedCharactersTable,
+      CachedCharacter,
+      $$CachedCharactersTableFilterComposer,
+      $$CachedCharactersTableOrderingComposer,
+      $$CachedCharactersTableAnnotationComposer,
+      $$CachedCharactersTableCreateCompanionBuilder,
+      $$CachedCharactersTableUpdateCompanionBuilder,
+      (
+        CachedCharacter,
+        BaseReferences<_$AppDatabase, $CachedCharactersTable, CachedCharacter>,
+      ),
+      CachedCharacter,
       PrefetchHooks Function()
     >;
 typedef $$CachedVoicesTableCreateCompanionBuilder =
@@ -7666,6 +8592,8 @@ class $AppDatabaseManager {
       $$CachedStoriesTableTableManager(_db, _db.cachedStories);
   $$CachedChildrenTableTableManager get cachedChildren =>
       $$CachedChildrenTableTableManager(_db, _db.cachedChildren);
+  $$CachedCharactersTableTableManager get cachedCharacters =>
+      $$CachedCharactersTableTableManager(_db, _db.cachedCharacters);
   $$CachedVoicesTableTableManager get cachedVoices =>
       $$CachedVoicesTableTableManager(_db, _db.cachedVoices);
   $$CachedVoicePrefsTableTableManager get cachedVoicePrefs =>

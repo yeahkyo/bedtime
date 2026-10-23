@@ -2,6 +2,7 @@ import '../api/client.dart';
 import 'create_draft.dart';
 import 'db/app_database.dart';
 import 'repositories/account_repository.dart';
+import 'repositories/character_repository.dart';
 import 'repositories/child_repository.dart';
 import 'repositories/media_cache.dart';
 import 'repositories/playback_repository.dart';
@@ -17,6 +18,7 @@ class LocalStore {
     required this.userId,
   })  : stories = StoryRepository(db: db, api: api, userId: userId),
         children = ChildRepository(db: db, api: api, userId: userId),
+        characters = CharacterRepository(db: db, api: api, userId: userId),
         voices = VoiceRepository(db: db, api: api, userId: userId),
         account = AccountRepository(db: db, api: api, userId: userId),
         media = MediaCache(db: db, api: api, userId: userId),
@@ -28,6 +30,7 @@ class LocalStore {
 
   final StoryRepository stories;
   final ChildRepository children;
+  final CharacterRepository characters;
   final VoiceRepository voices;
   final AccountRepository account;
   final MediaCache media;

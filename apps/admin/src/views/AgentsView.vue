@@ -256,6 +256,9 @@ onMounted(load)
             />
           </el-form-item>
           <el-form-item label="可用变量">
+            <p class="field-hint" style="margin: 0 0 6px; margin-left: 0">
+              只读说明：可在上方 System / User 模板中书写的占位符；运行时由代码替换，保存表单不会提交此项。
+            </p>
             <ul class="placeholders">
               <li v-for="p in form.placeholders" :key="p.name">
                 <code>{{ formatPlaceholder(p.name) }}</code>

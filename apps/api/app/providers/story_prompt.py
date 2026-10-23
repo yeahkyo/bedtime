@@ -162,20 +162,21 @@ DEFAULT_DIALS = {
     "lead_in": "soft",
 }
 
-# Bedtime listening pace (spoken aloud), not silent reading speed.
+# Duration → length band for LLM `len` (+ max_tokens headroom).
 # zh: characters/minute; en: words/minute — units differ, must stay separate.
 LENGTH_RATES = {
     "zh": {
         "unit": "chars",
         "unit_label": "汉字（含标点近似按字计）",
-        "per_minute": 230,
-        "tolerance": 0.12,
+        "per_minute": 180,
+        "tolerance": 0.20,
     },
     "en": {
         "unit": "words",
         "unit_label": "English words",
-        "per_minute": 130,
-        "tolerance": 0.12,
+        # Scaled with zh 180/230 from prior 130 wpm bedtime pace.
+        "per_minute": 100,
+        "tolerance": 0.20,
     },
 }
 
@@ -380,7 +381,8 @@ SYSTEM_PROMPT = """你是一个资深的睡前故事作家。你擅长将一个�
 - age：目标听众的年龄（整数，单位：岁）。你的文字、语言要适合这个年纪的听众。
 - gender：目标听众的性别（如：男孩、女孩、其他、不指定）。可轻柔影响称呼与细节，禁止刻板印象与说教。
 - dialog: 对话的多少，0-5打分。分数越高则写更多的对话，分数越低则少对话，0分是完全不要用直接的对话描写。
-- len：建议的文本长度。输出的正文长度尽量接近这个值，不要差距过大，但优先满足故事质量。
+- len：正文目标篇幅范围，字符串格式「下限-上限」（如 720-1080）；中文按汉字计、英文按词计。body（含开篇垫话与结尾）尽量落在该区间内；优先故事质量，禁止堆形容词或空描写凑字。
+- roster：今晚已选角色库（数组，可空）。元素含 k（child|person|toy）、n（名字），可选 rel（关系）、note（特征）。优先轻用 1～3 个与 casts/beats 呼应；禁止把名单当必须清单；与 casts（大纲已定角色）冲突时以 casts 为主、roster 作纠偏参考。
 
 【输出要求】
 输出一个json对象，字段说明如下：
@@ -437,6 +439,8 @@ PLAN_SYSTEM_PROMPT = """你是一位世界级的儿童睡前故事作家，你�
 - age：目标听众的年龄（整数，单位：岁）。你的故事情节、角色要适合这个年纪的听众。
 - gender：目标听众的性别（如：男孩、女孩、其他、不指定）。构思角色与称呼时可参考，禁止刻板印象与说教。
 - fantasy: 故事是偏幻想还是偏日常。0-5打分。分数越高则世界观与剧情设定更偏虚构幻想充满想象力；分数越低则更偏日常生活。
+- len：目标正文篇幅范围，字符串格式「下限-上限」（如 720-1080）；中文按汉字计、英文按词计。beats 数量与密度应能支撑该篇幅，仍保持睡前温和，禁止为空凑拍。
+- roster：今晚已选角色库（数组，可空）。元素含 k（child|person|toy）、n（名字），可选 rel（关系）、note（特征）。优先轻用 1～3 个写入 casts；禁止把名单当必须清单；可与 keywords 搭配，勿整篇只围着名单转。
 
 【输出格式】
 将你构思的内容梳理为一个json，这个数据将用于给下一位作家用来写正文。json的字段说明如下：
@@ -445,7 +449,7 @@ PLAN_SYSTEM_PROMPT = """你是一位世界级的儿童睡前故事作家，你�
 - casts：故事中出现的角色，用数组的形式表示，每个元素是一个json，有以下两个字段。
   - name：角色名称。如果有昵称，用斜杠分格。如：哆啦A梦/小叮当
   - desc：角色概述。简述角色设定、性格、习惯等，让角色鲜活起来。
-- beats：故事的节拍（推动故事前进的最小叙事单位），用数组形式表示，每个元素是字符串，描述一个节拍。
+- beats：故事的节拍（推动故事前进的最小叙事单位），用数组形式表示，每个元素是字符串，描述一个节拍。数量与密度应能支撑 len 给出的篇幅区间。
 - shape: 故事的结构。用一句简短的话或词描述你用到的结构。
 """
 
@@ -561,57 +565,45 @@ def length_lang_key(language: str | None) -> str:
 
 
 def story_http_timeout_seconds(duration_minutes: int) -> float:
-    """HTTP timeout for LLM generation; scales with target length."""
+    """HTTP timeout for LLM generation; scales with target listening duration."""
     minutes = max(2, min(12, int(duration_minutes or 5)))
     return float(min(360, 90 + minutes * 45))
 
 
-def max_tokens_for_story(language: str | None, duration_minutes: int) -> int:
-    target = estimate_length_target(language, duration_minutes)
-    if target["unit"] == "chars":
-        return min(8192, max(1024, int(target["max"] * 1.8) + 256))
-    return min(8192, max(1024, int(target["max"] * 2.2) + 256))
-
-
 def estimate_length_target(language: str | None, duration_minutes: int) -> dict:
-    """Estimate body length for ~duration_minutes of bedtime TTS/listening.
-
-    Chinese and English use different units and rates on purpose:
-    - zh ≈ characters/minute (typical slow-gentle narration)
-    - en ≈ words/minute
-    """
+    """Map duration → {min,max,target} band (zh chars / en words, ±tolerance)."""
     minutes = max(2, min(12, int(duration_minutes or 5)))
     key = length_lang_key(language)
     cfg = LENGTH_RATES[key]
     target = int(round(minutes * cfg["per_minute"]))
-    tol = cfg["tolerance"]
+    tol = float(cfg["tolerance"])
     min_n = int(round(target * (1 - tol)))
     max_n = int(round(target * (1 + tol)))
-    if key == "zh":
-        instruction = (
-            f"body 正文约 {target} 字（可接受 {min_n}–{max_n} 字，按汉字计）。"
-            f"对应约 {minutes} 分钟轻声朗读。"
-            "篇幅不够时增加情节步骤、简短对话或口头禅重复；"
-            "禁止堆形容词或书面空描写凑字。"
-        )
-    else:
-        instruction = (
-            f"Write body about {target} words (acceptable {min_n}–{max_n} words). "
-            f"That should take about {minutes} minutes spoken gently aloud. "
-            "If short, add plot steps, brief dialogue, or a refrain — "
-            "do not pad with adjectives or literary empty description."
-        )
     return {
         "language_key": key,
         "duration_minutes": minutes,
         "unit": cfg["unit"],
-        "unit_label": cfg["unit_label"],
+        "unit_label": cfg.get("unit_label") or cfg["unit"],
         "rate_per_minute": cfg["per_minute"],
         "target": target,
         "min": min_n,
         "max": max_n,
-        "instruction": instruction,
     }
+
+
+def length_range_for_llm(language: str | None, duration_minutes: int) -> str:
+    """Compact len string for plan/draft user JSON, e.g. '720-1080'."""
+    band = estimate_length_target(language, duration_minutes)
+    return f"{int(band['min'])}-{int(band['max'])}"
+
+
+def max_tokens_for_story(language: str | None, duration_minutes: int) -> int:
+    """Internal API content budget from length band max (not a hard LLM cap)."""
+    band = estimate_length_target(language, duration_minutes)
+    approx = int(band["max"])
+    if band["unit"] == "chars":
+        return min(8192, max(1024, int(approx * 1.8) + 256))
+    return min(8192, max(1024, int(approx * 2.2) + 256))
 
 
 def normalize_dial(name: str, value: str | None) -> str:
@@ -901,6 +893,11 @@ def build_user_payload(request: StoryRequest) -> dict:
     # Tonight chips only — do NOT merge profile interests into kw (that forced
     # every episode to revolve around the same long-term tag, e.g. 跳舞).
     keywords = merge_keywords(request.keywords, None)
+    roster = [
+        r
+        for r in (request.roster or [])
+        if isinstance(r, dict) and (r.get("n") or "").strip()
+    ][:8]
     likes = pick_soft_likes(
         request.interests,
         salt=f"{request.child_nickname}|{request.theme or ''}|{request.episode_no or 1}",
@@ -914,14 +911,19 @@ def build_user_payload(request: StoryRequest) -> dict:
     cast_hints = {
         "protagonist": f"请让「{request.child_nickname}」作为故事主角出场。",
         "supporting": f"「{request.child_nickname}」可以配角出场，主线可给玩具/伙伴。",
-        "absent": f"整篇不要出现「{request.child_nickname}」；可用 kw 里的角色推进故事。",
+        "absent": f"整篇不要出现「{request.child_nickname}」；可用 roster/kw 里的角色推进故事。",
         "auto": (
             "角色完全可选：孩子可作主角、配角，或整篇不出现；"
-            "kw 里的玩具、娃娃、宠物、家人或物件都可当主角或伙伴。"
+            "roster 与 kw 里的玩具、娃娃、家人或物件都可当主角或伙伴。"
         ),
     }
     cast_hint = cast_hints.get(cast_role, cast_hints["auto"])
-    cast_hint += "kw 是今晚可选素材，可不用或只用最贴 theme 的 1～2 个；禁止把 kw 当成必须清单。"
+    if roster:
+        cast_hint += (
+            "roster 是今晚已选角色库（优先轻用 1～3 个）：k=child|person|toy，"
+            "n=名字，rel=关系，note=特征；禁止把名单当必须清单。"
+        )
+    cast_hint += "kw 是未建档的临时补充，可不用或只用最贴 theme 的 1～2 个；禁止把 kw 当成必须清单。"
     likes_tip = (
         "likes 是档案里的长期兴趣（可选）：最多轻点 0～1 处作道具/氛围；"
         "禁止当主线、禁止每集都出现、禁止整集围着某个兴趣转。"
@@ -930,7 +932,6 @@ def build_user_payload(request: StoryRequest) -> dict:
     minutes = max(2, min(12, int(request.duration_minutes or 5)))
     max_places = 1 if minutes <= 3 else 2
     dials = resolve_style_dials(request)
-    length_target = estimate_length_target(request.language, minutes)
 
     from app.services.child_profile import GENDER_LABELS_ZH, normalize_gender
 
@@ -954,15 +955,15 @@ def build_user_payload(request: StoryRequest) -> dict:
         "language": request.language,
         "theme": request.theme,
         "duration_minutes": minutes,
-        "length_target": length_target,
         "keywords": keywords,
+        "roster": roster,
         "likes": likes,
         "likes_tip": likes_tip,
         "child_cast_role": cast_role,
         "cast_hint": cast_hint,
         "setting_hint": (
             f"全篇建议不超过 {max_places} 个地点（含入睡处）；"
-            "主线跟 theme 与今晚情节；kw/likes 都是可选点缀；用动作推进，结尾自然安静入睡。"
+            "主线跟 theme 与今晚情节；roster/kw/likes 都是可选点缀；用动作推进，结尾自然安静入睡。"
         ),
         "style_dials": dials,
         "values_hint": request.values or [],
@@ -978,7 +979,7 @@ def build_user_payload(request: StoryRequest) -> dict:
         },
         "allowed_motif": MOTIF_WHITELIST[motif_idx],
         "style_reminders": [
-            "听感优先：口语旁白，一句一事；遵守 length",
+            "听感优先：口语旁白，一句一事；正文篇幅落在 len 给出的字数区间",
             "先听前开场白安顿听者，再渐入正文；勿像翻书开念",
             "忠实落地 plan；结尾自然收束；系列才写 hook；勿说教",
             "勿把长期兴趣当成每集主线",
@@ -1024,16 +1025,6 @@ def _pick(d: dict | None, *keys: str, default: Any = None) -> Any:
 
 def _slim_dials(dials: dict[str, dict[str, str]]) -> dict[str, dict[str, str]]:
     return {k: {"lv": v["level"], "tip": v["instruction"]} for k, v in dials.items()}
-
-
-def _slim_length(lt: dict[str, Any]) -> dict[str, Any]:
-    return {
-        "n": lt.get("target"),
-        "min": lt.get("min"),
-        "max": lt.get("max"),
-        "unit": lt.get("unit_label") or lt.get("unit"),
-        "tip": lt.get("instruction"),
-    }
 
 
 def normalize_series_outline(outline: dict) -> dict:
@@ -1304,6 +1295,7 @@ def build_outline_user_message(request: StoryRequest) -> str:
         "gender": prompt_gender_label(request),
         "age_how": payload["age_guidance"],
         "kw": payload["keywords"],
+        "roster": payload.get("roster") or [],
         "likes": payload.get("likes") or [],
         "likes_tip": payload.get("likes_tip"),
         "cast_tip": payload["cast_hint"],
@@ -1316,16 +1308,8 @@ def build_outline_user_message(request: StoryRequest) -> str:
         },
         "values": payload["values_hint"],
     }
-    lead = (
-        f"请为软系列设计 {count} 集睡前大纲。只输出 JSON（短字段名）。"
-        "arc/premise 跟 theme；kw/likes 只是可选点缀，禁止整季围着某个兴趣转。\n"
-        if not (request.language or "zh").lower().startswith("en")
-        else (
-            f"Design a soft bedtime series outline with {count} episodes. JSON only (short keys). "
-            "Do not make the whole season about one profile interest.\n"
-        )
-    )
-    return lead + json.dumps(outline_payload, ensure_ascii=False)
+    # Task lead lives in LLM Agent user_prompt_template — payload is JSON only.
+    return json.dumps(outline_payload, ensure_ascii=False)
 
 
 def build_plan_user_message(
@@ -1336,27 +1320,24 @@ def build_plan_user_message(
     cast_intro_mode: dict[str, str] | None = None,
     recent_history: dict[str, Any] | None = None,
 ) -> str:
-    """Assemble simplified plan user JSON: theme / keywords / age / gender / fantasy."""
+    """Assemble plan user JSON only (task lead is on the Agent user template)."""
     _ = (beat_pattern, opening_pattern, cast_intro_mode, recent_history)
     payload = build_user_payload(request)
     plan_payload = {
         "theme": payload["theme"],
         "keywords": payload["keywords"],
+        "roster": payload.get("roster") or [],
         "age": prompt_age_years(request),
         "gender": prompt_gender_label(request),
         "fantasy": fantasy_score_from_wonder(request.wonder),
+        "len": length_range_for_llm(request.language, payload["duration_minutes"]),
     }
-    lead = (
-        "请根据以下输入构思今晚睡前故事大纲。"
-        "只输出 JSON（字段：title、theme、casts、beats、shape），不要正文、不要 markdown。\n"
-    )
-    return lead + json.dumps(plan_payload, ensure_ascii=False)
+    return json.dumps(plan_payload, ensure_ascii=False)
 
 
 def build_user_message(request: StoryRequest, plan: dict | None = None) -> str:
     """Assemble simplified draft user JSON matching the draft system prompt."""
     payload = build_user_payload(request)
-    length = payload["length_target"]
     draft: dict[str, Any] = {
         "title": (plan or {}).get("title") or payload["theme"] or "睡前故事",
         "theme": (plan or {}).get("theme") or payload["theme"],
@@ -1365,7 +1346,8 @@ def build_user_message(request: StoryRequest, plan: dict | None = None) -> str:
         "age": prompt_age_years(request),
         "gender": prompt_gender_label(request),
         "dialog": dialog_score_from_dialogue(request.dialogue),
-        "len": int(length.get("target") or 0),
+        "len": length_range_for_llm(request.language, payload["duration_minutes"]),
+        "roster": payload.get("roster") or [],
     }
     # Legacy plan rows: cast/move/does → casts; beat objects → strings.
     if not draft["casts"]:
@@ -1386,11 +1368,8 @@ def build_user_message(request: StoryRequest, plan: dict | None = None) -> str:
             for b in draft["beats"]
             if isinstance(b, dict) and str(b.get("action") or "").strip()
         ]
-    lead = (
-        "请根据以下大纲写睡前故事正文。"
-        "只输出 JSON 对象（字段 title、body；不要 markdown）。\n"
-    )
-    return lead + json.dumps(draft, ensure_ascii=False)
+    # Task lead lives in LLM Agent user_prompt_template — payload is JSON only.
+    return json.dumps(draft, ensure_ascii=False)
 
 
 def empty_recent_history() -> dict[str, Any]:

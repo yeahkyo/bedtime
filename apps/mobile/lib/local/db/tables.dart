@@ -45,6 +45,22 @@ class CachedChildren extends Table {
   Set<Column<Object>> get primaryKey => {userId, id};
 }
 
+class CachedCharacters extends Table {
+  IntColumn get userId => integer()();
+  IntColumn get id => integer()();
+  TextColumn get kind => text()();
+  TextColumn get name => text()();
+  IntColumn get relatedChildId => integer().nullable()();
+  TextColumn get relation => text().nullable()();
+  TextColumn get note => text().nullable()();
+  IntColumn get listenerChildId => integer().nullable()();
+  BoolColumn get enabled => boolean().withDefault(const Constant(true))();
+  DateTimeColumn get syncedAt => dateTime()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {userId, id};
+}
+
 class CachedVoices extends Table {
   IntColumn get userId => integer()();
   IntColumn get id => integer()();

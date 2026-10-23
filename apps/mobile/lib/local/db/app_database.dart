@@ -9,6 +9,7 @@ part 'app_database.g.dart';
   tables: [
     CachedStories,
     CachedChildren,
+    CachedCharacters,
     CachedVoices,
     CachedVoicePrefs,
     AccountSnapshots,
@@ -22,7 +23,17 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor]) : super(executor ?? _open());
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
+
+  @override
+  MigrationStrategy get migration => MigrationStrategy(
+        onCreate: (m) async => m.createAll(),
+        onUpgrade: (m, from, to) async {
+          if (from < 2) {
+            await m.createTable(cachedCharacters);
+          }
+        },
+      );
 
   static QueryExecutor _open() {
     return driftDatabase(name: 'bedtime_local');
@@ -33,6 +44,7 @@ class AppDatabase extends _$AppDatabase {
     await transaction(() async {
       await (delete(cachedStories)..where((t) => t.userId.equals(userId))).go();
       await (delete(cachedChildren)..where((t) => t.userId.equals(userId))).go();
+      await (delete(cachedCharacters)..where((t) => t.userId.equals(userId))).go();
       await (delete(cachedVoices)..where((t) => t.userId.equals(userId))).go();
       await (delete(cachedVoicePrefs)..where((t) => t.userId.equals(userId))).go();
       await (delete(accountSnapshots)..where((t) => t.userId.equals(userId))).go();

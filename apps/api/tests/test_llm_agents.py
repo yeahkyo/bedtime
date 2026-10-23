@@ -50,7 +50,8 @@ def test_build_chat_messages_default_user_payload():
         user_payload='{"theme":"moon"}',
         extra_vars={"theme": "moon", "age_band": "3-5"},
     )
-    assert "moon" in user or user == '{"theme":"moon"}'
+    assert '{"theme":"moon"}' in user
+    assert "请根据以下大纲写睡前故事正文" in user
     assert system  # non-empty system from code default
 
 
@@ -60,6 +61,39 @@ def test_code_defaults_cover_first_wave_agents():
         d = CODE_DEFAULTS[aid]
         assert d["system_prompt"].strip()
         assert "{{user_payload}}" in (d["user_prompt_template"] or "")
+        names = {p["name"] for p in json.loads(d["placeholders_json"])}
+        assert "user_payload" in names
+        # No redundant scalars that already live inside user_payload JSON.
+        assert names.isdisjoint(
+            {
+                "theme",
+                "age_band",
+                "child_nickname",
+                "language",
+                "duration_minutes",
+                "age_stage",
+                "axis_or_subcategory",
+                "count",
+                "theory_hint",
+            }
+        )
+    # Story agents: task lead in user template (not bare payload).
+    assert "{{episode_count}}" in CODE_DEFAULTS["story_series_outline"]["user_prompt_template"]
+    outline_names = {
+        p["name"]
+        for p in json.loads(CODE_DEFAULTS["story_series_outline"]["placeholders_json"])
+    }
+    assert outline_names == {"user_payload", "episode_count"}
+    assert {
+        p["name"]
+        for p in json.loads(CODE_DEFAULTS["story_episode_plan"]["placeholders_json"])
+    } == {"user_payload"}
+    assert {
+        p["name"]
+        for p in json.loads(CODE_DEFAULTS["story_draft"]["placeholders_json"])
+    } == {"user_payload"}
+    assert "构思今晚" in CODE_DEFAULTS["story_episode_plan"]["user_prompt_template"]
+    assert "写睡前故事正文" in CODE_DEFAULTS["story_draft"]["user_prompt_template"]
 
 
 @pytest.mark.asyncio
@@ -128,6 +162,46 @@ async def test_seed_does_not_overwrite_existing():
     inserted = await seed_llm_agents_if_missing(_Db())
     assert "story_draft" not in added
     assert inserted == len(AGENT_IDS) - 1
+
+
+@pytest.mark.asyncio
+async def test_seed_lifts_bare_user_payload_to_lead_template():
+    """Existing rows with only {{user_payload}} get task leads; custom system kept."""
+    custom_system = "CUSTOM PLAN SYSTEM — keep me"
+    row = SimpleNamespace(
+        id="story_episode_plan",
+        system_prompt=custom_system,
+        user_prompt_template="{{user_payload}}",
+        description="old",
+        placeholders_json="[]",
+    )
+    committed = {"n": 0}
+
+    class _Db:
+        async def get(self, _model, agent_id):
+            if agent_id == "story_episode_plan":
+                return row
+            return SimpleNamespace(
+                id=agent_id,
+                system_prompt=CODE_DEFAULTS[agent_id]["system_prompt"],
+                user_prompt_template=CODE_DEFAULTS[agent_id]["user_prompt_template"],
+                description="ok",
+                placeholders_json=CODE_DEFAULTS[agent_id]["placeholders_json"],
+            )
+
+        def add(self, _row):
+            raise AssertionError("should not insert")
+
+        async def commit(self):
+            committed["n"] += 1
+
+    inserted = await seed_llm_agents_if_missing(_Db())
+    assert inserted == 0
+    assert committed["n"] == 1
+    assert row.system_prompt == custom_system
+    assert "构思今晚" in row.user_prompt_template
+    assert "{{user_payload}}" in row.user_prompt_template
+    assert row.user_prompt_template.strip() != "{{user_payload}}"
 
 
 @pytest.mark.asyncio
@@ -275,17 +349,28 @@ async def test_pipeline_uses_agent_messages_with_fallback():
     ):
         calls.append({"stage": stage, "system": system, "model": model})
         if stage == "episode_plan":
+            assert "构思今晚睡前故事大纲" in user
             start = user.find("{")
             payload = json.loads(user[start:])
-            assert set(payload) == {"theme", "keywords", "age", "gender", "fantasy"}
+            assert set(payload) == {
+                "theme",
+                "keywords",
+                "roster",
+                "age",
+                "gender",
+                "fantasy",
+                "len",
+            }
             assert isinstance(payload["age"], int)
             assert payload["gender"] == "不指定"
+            assert payload["len"] == "432-648"  # 3×180 ±20%
             return (
                 '{"title":"月亮夜","theme":"窗边一点光","casts":'
                 '[{"name":"豆豆","desc":"爱踮脚看月亮的孩子"}],'
                 '"beats":["踮脚","看月亮","靠着窗坐下"],'
                 '"shape":"一点点靠近再安静"}'
             )
+        assert "写睡前故事正文" in user
         return '{"title":"夜","body":"从前有个孩子。晚安。"}'
 
     req = StoryRequest(

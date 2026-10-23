@@ -112,23 +112,23 @@ ELEVENLABS_MODEL_ID=eleven_multilingual_v2
 
 ## Story prompt（豆包 / OpenAI 共用）
 
-实现见 `apps/api/app/providers/story_prompt.py`：
+实现见 `apps/api/app/providers/story_prompt.py`；阶段 Agent 配置见 Admin **LLM Agents**（`apps/api/app/services/llm_agents.py`）：
 
 - 中文主 system：入睡优先、场景跟主题、禁说教与照搬名著（约束偏软）
+- **分工**：代码只组装纯 JSON `user_payload`；任务说明（lead）写在各 Agent 的 `user_prompt_template`（可 Admin 编辑）。Admin「可用变量」只列出默认模板实际用到的占位符（通常仅 `{{user_payload}}`；软系列大纲另有 `{{episode_count}}`）
 - `age_band`（`2-3` / `3-5` / `6-8` / `9-12`）只注入简短 `age_guidance`
 - LLM JSON 用短字段名（如 plan：`shape`/`feel`/`hook`；draft 输出 `hook`；系列 `arc`/`cast`/`ep`）；API 请求参数名不变
 - `focus`：仅 axis 级软引力 `{id, axis, label}`；kernel 长文不进成文 prompt；与客观 `element` 分工
-- `POST /stories`：`keywords`、`values`、`development_focus`、`child_cast_role`、`recap`
+- `POST /stories`：`character_ids`、`keywords`、`values`、`development_focus`、`child_cast_role`、`recap`
+- 角色库：`/v1/characters`（`kind`: child|person|toy）；创建小孩会自动生成 `kind=child` 孪生行；今晚勾选写入 prompt `roster`，并快照到 `params_json.characters_snapshot`
 - 风格档位（各 3 档，注入 `dials`：`{lv, tip}`）：
   - `plot_drive`: mood | light | arc
   - `imagery`: sparse | balanced | rich
   - `wonder`: everyday | soft | fantasy
   - `wind_down`: deep | gentle | playful
   - `dialogue`: low | some | more
-- 时长 → 篇幅（`length`：`{n,min,max,unit,tip}`，按语种分开估算，±12%）：
-  - 中文：约 **230 字/分钟**（汉字）
-  - 英文：约 **130 words/分钟**
-- `keywords` 与孩子 `interests` 合并；`PATCH /children/{id}` 可改昵称/年龄/兴趣
+- 时长 → 篇幅：中文约 **180 字/分钟**（±20%），英文约 **100 words/分钟**（±20%）；plan/draft 的 `user_payload.len` 为字符串如 `"720-1080"`；`max_tokens` 按上限估算
+- `keywords` 为未建档临时补充；档案 `interests` 仅作轻度 likes，不并入 kw；`PATCH /children/{id}` 可改昵称/年龄/兴趣
 - 发展焦点可覆盖；母题白名单只借鉴安心内核
 
 ## Adding a vendor

@@ -19,6 +19,8 @@ from app.providers.story_prompt import (
     select_cast_intro_mode,
     select_opening_pattern,
     estimate_length_target,
+    length_range_for_llm,
+    max_tokens_for_story,
     get_age_spec,
     merge_keywords,
     normalize_age_band,
@@ -141,6 +143,9 @@ def test_oral_and_lead_in_in_system_prompt():
     assert '"line"' in SERIES_OUTLINE_SYSTEM_PROMPT
     assert "禁止把终集 focus 设为 wind_down" in SERIES_OUTLINE_SYSTEM_PROMPT
     assert "fantasy" in PLAN_SYSTEM_PROMPT
+    assert "len" in PLAN_SYSTEM_PROMPT
+    assert "roster" in PLAN_SYSTEM_PROMPT
+    assert "roster" in SYSTEM_PROMPT
     assert "casts" in PLAN_SYSTEM_PROMPT
     assert "wish / snag" not in PLAN_SYSTEM_PROMPT
     assert "tonight_theme_pref" not in PLAN_SYSTEM_PROMPT
@@ -261,18 +266,25 @@ def test_mood_rich_soft_guard():
     assert dials["imagery"]["level"] == "balanced"
 
 
-def test_length_target_zh_vs_en():
-    zh = estimate_length_target("zh", 5)
-    en = estimate_length_target("en", 5)
-    assert zh["unit"] == "chars"
-    assert en["unit"] == "words"
-    assert zh["target"] == 5 * 230
-    assert en["target"] == 5 * 130
-    assert zh["min"] < zh["target"] < zh["max"]
-    assert zh["target"] != en["target"]
+def test_length_band_180_chars_pm_plus_minus_20pct():
+    zh5 = estimate_length_target("zh", 5)
+    assert zh5["target"] == 5 * 180
+    assert zh5["min"] == int(round(900 * 0.8))
+    assert zh5["max"] == int(round(900 * 1.2))
+    assert length_range_for_llm("zh", 5) == f"{zh5['min']}-{zh5['max']}"
+    assert length_range_for_llm("zh", 5) == "720-1080"
+    en5 = estimate_length_target("en", 5)
+    assert en5["unit"] == "words"
+    assert en5["target"] == 5 * 100
+    zh5_tok = max_tokens_for_story("zh", 5)
+    zh10_tok = max_tokens_for_story("zh", 10)
+    assert zh5_tok >= 1024
+    assert zh10_tok > zh5_tok
+    assert "下限-上限" in SYSTEM_PROMPT
+    assert "minutes：" not in SYSTEM_PROMPT
 
 
-def test_user_payload_includes_style_dials_and_length():
+def test_user_payload_includes_style_dials_and_len_band():
     req = StoryRequest(
         child_nickname="豆豆",
         age_band="3-5",
@@ -307,14 +319,18 @@ def test_user_payload_includes_style_dials_and_length():
     assert any("开场白" in r for r in payload["style_reminders"])
     assert any("听感" in r or "口语" in r for r in payload["style_reminders"])
     assert "child_profile_guidance" in payload
-    assert payload["length_target"]["target"] == 3 * 230
-    assert "汉字" in payload["length_target"]["instruction"]
+    assert payload["duration_minutes"] == 3
+    band = length_range_for_llm("zh", 3)
     plan_msg = build_plan_user_message(req)
     assert "星星娃娃" in plan_msg
     assert '"fantasy": 5' in plan_msg
+    assert '"minutes"' not in plan_msg
+    plan = json.loads(plan_msg)
+    assert plan["len"] == band
     draft_msg = build_user_message(req, _sample_plan())
     assert '"dialog": 5' in draft_msg
-    assert '"len"' in draft_msg
+    draft = json.loads(draft_msg)
+    assert draft["len"] == band
 
 
 def test_slice_series_context_episode():
@@ -353,14 +369,23 @@ def test_plan_message_is_simplified_schema():
         episode_no=2,
     )
     msg = build_plan_user_message(req)
-    start = msg.find("{")
-    payload = json.loads(msg[start:])
-    assert set(payload) == {"theme", "keywords", "age", "gender", "fantasy"}
+    payload = json.loads(msg)
+    assert set(payload) == {
+        "theme",
+        "keywords",
+        "roster",
+        "age",
+        "gender",
+        "fantasy",
+        "len",
+    }
     assert payload["theme"] == "森林"
     assert payload["keywords"] == ["小兔子"]
+    assert payload["roster"] == []
     assert payload["age"] == 4
     assert payload["gender"] == "女孩"
     assert payload["fantasy"] == 3
+    assert payload["len"] == length_range_for_llm("zh", 5)
     assert "series" not in payload
     assert "dials" not in payload
 
@@ -470,8 +495,7 @@ def test_draft_message_is_flat_outline():
         )
     )
     msg = build_user_message(req, plan)
-    start = msg.find("{")
-    payload = json.loads(msg[start:])
+    payload = json.loads(msg)
     assert set(payload) == {
         "title",
         "theme",
@@ -481,13 +505,14 @@ def test_draft_message_is_flat_outline():
         "gender",
         "dialog",
         "len",
+        "roster",
     }
     assert payload["title"] == "窗边的月亮"
     assert "摸月亮" in payload["beats"]
     assert payload["age"] == 3
     assert payload["gender"] == "男孩"
     assert payload["dialog"] == 3
-    assert payload["len"] == 5 * 230
+    assert payload["len"] == length_range_for_llm("zh", 5)
     assert "plan" not in payload
     assert "check" not in payload
 
@@ -515,10 +540,12 @@ def test_outline_user_message_has_count():
         wonder="everyday",
     )
     msg = build_outline_user_message(req)
-    assert '"n": 5' in msg
-    assert '"wonder"' in msg
-    assert "everyday" in msg
-    assert "生活向" in msg or "日常" in msg
+    # Payload is JSON only; task lead lives on Agent user_prompt_template.
+    data = json.loads(msg)
+    assert data["n"] == 5
+    assert "wonder" in data["dials"]
+    assert data["dials"]["wonder"]["lv"] == "everyday"
+    assert "请为软系列" not in msg
     assert clamp_episode_count(99) == 8
 
 

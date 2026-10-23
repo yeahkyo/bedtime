@@ -79,6 +79,9 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
   int? childId;
   int? voiceId;
   List<Map<String, dynamic>> voices = [];
+  /// Roster for the selected listener (child + person + toy).
+  List<Map<String, dynamic>> rosterCharacters = [];
+  final Set<int> selectedCharacterIds = {};
 
   static const genders = [
     ('girl', '女孩'),
@@ -164,6 +167,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
     ageBand = c['age_band'] as String? ?? ageBand;
     gender = c['gender'] as String? ?? gender;
     interests = (c['interests'] as List<dynamic>? ?? []).cast<String>();
+    unawaited(_loadRosterForChild());
   }
 
   void _clearChildSelection() {
@@ -179,6 +183,46 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
     thingChips = [];
     selectedInspirationKey = null;
     selectedThingKey = null;
+    rosterCharacters = [];
+    selectedCharacterIds.clear();
+  }
+
+  Future<void> _loadRosterForChild() async {
+    final id = childId;
+    if (id == null) {
+      if (mounted) {
+        setState(() {
+          rosterCharacters = [];
+          selectedCharacterIds.clear();
+        });
+      }
+      return;
+    }
+    try {
+      List<Map<String, dynamic>> listed;
+      final store = widget.localStore;
+      if (store != null) {
+        listed = await store.characters.refresh(relatedChildId: id);
+      } else {
+        listed = (await widget.api.listCharacters(relatedChildId: id))
+            .cast<Map<String, dynamic>>();
+      }
+      if (!mounted) return;
+      setState(() {
+        rosterCharacters = listed;
+        // Default-select the listener twin (kind=child).
+        selectedCharacterIds
+          ..clear()
+          ..addAll(
+            listed
+                .where((c) => c['kind'] == 'child')
+                .map((c) => _asId(c['id']))
+                .whereType<int>(),
+          );
+      });
+    } catch (_) {
+      // Roster is optional for create.
+    }
   }
 
   Future<void> _restoreDraft() async {
@@ -490,6 +534,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
         seriesId: kFeatureSoftSeries ? continueSeriesId : null,
         episodeCount: episodeCount,
         keywords: keywords,
+        characterIds: selectedCharacterIds.toList(),
         developmentFocus: developmentFocus,
         storyElementId: storyElementId,
         childCastRole: childCastRole,
@@ -803,6 +848,54 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
                         ),
                       ),
                       const SizedBox(height: 16),
+                      Text('今晚一起出场', style: Theme.of(context).textTheme.labelLarge),
+                      const SizedBox(height: 8),
+                      if (rosterCharacters.isEmpty)
+                        Text(
+                          '可在「角色管理」添加家人或玩具；也可下方临时补充。',
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: AppColors.onSurfaceDim,
+                              ),
+                        )
+                      else
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            for (final c in rosterCharacters)
+                              Builder(
+                                builder: (context) {
+                                  final cid = _asId(c['id']);
+                                  if (cid == null) return const SizedBox.shrink();
+                                  final kind = c['kind'] as String? ?? '';
+                                  final name = (c['name'] as String?)?.trim() ?? '';
+                                  final rel = (c['relation'] as String?)?.trim();
+                                  final label = kind == 'person' &&
+                                          rel != null &&
+                                          rel.isNotEmpty
+                                      ? '$name（$rel）'
+                                      : name;
+                                  final selected =
+                                      selectedCharacterIds.contains(cid);
+                                  return SoftChip(
+                                    label: label.isEmpty ? '角色' : label,
+                                    selected: selected,
+                                    onSelected: (_) {
+                                      setState(() {
+                                        if (selected) {
+                                          selectedCharacterIds.remove(cid);
+                                        } else if (selectedCharacterIds.length <
+                                            8) {
+                                          selectedCharacterIds.add(cid);
+                                        }
+                                      });
+                                    },
+                                  );
+                                },
+                              ),
+                          ],
+                        ),
+                      const SizedBox(height: 16),
                       Text('轻轻带上', style: Theme.of(context).textTheme.labelLarge),
                       const SizedBox(height: 8),
                       _suggestChipWrap(
@@ -814,8 +907,8 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
                       TextField(
                         controller: keywordsCtrl,
                         decoration: const InputDecoration(
-                          labelText: '人名 / 玩具 / 事物（可选）',
-                          hintText: '也可自己写，如：星星娃娃, 外公',
+                          labelText: '未建档的临时补充（可选）',
+                          hintText: '偶发事物，如：公园的鸽子',
                         ),
                         minLines: 1,
                         maxLines: 3,

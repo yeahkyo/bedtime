@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 
-from app.api import account, auth, children, stories, voices
+from app.api import account, auth, characters, children, stories, voices
 from app.api.admin import router as admin_router
 from app.api.elements import router as elements_router
 from app.api.kernels import router as kernels_router
@@ -16,6 +16,7 @@ from app.core.config import get_settings, validate_settings_for_runtime
 from app.core.db import Base, SessionLocal, engine
 from app.core.redis_client import close_redis
 from app.models import (  # noqa: F401
+    Character,
     Child,
     InviteCode,
     Memory,
@@ -271,6 +272,7 @@ else:
 
 app.include_router(auth.router, prefix="/v1")
 app.include_router(children.router, prefix="/v1")
+app.include_router(characters.router, prefix="/v1")
 app.include_router(stories.router, prefix="/v1")
 app.include_router(voices.router, prefix="/v1")
 app.include_router(account.router, prefix="/v1")

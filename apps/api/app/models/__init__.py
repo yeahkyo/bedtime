@@ -1,3 +1,4 @@
+from app.models.character import Character
 from app.models.child import Child
 from app.models.invite import InviteCode
 from app.models.memory import Memory, MemoryAsset, MemoryElement
@@ -20,6 +21,7 @@ from app.models.voice import Voice, VoicePrefs
 __all__ = [
     "User",
     "Child",
+    "Character",
     "Voice",
     "VoicePrefs",
     "Story",

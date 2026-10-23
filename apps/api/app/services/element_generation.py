@@ -381,16 +381,9 @@ async def run_element_generation(
     from app.services.llm_agents import build_chat_messages, get_agent
 
     agent = await get_agent(db, "catalog_element_gen")
-    stage = AGE_STAGES[age_stage]
     system, user = build_chat_messages(
         agent,
         user_payload=user_payload,
-        extra_vars={
-            "age_stage": age_stage,
-            "axis_or_subcategory": sub.label_zh or sub.id,
-            "count": count,
-            "theory_hint": stage.get("theory_hint") or "",
-        },
     )
     # Caller provider/model win; agent fills gaps for tokens/timeout only.
     timeout = float(agent.timeout_seconds or GEN_TIMEOUT_SECONDS)

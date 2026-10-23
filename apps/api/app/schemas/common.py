@@ -89,6 +89,37 @@ class ChildOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class CharacterCreate(BaseModel):
+    """Client may only create person | toy (listener twin is auto-provisioned)."""
+
+    kind: str = Field(min_length=1, max_length=16)
+    name: str = Field(min_length=1, max_length=64)
+    related_child_id: int
+    relation: str | None = Field(default=None, max_length=64)
+    note: str | None = Field(default=None, max_length=200)
+
+
+class CharacterUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=64)
+    relation: str | None = Field(default=None, max_length=64)
+    note: str | None = Field(default=None, max_length=200)
+    enabled: bool | None = None
+    related_child_id: int | None = None
+
+
+class CharacterOut(BaseModel):
+    id: int
+    kind: str
+    name: str
+    related_child_id: int | None = None
+    relation: str | None = None
+    note: str | None = None
+    listener_child_id: int | None = None
+    enabled: bool = True
+
+    model_config = {"from_attributes": True}
+
+
 class VoicePrefsUpdate(BaseModel):
     speed_tier: str = "medium"
     tone_preset: str = "gentle"
@@ -139,6 +170,8 @@ class StoryCreate(BaseModel):
     memory_ids: list[int] = []
     # Personalization tags: people / toys / places / events (also for future photo extract)
     keywords: list[str] = []
+    # Tonight roster picks from /v1/characters (structured); keywords remain ad-hoc.
+    character_ids: list[int] = []
     # Optional soft developmental focus id (e.g. tiny_brave); auto-picked by age if omitted
     development_focus: str | None = None
     # Optional catalog element id from chip pick; else server silently selects

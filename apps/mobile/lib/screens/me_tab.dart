@@ -234,7 +234,7 @@ class _MeTabState extends State<MeTab> {
         _SettingsTile(
           icon: Icons.child_care_outlined,
           title: '角色管理',
-          subtitle: '孩子档案：昵称、年龄与兴趣',
+          subtitle: '听众档案与故事角色',
           onTap: () {
             Navigator.of(context).push(
               MaterialPageRoute(builder: (_) => ChildrenManageScreen(api: widget.api)),

@@ -440,19 +440,9 @@ async def run_kernel_generation(
     from app.services.llm_agents import build_chat_messages, get_agent
 
     agent = await get_agent(db, "catalog_kernel_gen")
-    stage = AGE_STAGES[age_stage]
-    axis_meta = KERNEL_AXES[axis]
     system, user = build_chat_messages(
         agent,
         user_payload=user_payload,
-        extra_vars={
-            "age_stage": age_stage,
-            "axis_or_subcategory": axis_meta.get("label_zh") or axis,
-            "count": count,
-            "theory_hint": axis_meta.get("theory_brief")
-            or stage.get("theory_hint")
-            or "",
-        },
     )
     timeout = float(agent.timeout_seconds or GEN_TIMEOUT_SECONDS)
     max_tokens = int(agent.max_tokens or GEN_MAX_TOKENS)
