@@ -6,6 +6,7 @@ from fastapi.responses import Response
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import get_settings
 from app.core.db import get_db
 from app.core.security import get_current_user
 from app.models.user import User
@@ -87,7 +88,10 @@ async def list_voices(
             .order_by(Voice.sort_order.asc(), Voice.id.asc())
         )
     ).scalars().all()
-    return [await _to_voice_out(v) for v in _filter_visible_voices(list(rows))]
+    visible = _filter_visible_voices(list(rows))
+    if not get_settings().feature_voice_clone:
+        visible = [v for v in visible if v.kind != "clone"]
+    return [await _to_voice_out(v) for v in visible]
 
 
 @router.get("/{voice_id}/preview")
@@ -156,6 +160,8 @@ async def clone_voice(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> VoiceOut:
+    if not get_settings().feature_voice_clone:
+        raise HTTPException(status_code=403, detail="Voice clone is not available")
     if not consent:
         raise HTTPException(status_code=400, detail="Consent required to clone your voice")
 

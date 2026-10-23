@@ -6,6 +6,17 @@ const String apiBaseUrl = String.fromEnvironment(
   defaultValue: 'http://127.0.0.1:8000',
 );
 
+/// Phase-1 product gates (must stay aligned with API `FEATURE_*` defaults).
+/// Re-enable with `--dart-define=FEATURE_SOFT_SERIES=true` (and matching API env).
+const bool kFeatureSoftSeries = bool.fromEnvironment(
+  'FEATURE_SOFT_SERIES',
+  defaultValue: false,
+);
+const bool kFeatureVoiceClone = bool.fromEnvironment(
+  'FEATURE_VOICE_CLONE',
+  defaultValue: false,
+);
+
 /// True when pointing at a non-loopback / non-LAN-style local URL (heuristic for UX copy).
 bool get apiBaseUrlLooksRemote {
   final u = apiBaseUrl.toLowerCase();

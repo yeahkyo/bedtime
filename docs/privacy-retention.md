@@ -2,7 +2,7 @@
 
 | Data | Where | Default TTL | Code |
 |------|-------|-------------|------|
-| Clone raw audio | ephemeral R2/local then delete | immediate + ≤24h sweeper | `POST /v1/voices/clone`, `purge_expired_raw_voices` |
+| Clone raw audio | ephemeral R2/local then delete | immediate + ≤24h sweeper | `POST /v1/voices/clone` (phase-1 gated by `FEATURE_VOICE_CLONE`), `purge_expired_raw_voices` |
 | `voice_id` | MariaDB `voices` | until user delete / account delete | `DELETE /v1/voices/{id}`, `DELETE /v1/account` |
 | Story text + audio | MariaDB + object storage | `STORY_RETENTION_MONTHS` (24) | `story.expires_at`, `purge_expired_stories` |
 | Quota counters | Redis | ~40 days rolling | `services/quota.py` |

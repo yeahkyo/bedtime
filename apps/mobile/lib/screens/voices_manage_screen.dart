@@ -69,7 +69,14 @@ class _VoicesManageScreenState extends State<VoicesManageScreen> {
       } catch (_) {
         // Disabled system catalog must not block listing clones.
       }
-      voices = await widget.api.listVoices();
+      var listed = await widget.api.listVoices();
+      if (!kFeatureVoiceClone) {
+        listed = listed.where((v) {
+          final m = v as Map<String, dynamic>;
+          return m['kind'] != 'clone';
+        }).toList();
+      }
+      voices = listed;
     } catch (e) {
       error = '$e';
     } finally {
@@ -78,6 +85,7 @@ class _VoicesManageScreenState extends State<VoicesManageScreen> {
   }
 
   Future<void> _openClone() async {
+    if (!kFeatureVoiceClone) return;
     final created = await Navigator.of(context).push<bool>(
       MaterialPageRoute(builder: (_) => VoiceCloneScreen(api: widget.api)),
     );
@@ -235,22 +243,26 @@ class _VoicesManageScreenState extends State<VoicesManageScreen> {
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
                 children: [
-                  const BrandHeader(
+                  BrandHeader(
                     eyebrow: '呼呼 · Voice',
                     title: '我的音色',
-                    subtitle: '管理朗读音色，或克隆家长声音给孩子讲故事',
+                    subtitle: kFeatureVoiceClone
+                        ? '管理朗读音色，或克隆家长声音给孩子讲故事'
+                        : '管理系统朗读音色，试听并选用',
                   ),
                   const SizedBox(height: 18),
-                  AmberCta(
-                    label: '克隆新音色',
-                    icon: Icons.mic_none,
-                    onPressed: _openClone,
-                  ),
-                  if (error != null) ...[
-                    const SizedBox(height: 12),
-                    Text(error!, style: tt.bodySmall?.copyWith(color: Colors.redAccent)),
+                  if (kFeatureVoiceClone) ...[
+                    AmberCta(
+                      label: '克隆新音色',
+                      icon: Icons.mic_none,
+                      onPressed: _openClone,
+                    ),
+                    const SizedBox(height: 18),
                   ],
-                  const SizedBox(height: 18),
+                  if (error != null) ...[
+                    Text(error!, style: tt.bodySmall?.copyWith(color: Colors.redAccent)),
+                    const SizedBox(height: 12),
+                  ],
                   SectionCard(
                     title: '已有音色',
                     subtitle: voices.isEmpty
@@ -258,7 +270,9 @@ class _VoicesManageScreenState extends State<VoicesManageScreen> {
                         : '共 ${voices.length} 个 · 可试听 / 改名',
                     child: voices.isEmpty
                         ? Text(
-                            '可先点上方按钮克隆家长声音。',
+                            kFeatureVoiceClone
+                                ? '可先点上方按钮克隆家长声音。'
+                                : '暂无可用系统音色，请稍后再试或联系管理员。',
                             style: tt.bodyMedium,
                           )
                         : Column(

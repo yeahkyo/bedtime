@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../api/client.dart';
+import '../config.dart';
 import '../local/local_store.dart';
 import '../local/network_errors.dart';
 import '../local/user_scope.dart';
@@ -49,8 +50,10 @@ class _MeTabState extends State<MeTab> {
     loggedIn = true;
     displayName = (name != null && name.isNotEmpty) ? name : '枕边家长';
     if (q != null) {
-      quotaText =
-          '本月故事 ${q['story_used']}/${q['story_limit']} · 克隆 ${q['clone_used']}/${q['clone_limit']}';
+      final story = '本月故事 ${q['story_used']}/${q['story_limit']}';
+      quotaText = kFeatureVoiceClone
+          ? '$story · 克隆 ${q['clone_used']}/${q['clone_limit']}'
+          : story;
     }
   }
 
@@ -137,8 +140,10 @@ class _MeTabState extends State<MeTab> {
         displayName = (me['display_name'] as String?)?.trim().isNotEmpty == true
             ? me['display_name'] as String
             : '枕边家长';
-        quotaText =
-            '本月故事 ${q['story_used']}/${q['story_limit']} · 克隆 ${q['clone_used']}/${q['clone_limit']}';
+        final story = '本月故事 ${q['story_used']}/${q['story_limit']}';
+        quotaText = kFeatureVoiceClone
+            ? '$story · 克隆 ${q['clone_used']}/${q['clone_limit']}'
+            : story;
         loading = false;
       });
     } on ApiException catch (e) {
@@ -218,7 +223,7 @@ class _MeTabState extends State<MeTab> {
         _SettingsTile(
           icon: Icons.mic_none,
           title: '音色管理',
-          subtitle: '系统音色与家长声音克隆',
+          subtitle: kFeatureVoiceClone ? '系统音色与家长声音克隆' : '系统朗读音色',
           onTap: () {
             Navigator.of(context).push(
               MaterialPageRoute(builder: (_) => VoicesManageScreen(api: widget.api)),

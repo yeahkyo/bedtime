@@ -8,6 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.core.config import get_settings
 from app.core.db import get_db
 from app.core.security import get_current_user
 from app.services.auth_rate_limit import rate_limit_story_ip
@@ -105,6 +106,10 @@ async def _resolve_series_state(
     db: AsyncSession, user: User, body: StoryCreate
 ) -> tuple[StorySeries | None, dict | None, int, str | None, bool]:
     """Returns (series_row, outline, episode_no, recap, need_outline)."""
+    wants_series = body.series_id is not None or bool(body.soft_series_mode)
+    if wants_series and not get_settings().feature_soft_series:
+        raise HTTPException(status_code=403, detail="Soft series is not available")
+
     if body.series_id is not None:
         series = await db.get(StorySeries, body.series_id)
         if series is None or series.user_id != user.id:
@@ -263,6 +268,7 @@ async def _resolve_voice_and_settings(
     ).scalar_one_or_none()
 
     chosen_id = voice_id or (prefs.default_voice_id if prefs else None)
+    explicit_voice = voice_id is not None
     voice: Voice | None = None
     if chosen_id:
         voice = await db.get(Voice, chosen_id)
@@ -272,6 +278,13 @@ async def _resolve_voice_and_settings(
             or not bool(getattr(voice, "enabled", True))
         ):
             raise HTTPException(status_code=404, detail="Voice not found")
+        if voice.kind == "clone" and not get_settings().feature_voice_clone:
+            if explicit_voice:
+                raise HTTPException(
+                    status_code=403, detail="Voice clone is not available"
+                )
+            # Stale prefs pointing at a clone — fall back to system catalog.
+            voice = await ensure_system_voice(db, user)
     else:
         voice = await ensure_system_voice(db, user)
 

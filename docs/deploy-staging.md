@@ -125,7 +125,7 @@ curl -fsS -X POST -H "X-Retention-Admin-Token: $RETENTION_ADMIN_TOKEN" \
 
 1. `curl -sS https://bedtime-api.lullvale.com/health`  
 2. App with HTTPS `API_BASE_URL`  
-3. Create child → story → play (R2) → voice clone  
+3. Create child → story → play (R2). Soft series / voice clone are off by default (`FEATURE_SOFT_SERIES` / `FEATURE_VOICE_CLONE`).  
 4. Retention curl above  
 
 ## Before public prod

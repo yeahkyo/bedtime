@@ -104,6 +104,11 @@ class Settings(BaseSettings):
     monthly_story_quota: int = 30
     monthly_clone_quota: int = 3
 
+    # Phase-1 product gates (App + public API). Admin catalog/ops stay available.
+    # Re-enable: FEATURE_SOFT_SERIES=1 / FEATURE_VOICE_CLONE=1
+    feature_soft_series: bool = False
+    feature_voice_clone: bool = False
+
     @property
     def is_dev(self) -> bool:
         return self.env == "dev"

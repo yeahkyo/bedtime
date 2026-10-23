@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../api/client.dart';
+import '../config.dart';
 import '../local/local_store.dart';
 import '../local/network_errors.dart';
 import '../theme/app_theme.dart';
@@ -120,6 +121,7 @@ class StoriesTabState extends State<StoriesTab> {
   }
 
   Future<void> _continueSeries(Map<String, dynamic> s) async {
+    if (!kFeatureSoftSeries) return;
     final seriesId = s['series_id'] as int?;
     final childId = s['child_id'] as int?;
     final status = s['status'] as String? ?? '';
@@ -391,7 +393,7 @@ class StoriesTabState extends State<StoriesTab> {
                                   meta.write(' · ${s['duration_minutes']} 分钟');
                                 }
                               }
-                              if (seriesId != null) {
+                              if (kFeatureSoftSeries && seriesId != null) {
                                 meta.write(meta.isEmpty ? '' : ' · ');
                                 meta.write('系列 #$seriesId');
                                 if (ep != null) meta.write(' 第$ep集');
@@ -399,7 +401,8 @@ class StoriesTabState extends State<StoriesTab> {
                               final status = s['status'] as String? ?? '';
                               final failed = status == 'failed';
                               final canRetry = failed;
-                              final canContinue = seriesId != null &&
+                              final canContinue = kFeatureSoftSeries &&
+                                  seriesId != null &&
                                   status != 'generating' &&
                                   status != 'failed';
                               if (failed) {

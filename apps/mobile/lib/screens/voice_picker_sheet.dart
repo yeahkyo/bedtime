@@ -262,7 +262,7 @@ class _VoicePickerSheetState extends State<_VoicePickerSheet> {
   Widget build(BuildContext context) {
     final tt = Theme.of(context).textTheme;
     final system = _ofKind('system');
-    final clones = _ofKind('clone');
+    final clones = kFeatureVoiceClone ? _ofKind('clone') : const <Map<String, dynamic>>[];
     final maxH = MediaQuery.of(context).size.height * 0.78;
 
     return SafeArea(
@@ -299,7 +299,7 @@ class _VoicePickerSheetState extends State<_VoicePickerSheet> {
                 padding: const EdgeInsets.fromLTRB(20, 8, 12, 12),
                 children: [
                   _section('系统音色', system),
-                  _section('克隆音色', clones),
+                  if (kFeatureVoiceClone) _section('克隆音色', clones),
                 ],
               ),
             ),

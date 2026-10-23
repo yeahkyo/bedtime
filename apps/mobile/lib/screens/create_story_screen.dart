@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../api/client.dart';
+import '../config.dart';
 import '../data/chip_cache.dart';
 import '../data/create_fallbacks.dart';
 import '../local/create_draft.dart';
@@ -192,7 +193,9 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
       if (dlg != null) dialogue = dlg;
       final cast = draft['child_cast_role'] as String?;
       if (cast != null) childCastRole = cast;
-      softSeries = draft['soft_series'] as bool? ?? softSeries;
+      softSeries = kFeatureSoftSeries
+          ? (draft['soft_series'] as bool? ?? softSeries)
+          : false;
     });
   }
 
@@ -211,8 +214,10 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
   }
 
   void _applyQuotaMap(Map<String, dynamic> q) {
-    quotaText =
-        '本月故事 ${q['story_used']}/${q['story_limit']} · 克隆 ${q['clone_used']}/${q['clone_limit']}';
+    final story = '本月故事 ${q['story_used']}/${q['story_limit']}';
+    quotaText = kFeatureVoiceClone
+        ? '$story · 克隆 ${q['clone_used']}/${q['clone_limit']}'
+        : story;
   }
 
   Future<void> _prepare() async {
@@ -270,6 +275,9 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
         final voiceList = await widget.api.listVoices();
         voices = voiceList.cast<Map<String, dynamic>>();
       }
+      if (!kFeatureVoiceClone) {
+        voices = voices.where((v) => v['kind'] != 'clone').toList();
+      }
       if (voices.isEmpty && system != null) {
         voices = [system];
       }
@@ -295,10 +303,12 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
         chosen = prefVoiceId;
       } else {
         Map<String, dynamic>? clone;
-        for (final v in voices) {
-          if (v['kind'] == 'clone') {
-            clone = v;
-            break;
+        if (kFeatureVoiceClone) {
+          for (final v in voices) {
+            if (v['kind'] == 'clone') {
+              clone = v;
+              break;
+            }
           }
         }
         chosen = _asId(clone?['id']) ?? _asId(system?['id']);
@@ -469,14 +479,19 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
         language: language,
         durationMinutes: duration,
         voiceId: voiceId,
-        softSeriesMode: softSeries || continueSeriesId != null,
-        seriesId: continueSeriesId,
+        softSeriesMode: kFeatureSoftSeries &&
+            (softSeries || continueSeriesId != null),
+        seriesId: kFeatureSoftSeries ? continueSeriesId : null,
         episodeCount: episodeCount,
         keywords: keywords,
         developmentFocus: developmentFocus,
         storyElementId: storyElementId,
         childCastRole: childCastRole,
-        recap: softSeries && recapCtrl.text.trim().isNotEmpty ? recapCtrl.text.trim() : null,
+        recap: kFeatureSoftSeries &&
+                softSeries &&
+                recapCtrl.text.trim().isNotEmpty
+            ? recapCtrl.text.trim()
+            : null,
         wonder: wonder,
         dialogue: dialogue,
         onProgress: (p) {
@@ -485,17 +500,19 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
         },
       );
       if (!mounted) return;
-      final sid = story['series_id'] as int?;
-      final ep = story['episode_no'] as int?;
-      if (sid != null) {
-        setState(() {
-          softSeries = true;
-          continueSeriesId = sid;
-        });
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('系列第 ${ep ?? '?'} 集已生成，可再点生成续写下一集')),
-          );
+      if (kFeatureSoftSeries) {
+        final sid = story['series_id'] as int?;
+        final ep = story['episode_no'] as int?;
+        if (sid != null) {
+          setState(() {
+            softSeries = true;
+            continueSeriesId = sid;
+          });
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('系列第 ${ep ?? '?'} 集已生成，可再点生成续写下一集')),
+            );
+          }
         }
       }
       await widget.localStore?.stories.upsertOne(story);
@@ -827,31 +844,35 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
                             .toList(),
                         onChanged: (v) => setState(() => duration = v ?? 5),
                       ),
-                      SwitchListTile(
-                        contentPadding: EdgeInsets.zero,
-                        title: const Text('软系列（可续写）'),
-                        value: softSeries,
-                        onChanged: (v) => setState(() {
-                          softSeries = v;
-                          if (!v) continueSeriesId = null;
-                        }),
-                      ),
-                      if (softSeries) ...[
-                        TextField(
-                          controller: recapCtrl,
-                          decoration: const InputDecoration(
-                            labelText: '上一集轻钩子（可选）',
+                      if (kFeatureSoftSeries) ...[
+                        SwitchListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: const Text('软系列（可续写）'),
+                          value: softSeries,
+                          onChanged: (v) => setState(() {
+                            softSeries = v;
+                            if (!v) continueSeriesId = null;
+                          }),
+                        ),
+                        if (softSeries) ...[
+                          TextField(
+                            controller: recapCtrl,
+                            decoration: const InputDecoration(
+                              labelText: '上一集轻钩子（可选）',
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 8),
-                        DropdownButtonFormField<int>(
-                          value: episodeCount,
-                          decoration: const InputDecoration(labelText: '系列集数'),
-                          items: [2, 3, 4, 5, 6, 7, 8]
-                              .map((n) => DropdownMenuItem(value: n, child: Text('$n')))
-                              .toList(),
-                          onChanged: (v) => setState(() => episodeCount = v ?? 4),
-                        ),
+                          const SizedBox(height: 8),
+                          DropdownButtonFormField<int>(
+                            value: episodeCount,
+                            decoration: const InputDecoration(labelText: '系列集数'),
+                            items: [2, 3, 4, 5, 6, 7, 8]
+                                .map((n) =>
+                                    DropdownMenuItem(value: n, child: Text('$n')))
+                                .toList(),
+                            onChanged: (v) =>
+                                setState(() => episodeCount = v ?? 4),
+                          ),
+                        ],
                       ],
                     ],
                   ),
