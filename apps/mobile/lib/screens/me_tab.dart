@@ -195,10 +195,9 @@ class _MeTabState extends State<MeTab> {
     }
 
     return ListView(
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
+      padding: const EdgeInsets.fromLTRB(20, 10, 20, 28),
       children: [
         BrandHeader(
-          eyebrow: 'Lullvale · Me',
           title: '我的',
           subtitle: quotaText,
         ),
@@ -234,7 +233,7 @@ class _MeTabState extends State<MeTab> {
         _SettingsTile(
           icon: Icons.child_care_outlined,
           title: '角色管理',
-          subtitle: '听众档案与故事角色',
+          subtitle: '小听众档案与故事角色',
           onTap: () {
             Navigator.of(context).push(
               MaterialPageRoute(builder: (_) => ChildrenManageScreen(api: widget.api)),

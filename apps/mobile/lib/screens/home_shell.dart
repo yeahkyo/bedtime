@@ -69,7 +69,7 @@ class _HomeShellState extends State<HomeShell> {
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [Color(0xFF121A29), AppColors.background],
+            colors: [Color(0xFF121828), AppColors.background],
           ),
         ),
         child: SafeArea(
