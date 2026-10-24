@@ -96,7 +96,7 @@ CODE_DEFAULTS: dict[str, dict[str, Any]] = {
             (
                 "user_payload",
                 "代码组装的纯 JSON：theme/keywords/roster/age/gender/fantasy/len"
-                "（len 为「下限-上限」字符串，按时长×180字/分±20%）",
+                "（len 为「下限-上限」字符串，按时长×220字/分±20%）",
             ),
         ),
         "enabled": True,
@@ -115,7 +115,7 @@ CODE_DEFAULTS: dict[str, dict[str, Any]] = {
             (
                 "user_payload",
                 "代码组装的纯 JSON：title/theme/casts/beats/age/gender/dialog/len/roster"
-                "（len 为「下限-上限」字符串，按时长×180字/分±20%）",
+                "（len 为「下限-上限」字符串，按时长×220字/分±20%）",
             ),
         ),
         "enabled": True,
@@ -278,158 +278,35 @@ def build_chat_messages(
 
 
 async def seed_llm_agents_if_missing(db: AsyncSession) -> int:
-    """Insert missing agent rows; migrate legacy wish/snag plan+draft prompts once."""
+    """Insert missing agent rows only. Never overwrite Admin-saved prompts on restart.
+
+    To restore code defaults, use reset_agent_to_code_default (Admin reset).
+    """
     inserted = 0
-    migrated = 0
     for agent_id, d in CODE_DEFAULTS.items():
         existing = await db.get(LlmAgent, agent_id)
-        if existing is None:
-            db.add(
-                LlmAgent(
-                    id=agent_id,
-                    label_zh=d["label_zh"],
-                    description=d["description"],
-                    provider=d.get("provider"),
-                    model=d.get("model"),
-                    system_prompt=d["system_prompt"],
-                    user_prompt_template=d.get("user_prompt_template") or DEFAULT_USER_TEMPLATE,
-                    max_tokens=d.get("max_tokens"),
-                    timeout_seconds=d.get("timeout_seconds"),
-                    temperature=d.get("temperature"),
-                    placeholders_json=d["placeholders_json"],
-                    enabled=True,
-                )
-            )
-            inserted += 1
+        if existing is not None:
             continue
-        # Placeholders are Admin docs only (not editable); keep in sync with CODE_DEFAULTS.
-        if (
-            hasattr(existing, "placeholders_json")
-            and (getattr(existing, "placeholders_json", None) or "")
-            != d["placeholders_json"]
-        ):
-            existing.placeholders_json = d["placeholders_json"]
-            migrated += 1
-        # One-time migration: old locked-structure / short-key prompts → simplified.
-        # Also lift task leads out of code into user_prompt_template (JSON-only payload).
-        if agent_id in ("story_episode_plan", "story_draft", "story_series_outline"):
-            prompt = getattr(existing, "system_prompt", None) or ""
-            user_tpl = getattr(existing, "user_prompt_template", None) or ""
-            broken_user_tpl = (
-                "{{user_payload}" in user_tpl and "{{user_payload}}" not in user_tpl
+        db.add(
+            LlmAgent(
+                id=agent_id,
+                label_zh=d["label_zh"],
+                description=d["description"],
+                provider=d.get("provider"),
+                model=d.get("model"),
+                system_prompt=d["system_prompt"],
+                user_prompt_template=d.get("user_prompt_template") or DEFAULT_USER_TEMPLATE,
+                max_tokens=d.get("max_tokens"),
+                timeout_seconds=d.get("timeout_seconds"),
+                temperature=d.get("temperature"),
+                placeholders_json=d["placeholders_json"],
+                enabled=True,
             )
-            # Bare {{user_payload}} means lead used to be baked into code JSON.
-            needs_lead_template = user_tpl.strip() in ("", DEFAULT_USER_TEMPLATE)
-            legacy_system = (
-                "wish / snag" in prompt
-                or "wish/snag" in prompt
-                or "填满 wish" in prompt
-                or "按 wish/snag" in prompt
-                or "按 beat_roles 顺序与数量写 beats" in prompt
-                or "数量与顺序严格等于 story_structure.beat_roles" in prompt
-                or "依次愿望、小麻烦、第一次尝试" in prompt
-                or "按 beat_roles 顺序各写一条" in prompt
-                or "tonight_theme_pref" in prompt
-                or "problem_solve" in prompt
-                or "daily_slice" in prompt
-                or "示例拍" in prompt
-                or "beat_hint" in prompt
-                or (
-                    agent_id == "story_episode_plan"
-                    and (
-                        "dials.wonder" in prompt
-                        or "shape.bmin" in prompt
-                        or "shape.how" in prompt
-                        or "target_feeling" in prompt
-                        or "story_structure" in prompt
-                        or "style_dials" in prompt
-                        or "story_shape" in prompt
-                        or "今晚单集构思" in prompt
-                    )
-                    and "fantasy:" not in prompt
-                    and "fantasy：" not in prompt
-                )
-                or (
-                    agent_id == "story_draft"
-                    and (
-                        '{"title","body","hook"}' in prompt
-                        or "soft_hook" in prompt
-                        or "story_plan" in prompt
-                        or "style_dials" in prompt
-                        or "story_shape" in prompt
-                        or "beat.action" in prompt
-                        or "dials.wonder" in prompt
-                    )
-                    and "dialog:" not in prompt
-                    and "dialog：" not in prompt
-                )
-                or (
-                    # Simplified prompts missing gender field docs after age→years change.
-                    agent_id == "story_episode_plan"
-                    and ("fantasy:" in prompt or "fantasy：" in prompt)
-                    and "gender" not in prompt.lower()
-                )
-                or (
-                    agent_id == "story_draft"
-                    and ("dialog:" in prompt or "dialog：" in prompt)
-                    and "gender" not in prompt.lower()
-                )
-                or (
-                    # minutes / object len → compact "min-max" string docs.
-                    agent_id in ("story_episode_plan", "story_draft")
-                    and (
-                        "minutes：" in prompt
-                        or "minutes:" in prompt
-                        or "len：建议的文本长度" in prompt
-                        or "len:建议的文本长度" in prompt
-                        or "含 min、max" in prompt
-                        or "len={min,max}" in prompt
-                    )
-                    and "下限-上限" not in prompt
-                )
-                or (
-                    # Plan/draft missing roster input field docs.
-                    agent_id in ("story_episode_plan", "story_draft")
-                    and "roster：" not in prompt
-                    and "roster:" not in prompt
-                    and (
-                        "fantasy:" in prompt
-                        or "fantasy：" in prompt
-                        or "dialog:" in prompt
-                        or "dialog：" in prompt
-                    )
-                )
-                or (
-                    agent_id == "story_series_outline"
-                    and (
-                        "cast_spine" in prompt
-                        or "soft_promise" in prompt
-                        or "throughline" in prompt
-                        or "style_dials" in prompt
-                    )
-                )
-            )
-            if not hasattr(existing, "system_prompt"):
-                continue
-            if legacy_system or broken_user_tpl:
-                existing.system_prompt = d["system_prompt"]
-                existing.user_prompt_template = (
-                    d.get("user_prompt_template") or DEFAULT_USER_TEMPLATE
-                )
-                existing.description = d.get("description") or existing.description
-                existing.placeholders_json = d["placeholders_json"]
-                migrated += 1
-            elif needs_lead_template:
-                # Keep custom system; only lift task lead into user template.
-                existing.user_prompt_template = (
-                    d.get("user_prompt_template") or DEFAULT_USER_TEMPLATE
-                )
-                existing.description = d.get("description") or existing.description
-                existing.placeholders_json = d["placeholders_json"]
-                migrated += 1
-    if inserted or migrated:
+        )
+        inserted += 1
+    if inserted:
         await db.commit()
-    logger.info("llm_agents seed inserted=%s migrated_prompts=%s", inserted, migrated)
+    logger.info("llm_agents seed inserted=%s", inserted)
     return inserted
 
 

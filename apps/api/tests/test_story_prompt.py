@@ -266,13 +266,13 @@ def test_mood_rich_soft_guard():
     assert dials["imagery"]["level"] == "balanced"
 
 
-def test_length_band_180_chars_pm_plus_minus_20pct():
+def test_length_band_220_chars_pm_plus_minus_20pct():
     zh5 = estimate_length_target("zh", 5)
-    assert zh5["target"] == 5 * 180
-    assert zh5["min"] == int(round(900 * 0.8))
-    assert zh5["max"] == int(round(900 * 1.2))
+    assert zh5["target"] == 5 * 220
+    assert zh5["min"] == int(round(1100 * 0.8))
+    assert zh5["max"] == int(round(1100 * 1.2))
     assert length_range_for_llm("zh", 5) == f"{zh5['min']}-{zh5['max']}"
-    assert length_range_for_llm("zh", 5) == "720-1080"
+    assert length_range_for_llm("zh", 5) == "880-1320"
     en5 = estimate_length_target("en", 5)
     assert en5["unit"] == "words"
     assert en5["target"] == 5 * 100

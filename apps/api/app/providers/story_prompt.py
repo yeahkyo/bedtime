@@ -168,13 +168,13 @@ LENGTH_RATES = {
     "zh": {
         "unit": "chars",
         "unit_label": "汉字（含标点近似按字计）",
-        "per_minute": 180,
+        "per_minute": 220,
         "tolerance": 0.20,
     },
     "en": {
         "unit": "words",
         "unit_label": "English words",
-        # Scaled with zh 180/230 from prior 130 wpm bedtime pace.
+        # Bedtime speaking pace (independent of zh chars/min).
         "per_minute": 100,
         "tolerance": 0.20,
     },
@@ -381,7 +381,7 @@ SYSTEM_PROMPT = """你是一个资深的睡前故事作家。你擅长将一个�
 - age：目标听众的年龄（整数，单位：岁）。你的文字、语言要适合这个年纪的听众。
 - gender：目标听众的性别（如：男孩、女孩、其他、不指定）。可轻柔影响称呼与细节，禁止刻板印象与说教。
 - dialog: 对话的多少，0-5打分。分数越高则写更多的对话，分数越低则少对话，0分是完全不要用直接的对话描写。
-- len：正文目标篇幅范围，字符串格式「下限-上限」（如 720-1080）；中文按汉字计、英文按词计。body（含开篇垫话与结尾）尽量落在该区间内；优先故事质量，禁止堆形容词或空描写凑字。
+- len：正文目标篇幅范围，字符串格式「下限-上限」（如 880-1320）；中文按汉字计、英文按词计。body（含开篇垫话与结尾）尽量落在该区间内；优先故事质量，禁止堆形容词或空描写凑字。
 - roster：今晚已选角色库（数组，可空）。元素含 k（child|person|toy）、n（名字），可选 rel（关系）、note（特征）。优先轻用 1～3 个与 casts/beats 呼应；禁止把名单当必须清单；与 casts（大纲已定角色）冲突时以 casts 为主、roster 作纠偏参考。
 
 【输出要求】
@@ -439,7 +439,7 @@ PLAN_SYSTEM_PROMPT = """你是一位世界级的儿童睡前故事作家，你�
 - age：目标听众的年龄（整数，单位：岁）。你的故事情节、角色要适合这个年纪的听众。
 - gender：目标听众的性别（如：男孩、女孩、其他、不指定）。构思角色与称呼时可参考，禁止刻板印象与说教。
 - fantasy: 故事是偏幻想还是偏日常。0-5打分。分数越高则世界观与剧情设定更偏虚构幻想充满想象力；分数越低则更偏日常生活。
-- len：目标正文篇幅范围，字符串格式「下限-上限」（如 720-1080）；中文按汉字计、英文按词计。beats 数量与密度应能支撑该篇幅，仍保持睡前温和，禁止为空凑拍。
+- len：目标正文篇幅范围，字符串格式「下限-上限」（如 880-1320）；中文按汉字计、英文按词计。beats 数量与密度应能支撑该篇幅，仍保持睡前温和，禁止为空凑拍。
 - roster：今晚已选角色库（数组，可空）。元素含 k（child|person|toy）、n（名字），可选 rel（关系）、note（特征）。优先轻用 1～3 个写入 casts；禁止把名单当必须清单；可与 keywords 搭配，勿整篇只围着名单转。
 
 【输出格式】
@@ -592,7 +592,7 @@ def estimate_length_target(language: str | None, duration_minutes: int) -> dict:
 
 
 def length_range_for_llm(language: str | None, duration_minutes: int) -> str:
-    """Compact len string for plan/draft user JSON, e.g. '720-1080'."""
+    """Compact len string for plan/draft user JSON, e.g. '880-1320'."""
     band = estimate_length_target(language, duration_minutes)
     return f"{int(band['min'])}-{int(band['max'])}"
 

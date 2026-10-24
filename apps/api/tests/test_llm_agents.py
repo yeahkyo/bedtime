@@ -165,15 +165,17 @@ async def test_seed_does_not_overwrite_existing():
 
 
 @pytest.mark.asyncio
-async def test_seed_lifts_bare_user_payload_to_lead_template():
-    """Existing rows with only {{user_payload}} get task leads; custom system kept."""
+async def test_seed_never_mutates_existing_prompts():
+    """Restart seed must not rewrite Admin-saved system/user/placeholders."""
     custom_system = "CUSTOM PLAN SYSTEM — keep me"
+    custom_user = "{{user_payload}}"
+    custom_ph = "[]"
     row = SimpleNamespace(
         id="story_episode_plan",
         system_prompt=custom_system,
-        user_prompt_template="{{user_payload}}",
+        user_prompt_template=custom_user,
         description="old",
-        placeholders_json="[]",
+        placeholders_json=custom_ph,
     )
     committed = {"n": 0}
 
@@ -197,11 +199,10 @@ async def test_seed_lifts_bare_user_payload_to_lead_template():
 
     inserted = await seed_llm_agents_if_missing(_Db())
     assert inserted == 0
-    assert committed["n"] == 1
+    assert committed["n"] == 0
     assert row.system_prompt == custom_system
-    assert "构思今晚" in row.user_prompt_template
-    assert "{{user_payload}}" in row.user_prompt_template
-    assert row.user_prompt_template.strip() != "{{user_payload}}"
+    assert row.user_prompt_template == custom_user
+    assert row.placeholders_json == custom_ph
 
 
 @pytest.mark.asyncio
@@ -363,7 +364,7 @@ async def test_pipeline_uses_agent_messages_with_fallback():
             }
             assert isinstance(payload["age"], int)
             assert payload["gender"] == "不指定"
-            assert payload["len"] == "432-648"  # 3×180 ±20%
+            assert payload["len"] == "528-792"  # 3×220 ±20%
             return (
                 '{"title":"月亮夜","theme":"窗边一点光","casts":'
                 '[{"name":"豆豆","desc":"爱踮脚看月亮的孩子"}],'
