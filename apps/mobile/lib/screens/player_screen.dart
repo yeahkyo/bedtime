@@ -130,7 +130,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
   );
 
   static const _bedVolumeDefault = 0.14;
-  static const _outroMinutesOptions = <int>[1, 5, 10, 30, 60];
+  /// 0 = stop bed music as soon as narration ends.
+  static const _outroMinutesOptions = <int>[0, 1, 5, 10, 15, 30];
   static const _outroMinutesDefault = 5;
   static const _outroFade = Duration(seconds: 20);
   static const _outroPrefsKey = 'bed_outro_minutes';
@@ -330,6 +331,17 @@ class _PlayerScreenState extends State<PlayerScreen> {
       await bed.pause();
       return;
     }
+    if (outroMinutes <= 0) {
+      await _cancelBedOutro(restoreVolume: false);
+      try {
+        await bed.setVolume(0);
+        await bed.pause();
+        await bed.setVolume(bedVolume);
+      } catch (_) {
+        /* ignore */
+      }
+      return;
+    }
     await _startBedOutro(Duration(minutes: outroMinutes));
   }
 
@@ -480,9 +492,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
       return;
     }
     await bed.setVolume(bedVolume);
-    if (narration.playing || _outroActive) {
-      await bed.play();
-    }
+    // Explicitly turning on should always start bed audio (UI stays in sync).
+    await bed.play();
   }
 
   Future<void> _setBedVolume(double v) async {
@@ -545,6 +556,25 @@ class _PlayerScreenState extends State<PlayerScreen> {
     return chips;
   }
 
+  String _outroMoodLabel(int minutes) {
+    switch (minutes) {
+      case 0:
+        return '0 分钟 · 故事结束即关';
+      case 1:
+        return '1 分钟 · 余韵轻停';
+      case 5:
+        return '5 分钟 · 温柔收束';
+      case 10:
+        return '10 分钟 · 慢慢入静';
+      case 15:
+        return '15 分钟 · 安睡余音';
+      case 30:
+        return '30 分钟 · 整夜轻伴';
+      default:
+        return '$minutes 分钟';
+    }
+  }
+
   Future<void> _openTimerSheet() async {
     await showModalBottomSheet<void>(
       context: context,
@@ -553,58 +583,17 @@ class _PlayerScreenState extends State<PlayerScreen> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadii.xl)),
       ),
       builder: (ctx) {
-        return StatefulBuilder(
-          builder: (ctx, setModal) {
-            final remain = _outroEndsAt?.difference(DateTime.now());
-            return Padding(
-              padding: EdgeInsets.fromLTRB(
-                20,
-                16,
-                20,
-                20 + MediaQuery.paddingOf(ctx).bottom,
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text('故事结束后', style: Theme.of(ctx).textTheme.titleMedium),
-                  const SizedBox(height: 6),
-                  Text(
-                    '背景音再播多久后渐弱结束（不中途打断旁白）。',
-                    style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
-                          color: AppColors.onSurfaceDim,
-                        ),
-                  ),
-                  if (_outroActive && remain != null && !remain.isNegative) ...[
-                    const SizedBox(height: 8),
-                    Text(
-                      '背景音正慢慢停下 · 剩余 ${_fmtOutroRemain(remain)}',
-                      style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
-                            color: AppColors.secondary,
-                            fontWeight: FontWeight.w600,
-                          ),
-                    ),
-                  ],
-                  const SizedBox(height: 14),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      for (final m in _outroMinutesOptions)
-                        ChoiceChip(
-                          label: Text('$m 分钟'),
-                          selected: outroMinutes == m,
-                          onSelected: (_) async {
-                            await _setOutroMinutes(m);
-                            setModal(() {});
-                            if (mounted) setState(() {});
-                          },
-                        ),
-                    ],
-                  ),
-                ],
-              ),
-            );
+        return _OutroTimerSheet(
+          minutesOptions: _outroMinutesOptions,
+          defaultMinutes: _outroMinutesDefault,
+          getMinutes: () => outroMinutes,
+          getActive: () => _outroActive,
+          getEndsAt: () => _outroEndsAt,
+          moodLabel: _outroMoodLabel,
+          formatRemain: _fmtOutroRemain,
+          onSelectMinutes: (m) async {
+            await _setOutroMinutes(m);
+            if (mounted) setState(() {});
           },
         );
       },
@@ -690,6 +679,10 @@ class _PlayerScreenState extends State<PlayerScreen> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadii.xl)),
       ),
       builder: (ctx) {
+        // Local mirror so Switch / opacity rebuild immediately (parent setState
+        // alone does not refresh this sheet's StatefulBuilder).
+        var sheetEnabled = bedEnabled;
+        var sheetVolume = bedVolume;
         return StatefulBuilder(
           builder: (ctx, setModal) {
             return Padding(
@@ -705,7 +698,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
                 children: [
                   Row(
                     children: [
-                      const Icon(Icons.water_drop_outlined,
+                      const Icon(Icons.music_note_outlined,
                           size: 18, color: AppColors.secondary),
                       const SizedBox(width: 8),
                       Expanded(
@@ -715,38 +708,45 @@ class _PlayerScreenState extends State<PlayerScreen> {
                         ),
                       ),
                       Switch(
-                        value: bedEnabled,
+                        value: sheetEnabled,
                         onChanged: (v) async {
+                          setModal(() => sheetEnabled = v);
                           await _setBedEnabled(v);
-                          setModal(() {});
+                          if (!ctx.mounted) return;
+                          setModal(() {
+                            sheetEnabled = bedEnabled;
+                            sheetVolume = bedVolume;
+                          });
                         },
                       ),
                     ],
                   ),
                   const SizedBox(height: 8),
                   Opacity(
-                    opacity: bedEnabled ? 1 : 0.4,
+                    opacity: sheetEnabled ? 1 : 0.4,
                     child: Row(
                       children: [
                         const Icon(Icons.volume_mute,
                             size: 16, color: AppColors.onSurfaceDim),
                         Expanded(
                           child: Slider(
-                            value: bedVolume,
+                            value: sheetVolume,
                             min: 0.04,
                             max: 0.35,
                             divisions: 31,
-                            label: '${(bedVolume * 100).round()}%',
-                            onChanged: bedEnabled
+                            label: '${(sheetVolume * 100).round()}%',
+                            onChanged: sheetEnabled
                                 ? (v) async {
+                                    setModal(() => sheetVolume = v);
                                     await _setBedVolume(v);
-                                    setModal(() {});
+                                    if (!ctx.mounted) return;
+                                    setModal(() => sheetVolume = bedVolume);
                                   }
                                 : null,
                           ),
                         ),
                         Text(
-                          '${(bedVolume * 100).round()}%',
+                          '${(sheetVolume * 100).round()}%',
                           style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
                                 color: AppColors.secondary,
                                 fontWeight: FontWeight.w600,
@@ -1196,6 +1196,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
                       outroRemain != null &&
                       !outroRemain.isNegative) {
                     centerBits.add('背景音正慢慢停下');
+                  } else if (outroMinutes <= 0) {
+                    centerBits.add('结束后即关助眠音乐');
                   } else {
                     centerBits.add('结束后再播$outroMinutes分钟');
                   }
@@ -1269,17 +1271,17 @@ class _PlayerScreenState extends State<PlayerScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
                       _DockAction(
-                        icon: Icons.bedtime_outlined,
-                        label: '$outroMinutes分钟',
+                        icon: Icons.alarm_outlined,
+                        label: outroMinutes <= 0 ? '即关' : '$outroMinutes分钟',
                         onTap: _openTimerSheet,
                       ),
                       _DockAction(
-                        icon: Icons.graphic_eq,
+                        icon: Icons.speed,
                         label: '${playSpeed.toStringAsFixed(2)}×',
                         onTap: _openSpeedSheet,
                       ),
                       DecoratedBox(
-                        decoration: BoxDecoration(
+                        decoration: const BoxDecoration(
                           shape: BoxShape.circle,
                           boxShadow: [
                             BoxShadow(
@@ -1311,10 +1313,17 @@ class _PlayerScreenState extends State<PlayerScreen> {
                       ),
                       _DockAction(
                         icon: bedEnabled
-                            ? Icons.water_drop_outlined
-                            : Icons.water_drop,
+                            ? Icons.music_note_outlined
+                            : Icons.music_off_outlined,
                         label: bedEnabled ? _bedTrack.label : '已关',
                         onTap: _openBedSheet,
+                      ),
+                      _DockAction(
+                        icon: showText
+                            ? Icons.menu_book_rounded
+                            : Icons.menu_book_outlined,
+                        label: '文稿',
+                        onTap: () => setState(() => showText = !showText),
                       ),
                     ],
                   );
@@ -1323,6 +1332,155 @@ class _PlayerScreenState extends State<PlayerScreen> {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Bottom sheet for bed-outro delay; ticks so remaining time updates live.
+class _OutroTimerSheet extends StatefulWidget {
+  const _OutroTimerSheet({
+    required this.minutesOptions,
+    required this.defaultMinutes,
+    required this.getMinutes,
+    required this.getActive,
+    required this.getEndsAt,
+    required this.moodLabel,
+    required this.formatRemain,
+    required this.onSelectMinutes,
+  });
+
+  final List<int> minutesOptions;
+  final int defaultMinutes;
+  final int Function() getMinutes;
+  final bool Function() getActive;
+  final DateTime? Function() getEndsAt;
+  final String Function(int minutes) moodLabel;
+  final String Function(Duration d) formatRemain;
+  final Future<void> Function(int minutes) onSelectMinutes;
+
+  @override
+  State<_OutroTimerSheet> createState() => _OutroTimerSheetState();
+}
+
+class _OutroTimerSheetState extends State<_OutroTimerSheet> {
+  Timer? _tick;
+
+  @override
+  void initState() {
+    super.initState();
+    _tick = Timer.periodic(const Duration(milliseconds: 200), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _tick?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ticks = widget.minutesOptions;
+    final minutes = widget.getMinutes();
+    var idx = ticks.indexOf(minutes);
+    if (idx < 0) {
+      idx = ticks.indexOf(widget.defaultMinutes).clamp(0, ticks.length - 1);
+    }
+    final active = widget.getActive();
+    final endsAt = widget.getEndsAt();
+    final remain = endsAt?.difference(DateTime.now());
+    final tt = Theme.of(context).textTheme;
+
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        20,
+        16,
+        20,
+        20 + MediaQuery.paddingOf(context).bottom,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text('定时关闭音乐', style: tt.titleMedium),
+          const SizedBox(height: 6),
+          Text(
+            '故事结束后延迟关闭助眠音乐',
+            style: tt.bodySmall?.copyWith(
+              color: AppColors.onSurfaceDim,
+            ),
+          ),
+          if (active && remain != null && !remain.isNegative) ...[
+            const SizedBox(height: 8),
+            Text(
+              '助眠音乐正慢慢停下 · 剩余 ${widget.formatRemain(remain)}',
+              style: tt.bodySmall?.copyWith(
+                color: AppColors.secondary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+          const SizedBox(height: 18),
+          Row(
+            children: [
+              const Icon(Icons.alarm_outlined, size: 18, color: AppColors.primary),
+              const SizedBox(width: 6),
+              Text('延迟时长', style: tt.labelLarge),
+              const Spacer(),
+              Text(
+                widget.moodLabel(minutes),
+                style: tt.labelMedium?.copyWith(
+                  color: AppColors.primary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          SliderTheme(
+            data: SliderTheme.of(context).copyWith(
+              trackHeight: 4,
+              activeTrackColor: AppColors.primary,
+              inactiveTrackColor: AppColors.surfaceHighest,
+              thumbColor: AppColors.primaryContainer,
+              overlayColor: AppColors.primary.withValues(alpha: 0.18),
+              activeTickMarkColor: AppColors.onPrimary,
+              inactiveTickMarkColor: AppColors.onSurfaceDim,
+              showValueIndicator: ShowValueIndicator.never,
+            ),
+            child: Slider(
+              value: idx.toDouble(),
+              min: 0,
+              max: (ticks.length - 1).toDouble(),
+              divisions: ticks.length - 1,
+              onChanged: (v) async {
+                await widget.onSelectMinutes(ticks[v.round()]);
+                if (mounted) setState(() {});
+              },
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                for (final m in ticks)
+                  Text(
+                    m == 0 ? '即关' : '$m',
+                    style: tt.labelSmall?.copyWith(
+                      color: m == minutes
+                          ? AppColors.primary
+                          : AppColors.onSurfaceDim,
+                      fontWeight:
+                          m == minutes ? FontWeight.w700 : FontWeight.w500,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1345,7 +1503,7 @@ class _DockAction extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(12),
       child: SizedBox(
-        width: 72,
+        width: 58,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
