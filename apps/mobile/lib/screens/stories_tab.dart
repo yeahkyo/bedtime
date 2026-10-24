@@ -463,26 +463,9 @@ class _StoriesHeroHeader extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.nightlight_round,
-                          size: 16,
-                          color: AppColors.primary.withValues(alpha: 0.95),
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          'LULLVALE · 晚安枕边书',
-                          style: tt.labelLarge?.copyWith(
-                            color: AppColors.primarySoft,
-                            letterSpacing: 1.1,
-                            fontSize: 11,
-                          ),
-                        ),
-                      ],
-                    ),
+                    const BrandMark(),
                     const SizedBox(height: 8),
-                    Text('我的枕边故事', style: tt.headlineMedium),
+                    Text('故事', style: tt.headlineMedium),
                   ],
                 ),
               ),
@@ -568,7 +551,7 @@ class _StoriesHeroHeader extends StatelessWidget {
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              '创作今晚的新故事',
+                              '创作今晚的故事',
                               style: tt.titleLarge?.copyWith(
                                 color: const Color(0xFF4E2604),
                                 fontWeight: FontWeight.w700,
@@ -577,7 +560,7 @@ class _StoriesHeroHeader extends StatelessWidget {
                             ),
                             const SizedBox(height: 6),
                             Text(
-                              '定制宝宝专属角色、今夜情绪与助眠音画',
+                              '定制专属角色、故事情节与助眠音画',
                               style: tt.bodySmall?.copyWith(
                                 color: const Color(0xCC4E2604),
                                 height: 1.35,

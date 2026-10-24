@@ -4,8 +4,6 @@ import 'package:flutter/material.dart';
 
 import '../api/client.dart';
 import '../config.dart';
-import '../data/chip_cache.dart';
-import '../data/create_fallbacks.dart';
 import '../local/create_draft.dart';
 import '../local/local_store.dart';
 import '../local/network_errors.dart';
@@ -13,23 +11,8 @@ import '../theme/app_theme.dart';
 import '../theme/widgets.dart';
 import '../utils/child_age.dart';
 import 'children_manage_screen.dart';
-import 'player_screen.dart';
+import 'creating_story_screen.dart';
 import 'voice_picker_sheet.dart';
-
-class _ChipOpt {
-  const _ChipOpt({
-    required this.key,
-    required this.label,
-    this.focusId,
-    this.serverId,
-  });
-
-  final String key;
-  final String label;
-  final String? focusId;
-  /// Non-null when backed by a real catalog row (elements).
-  final String? serverId;
-}
 
 class CreateStoryScreen extends StatefulWidget {
   const CreateStoryScreen({super.key, required this.api, this.localStore});
@@ -43,25 +26,18 @@ class CreateStoryScreen extends StatefulWidget {
 
 class _CreateStoryScreenState extends State<CreateStoryScreen> {
   final themeCtrl = TextEditingController();
-  final keywordsCtrl = TextEditingController();
   final recapCtrl = TextEditingController();
 
   String language = 'zh';
-  /// Internal bucket for suggestion APIs only — never shown in UI.
-  String ageBand = '3-5';
   String? birthDate;
   String gender = 'unspecified';
   String nickname = '';
   List<String> interests = [];
   List<Map<String, dynamic>> children = [];
 
-  List<_ChipOpt> inspirationChips = [];
-  List<_ChipOpt> thingChips = [];
-  /// null = 自动
-  String? selectedInspirationKey;
-  String? selectedThingKey;
+  /// Listeners selected for tonight (multi-select when 2+ children).
+  final Set<int> selectedChildIds = {};
 
-  String childCastRole = 'auto';
   String wonder = 'soft';
   String dialogue = 'some';
   int duration = 5;
@@ -73,35 +49,30 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
   int episodeCount = 4;
   bool busy = false;
   bool preparing = true;
-  bool chipsLoading = false;
+  bool moreOptionsOpen = false;
+  /// AppBar title fades in after the page hero title scrolls away.
+  double _appBarTitleOpacity = 0;
   String? quotaText;
-  String? progressText;
+  int storyUsed = 0;
+  int storyLimit = 0;
   int? childId;
   int? voiceId;
   List<Map<String, dynamic>> voices = [];
-  /// Roster for the selected listener (child + person + toy).
+  /// Roster for the primary listener (child + person + toy).
   List<Map<String, dynamic>> rosterCharacters = [];
   final Set<int> selectedCharacterIds = {};
 
   static const genders = [
-    ('girl', '女孩'),
-    ('boy', '男孩'),
-    ('other', '其他'),
     ('unspecified', '不指定'),
-  ];
-
-  static const castRoles = [
-    ('auto', '自动'),
-    ('protagonist', '孩子主角'),
-    ('supporting', '孩子配角'),
-    ('absent', '不出现孩子'),
+    ('boy', '男孩'),
+    ('girl', '女孩'),
   ];
 
   /// everyday | soft | fantasy — 生活向 ↔ 想象力
   static const wonders = [
-    ('everyday', '生活向'),
-    ('soft', '轻想象'),
-    ('fantasy', '更幻想'),
+    ('everyday', '日常生活'),
+    ('soft', '一点想象'),
+    ('fantasy', '奇妙世界'),
   ];
   /// low | some | more
   static const dialogues = [
@@ -150,12 +121,60 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
     for (final (gid, label) in genders) {
       if (gid == id) return label;
     }
+    if (id == 'other') return '其他';
     return '不指定';
   }
 
-  String get _interestsSummary {
-    if (interests.isEmpty) return '暂无兴趣标签';
-    return interests.take(4).join(' · ');
+  Map<String, dynamic>? _characterById(int id) {
+    for (final c in rosterCharacters) {
+      if (_asId(c['id']) == id) return c;
+    }
+    return null;
+  }
+
+  /// API only accepts characters belonging to the primary listener.
+  List<int> _characterIdsForApi() {
+    final primary = childId;
+    if (primary == null) return const [];
+    final out = <int>[];
+    for (final id in selectedCharacterIds) {
+      final c = _characterById(id);
+      if (c == null) continue;
+      if (_asId(c['related_child_id']) == primary) out.add(id);
+    }
+    return out;
+  }
+
+  /// Names of selected cast that cannot go on the primary child_id.
+  List<String> _extraCastKeywords() {
+    final primary = childId;
+    if (primary == null) return const [];
+    final names = <String>[];
+    for (final id in selectedCharacterIds) {
+      final c = _characterById(id);
+      if (c == null) continue;
+      if (_asId(c['related_child_id']) == primary) continue;
+      final name = (c['name'] as String?)?.trim() ?? '';
+      if (name.isNotEmpty) names.add(name);
+    }
+    if (names.isEmpty) return const [];
+    return ['今晚一起出场：${names.join('、')}'];
+  }
+
+  Map<String, dynamic>? _childById(int id) {
+    for (final c in children) {
+      if (_asId(c['id']) == id) return c;
+    }
+    return null;
+  }
+
+  /// Primary listener: first selected in roster order (drives API child_id / voice / roster).
+  int? get _primaryChildId {
+    for (final c in children) {
+      final id = _asId(c['id']);
+      if (id != null && selectedChildIds.contains(id)) return id;
+    }
+    return selectedChildIds.isEmpty ? null : selectedChildIds.first;
   }
 
   void _applyChild(Map<String, dynamic> c) {
@@ -164,7 +183,6 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
         ? (c['nickname'] as String).trim()
         : '';
     birthDate = c['birth_date'] as String?;
-    ageBand = c['age_band'] as String? ?? ageBand;
     gender = c['gender'] as String? ?? gender;
     interests = (c['interests'] as List<dynamic>? ?? []).cast<String>();
     unawaited(_loadRosterForChild());
@@ -176,49 +194,80 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
     interests = [];
     gender = 'unspecified';
     birthDate = null;
-    ageBand = '3-5';
     voiceId = null;
     voices = [];
-    inspirationChips = [];
-    thingChips = [];
-    selectedInspirationKey = null;
-    selectedThingKey = null;
     rosterCharacters = [];
     selectedCharacterIds.clear();
+    selectedChildIds.clear();
+  }
+
+  Future<void> _syncPrimaryFromSelection() async {
+    final primary = _primaryChildId;
+    if (primary == null) {
+      _clearChildSelection();
+      if (mounted) setState(() {});
+      return;
+    }
+    if (primary == childId) return;
+    final c = _childById(primary);
+    if (c == null) return;
+    _applyChild(c);
+    if (mounted) setState(() {});
+    await _reloadVoicePrefs();
+  }
+
+  Future<void> _toggleChildSelection(int id) async {
+    setState(() {
+      if (selectedChildIds.contains(id)) {
+        if (selectedChildIds.length <= 1) return; // keep at least one
+        selectedChildIds.remove(id);
+      } else {
+        selectedChildIds.add(id);
+      }
+      _syncChildCastWithListeners();
+    });
+    await _syncPrimaryFromSelection();
+    unawaited(_saveDraft());
+  }
+
+  /// Keep kind=child cast chips in sync with selected little listeners only.
+  void _syncChildCastWithListeners() {
+    final keepNonChild = <int>{};
+    for (final id in selectedCharacterIds) {
+      final c = _characterById(id);
+      if (c != null && c['kind'] != 'child') keepNonChild.add(id);
+    }
+    final listenerCast = rosterCharacters
+        .where(
+          (c) =>
+              c['kind'] == 'child' &&
+              selectedChildIds.contains(_asId(c['related_child_id'])),
+        )
+        .map((c) => _asId(c['id']))
+        .whereType<int>();
+    selectedCharacterIds
+      ..clear()
+      ..addAll(keepNonChild)
+      ..addAll(listenerCast);
   }
 
   Future<void> _loadRosterForChild() async {
-    final id = childId;
-    if (id == null) {
-      if (mounted) {
-        setState(() {
-          rosterCharacters = [];
-          selectedCharacterIds.clear();
-        });
-      }
-      return;
-    }
+    // Load full roster so「今晚一起出场」lists every little listener twin,
+    // not only the primary child's characters.
     try {
       List<Map<String, dynamic>> listed;
       final store = widget.localStore;
       if (store != null) {
-        listed = await store.characters.refresh(relatedChildId: id);
+        listed = await store.characters.refresh();
       } else {
-        listed = (await widget.api.listCharacters(relatedChildId: id))
-            .cast<Map<String, dynamic>>();
+        listed = (await widget.api.listCharacters()).cast<Map<String, dynamic>>();
       }
       if (!mounted) return;
+      final validIds = listed.map((c) => _asId(c['id'])).whereType<int>().toSet();
       setState(() {
         rosterCharacters = listed;
-        // Default-select the listener twin (kind=child).
-        selectedCharacterIds
-          ..clear()
-          ..addAll(
-            listed
-                .where((c) => c['kind'] == 'child')
-                .map((c) => _asId(c['id']))
-                .whereType<int>(),
-          );
+        selectedCharacterIds.removeWhere((id) => !validIds.contains(id));
+        _syncChildCastWithListeners();
       });
     } catch (_) {
       // Roster is optional for create.
@@ -232,7 +281,18 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
     if (draft == null || !mounted) return;
     setState(() {
       final draftChild = _asId(draft['child_id']);
-      if (draftChild != null) childId = draftChild;
+      if (draftChild != null) {
+        childId = draftChild;
+        selectedChildIds
+          ..clear()
+          ..add(draftChild);
+      }
+      final ids = draft['child_ids'];
+      if (ids is List) {
+        selectedChildIds
+          ..clear()
+          ..addAll(ids.map(_asId).whereType<int>());
+      }
       final t = draft['theme'] as String?;
       if (t != null) themeCtrl.text = t;
       final d = draft['duration'] as int?;
@@ -241,8 +301,8 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
       if (w != null) wonder = w;
       final dlg = draft['dialogue'] as String?;
       if (dlg != null) dialogue = dlg;
-      final cast = draft['child_cast_role'] as String?;
-      if (cast != null) childCastRole = cast;
+      // English stories are not ready on the backend yet — keep UI entry, force zh.
+      language = 'zh';
       softSeries = kFeatureSoftSeries
           ? (draft['soft_series'] as bool? ?? softSeries)
           : false;
@@ -254,20 +314,58 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
     if (store == null) return;
     await CreateDraft.save(store.userId, {
       'child_id': childId,
+      'child_ids': selectedChildIds.toList(),
       'theme': themeCtrl.text,
       'duration': duration,
       'wonder': wonder,
       'dialogue': dialogue,
-      'child_cast_role': childCastRole,
+      'language': language,
       'soft_series': softSeries,
     });
   }
 
   void _applyQuotaMap(Map<String, dynamic> q) {
-    final story = '本月故事 ${q['story_used']}/${q['story_limit']}';
+    storyUsed = (q['story_used'] as num?)?.toInt() ?? 0;
+    storyLimit = (q['story_limit'] as num?)?.toInt() ?? 0;
+    final story = '本月故事 $storyUsed/$storyLimit';
     quotaText = kFeatureVoiceClone
         ? '$story · 克隆 ${q['clone_used']}/${q['clone_limit']}'
         : story;
+  }
+
+  String get _voiceSummaryName {
+    final v = _selectedVoice;
+    final name = (v?['name'] as String?)?.trim();
+    if (name != null && name.isNotEmpty) return name;
+    return voices.isEmpty ? '未选音色' : '请选音色';
+  }
+
+  String get _languageLabel => language == 'en' ? 'English' : '中文';
+
+  String get _moreOptionsSummary => '$_languageLabel · ${_dialogueLabel()}';
+
+  String _dialogueLabel() {
+    for (final (id, label) in dialogues) {
+      if (id == dialogue) return label;
+    }
+    return '一点对话';
+  }
+
+  String _durationMoodLabel(int minutes) {
+    switch (minutes) {
+      case 3:
+        return '3 分钟 · 短篇微睡';
+      case 5:
+        return '5 分钟 · 适合入睡';
+      case 8:
+        return '8 分钟 · 沉浸暖梦';
+      case 10:
+        return '10 分钟 · 悠长童话';
+      case 12:
+        return '12 分钟 · 深度安歇';
+      default:
+        return '$minutes 分钟';
+    }
   }
 
   Future<void> _prepare() async {
@@ -286,13 +384,17 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
       if (children.isEmpty) {
         _clearChildSelection();
       } else {
-        final keep = childId != null
-            ? children.cast<Map<String, dynamic>?>().firstWhere(
-                  (c) => _asId(c?['id']) == childId,
-                  orElse: () => null,
-                )
-            : null;
-        _applyChild(keep ?? children.first);
+        final validIds = children.map((c) => _asId(c['id'])).whereType<int>().toSet();
+        selectedChildIds.removeWhere((id) => !validIds.contains(id));
+        if (selectedChildIds.isEmpty) {
+          final fallback = childId != null && validIds.contains(childId)
+              ? childId!
+              : validIds.first;
+          selectedChildIds.add(fallback);
+        }
+        final primary = _primaryChildId!;
+        final keep = _childById(primary) ?? children.first;
+        _applyChild(keep);
       }
 
       if (store != null) {
@@ -308,8 +410,6 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
       if (childId == null) {
         return;
       }
-
-      await _loadSuggestionChips();
 
       Map<String, dynamic>? system;
       try {
@@ -377,82 +477,6 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
     }
   }
 
-  Future<void> _loadSuggestionChips() async {
-    if (childId == null) return;
-    setState(() => chipsLoading = true);
-    try {
-      List<Map<String, dynamic>>? kRows;
-      List<Map<String, dynamic>>? eRows;
-      try {
-        final results = await Future.wait([
-          widget.api.listKernels(ageBand: ageBand, limit: 12, childId: childId),
-          widget.api.listElementSuggestions(ageBand: ageBand, limit: 12, childId: childId),
-        ]);
-        kRows = results[0];
-        eRows = results[1];
-      } catch (_) {
-        // network / timeout → cache below
-      }
-
-      if (kRows != null && kRows.isNotEmpty) {
-        await ChipCache.save('kernels', ageBand, kRows);
-      } else {
-        kRows = await ChipCache.load('kernels', ageBand);
-      }
-      if (eRows != null && eRows.isNotEmpty) {
-        await ChipCache.save('elements', ageBand, eRows);
-      } else {
-        eRows = await ChipCache.load('elements', ageBand);
-      }
-
-      final insp = <_ChipOpt>[];
-      if (kRows != null && kRows.isNotEmpty) {
-        for (final r in kRows) {
-          final focus = (r['focus_id'] as String?) ?? '';
-          final name = (r['name'] as String?) ?? '';
-          final id = (r['id'] as String?) ?? focus;
-          if (focus.isEmpty || name.isEmpty) continue;
-          insp.add(_ChipOpt(key: id, label: name, focusId: focus, serverId: id));
-        }
-      }
-      if (insp.isEmpty) {
-        for (final c in inspirationFallbackFor(ageBand)) {
-          insp.add(_ChipOpt(key: c.focusId, label: c.name, focusId: c.focusId));
-        }
-      }
-
-      final things = <_ChipOpt>[];
-      if (eRows != null && eRows.isNotEmpty) {
-        for (final r in eRows) {
-          final id = (r['id'] as String?) ?? '';
-          final name = (r['name'] as String?) ?? '';
-          if (id.isEmpty || name.isEmpty) continue;
-          things.add(_ChipOpt(key: id, label: name, serverId: id));
-        }
-      }
-      if (things.isEmpty) {
-        for (final name in thingFallbackSample(limit: 12, salt: ageBand)) {
-          things.add(_ChipOpt(key: 'local_$name', label: name));
-        }
-      }
-
-      if (!mounted) return;
-      setState(() {
-        inspirationChips = insp;
-        thingChips = things;
-        if (selectedInspirationKey != null &&
-            !insp.any((c) => c.key == selectedInspirationKey)) {
-          selectedInspirationKey = null;
-        }
-        if (selectedThingKey != null && !things.any((c) => c.key == selectedThingKey)) {
-          selectedThingKey = null;
-        }
-      });
-    } finally {
-      if (mounted) setState(() => chipsLoading = false);
-    }
-  }
-
   Future<void> _openChildEditor() async {
     await Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => ChildrenManageScreen(api: widget.api)),
@@ -461,8 +485,22 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
     await _prepare();
   }
 
+  List<String> _companionListenerKeywords() {
+    final primary = childId;
+    if (primary == null || selectedChildIds.length <= 1) return const [];
+    final names = <String>[];
+    for (final c in children) {
+      final id = _asId(c['id']);
+      if (id == null || id == primary || !selectedChildIds.contains(id)) continue;
+      final n = (c['nickname'] as String?)?.trim() ?? '';
+      if (n.isNotEmpty) names.add(n);
+    }
+    if (names.isEmpty) return const [];
+    return ['今晚也讲给：${names.join('、')}'];
+  }
+
   Future<void> _generate() async {
-    if (children.isEmpty || childId == null) {
+    if (children.isEmpty || childId == null || selectedChildIds.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('请先添加孩子档案')),
       );
@@ -482,39 +520,13 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
       return;
     }
 
-    final insp = selectedInspirationKey == null
-        ? null
-        : inspirationChips.cast<_ChipOpt?>().firstWhere(
-              (c) => c?.key == selectedInspirationKey,
-              orElse: () => null,
-            );
-    final thing = selectedThingKey == null
-        ? null
-        : thingChips.cast<_ChipOpt?>().firstWhere(
-              (c) => c?.key == selectedThingKey,
-              orElse: () => null,
-            );
+    final theme = themeCtrl.text.trim();
+    final keywords = [
+      ..._companionListenerKeywords(),
+      ..._extraCastKeywords(),
+    ];
 
-    // Free text wins; else chip label; else empty → server fills from tonight's kernel.
-    final freeTheme = themeCtrl.text.trim();
-    final theme = freeTheme.isNotEmpty ? freeTheme : (insp?.label ?? '');
-    // Prefer catalog kernel id so server selects that row (not another with same focus).
-    final developmentFocus = insp?.serverId ?? insp?.focusId;
-
-    final keywords = _parseList(keywordsCtrl.text);
-    String? storyElementId;
-    if (thing != null) {
-      if (thing.serverId != null) {
-        storyElementId = thing.serverId;
-      } else if (!keywords.contains(thing.label)) {
-        keywords.insert(0, thing.label);
-      }
-    }
-
-    setState(() {
-      busy = true;
-      progressText = '已提交，排队中…';
-    });
+    setState(() => busy = true);
     try {
       await widget.api.updateVoicePrefs(
         childId: childId!,
@@ -523,7 +535,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
         likenessBoost: false,
         defaultVoiceId: voiceId,
       );
-      final story = await widget.api.createStoryAndWait(
+      final created = await widget.api.createStory(
         childId: childId!,
         theme: theme,
         language: language,
@@ -534,10 +546,8 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
         seriesId: kFeatureSoftSeries ? continueSeriesId : null,
         episodeCount: episodeCount,
         keywords: keywords,
-        characterIds: selectedCharacterIds.toList(),
-        developmentFocus: developmentFocus,
-        storyElementId: storyElementId,
-        childCastRole: childCastRole,
+        characterIds: _characterIdsForApi(),
+        childCastRole: 'auto',
         recap: kFeatureSoftSeries &&
                 softSeries &&
                 recapCtrl.text.trim().isNotEmpty
@@ -545,98 +555,34 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
             : null,
         wonder: wonder,
         dialogue: dialogue,
-        onProgress: (p) {
-          if (!mounted) return;
-          setState(() => progressText = _progressLabel(p));
-        },
       );
-      if (!mounted) return;
-      if (kFeatureSoftSeries) {
-        final sid = story['series_id'] as int?;
-        final ep = story['episode_no'] as int?;
-        if (sid != null) {
-          setState(() {
-            softSeries = true;
-            continueSeriesId = sid;
-          });
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('系列第 ${ep ?? '?'} 集已生成，可再点生成续写下一集')),
-            );
-          }
-        }
-      }
-      await widget.localStore?.stories.upsertOne(story);
+      await widget.localStore?.stories.upsertOne(created);
       if (widget.localStore != null) {
         unawaited(CreateDraft.clear(widget.localStore!.userId));
       }
       if (!mounted) return;
-      await Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => PlayerScreen.fromStory(
-            story,
-            localStore: widget.localStore,
-          ),
-        ),
-      );
-      try {
-        final q = await widget.api.quota();
-        if (!mounted) return;
-        setState(() => _applyQuotaMap(q));
-        final me = await widget.api.me();
-        await widget.localStore?.account.saveSnapshot(me: me, quota: q);
-      } catch (_) {}
-    } catch (e) {
-      if (!mounted) return;
-      final storyId = e is ApiException ? e.storyId : null;
-      final msg = friendlyNetworkError(e);
-      if (storyId != null) {
-        final isGenFail = msg.contains('生成失败');
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(msg),
-            action: SnackBarAction(
-              label: isGenFail ? '重试' : '继续等待',
-              onPressed: () => unawaited(
-                isGenFail ? _retryFailed(storyId) : _resumeWait(storyId),
-              ),
-            ),
-          ),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          busy = false;
-          progressText = null;
-        });
-      }
-    }
-  }
 
-  Future<void> _resumeWait(int storyId) async {
-    if (busy) return;
-    setState(() {
-      busy = true;
-      progressText = '继续等待生成…';
-    });
-    try {
-      final story = await widget.api.waitForStory(
-        storyId,
-        onProgress: (p) {
-          if (!mounted) return;
-          setState(() => progressText = _progressLabel(p));
-        },
-      );
-      await widget.localStore?.stories.upsertOne(story);
-      if (!mounted) return;
-      await Navigator.of(context).push(
+      final id = created['id'];
+      final storyId = id is int ? id : int.tryParse('$id');
+      if (storyId == null) {
+        throw ApiException('故事创建失败');
+      }
+
+      final status = created['status'] as String? ?? '';
+      if (status == 'failed') {
+        throw ApiException(
+          created['error_message'] as String? ?? '故事生成失败',
+          storyId: storyId,
+        );
+      }
+
+      await Navigator.of(context).pushReplacement(
         MaterialPageRoute(
-          builder: (_) => PlayerScreen.fromStory(
-            story,
+          builder: (_) => CreatingStoryScreen(
+            api: widget.api,
             localStore: widget.localStore,
+            storyId: storyId,
+            initialStory: created,
           ),
         ),
       );
@@ -646,98 +592,18 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
         SnackBar(content: Text(friendlyNetworkError(e))),
       );
     } finally {
-      if (mounted) {
-        setState(() {
-          busy = false;
-          progressText = null;
-        });
-      }
+      if (mounted) setState(() => busy = false);
     }
-  }
-
-  Future<void> _retryFailed(int storyId) async {
-    if (busy) return;
-    setState(() {
-      busy = true;
-      progressText = '正在重新生成…';
-    });
-    try {
-      final story = await widget.api.retryStoryAndWait(
-        storyId,
-        onProgress: (p) {
-          if (!mounted) return;
-          setState(() => progressText = _progressLabel(p));
-        },
-      );
-      await widget.localStore?.stories.upsertOne(story);
-      if (!mounted) return;
-      await Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => PlayerScreen.fromStory(
-            story,
-            localStore: widget.localStore,
-          ),
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      final resumeId = e is ApiException ? e.storyId : storyId;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(friendlyNetworkError(e)),
-          action: SnackBarAction(
-            label: '继续等待',
-            onPressed: () => unawaited(_resumeWait(resumeId ?? storyId)),
-          ),
-        ),
-      );
-    } finally {
-      if (mounted) {
-        setState(() {
-          busy = false;
-          progressText = null;
-        });
-      }
-    }
-  }
-
-  String _progressLabel(String progress) {
-    switch (progress) {
-      case 'queued':
-        return '排队中…';
-      case 'series_outline':
-        return '正在构思系列大纲…';
-      case 'episode_plan':
-        return '正在构思今晚情节…';
-      case 'draft':
-        return '正在写故事正文…';
-      case 'tts':
-        return '正在生成朗读音频…';
-      case 'ready':
-        return '完成';
-      case 'failed':
-        return '生成失败';
-      default:
-        return '生成中（$progress）…';
-    }
-  }
-
-  List<String> _parseList(String raw) {
-    return raw
-        .split(RegExp(r'[,，、\n]+'))
-        .map((s) => s.trim())
-        .where((s) => s.isNotEmpty)
-        .toList();
   }
 
   @override
   void dispose() {
     unawaited(_saveDraft());
     themeCtrl.dispose();
-    keywordsCtrl.dispose();
     recapCtrl.dispose();
     super.dispose();
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -745,8 +611,8 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
       return Scaffold(
         backgroundColor: AppColors.background,
         appBar: AppBar(
-          title: const Text('创作故事'),
-          backgroundColor: AppColors.background,
+          backgroundColor: Colors.transparent,
+          elevation: 0,
         ),
         body: const Center(child: CircularProgressIndicator()),
       );
@@ -755,17 +621,16 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
       return Scaffold(
         backgroundColor: AppColors.background,
         appBar: AppBar(
-          title: const Text('创作故事'),
-          backgroundColor: AppColors.background,
+          backgroundColor: Colors.transparent,
+          elevation: 0,
         ),
         body: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 24, 20, 24),
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               BrandHeader(
-                eyebrow: 'Lullvale · Studio',
-                title: '先添加小主角',
+                title: '先添加小听众',
                 subtitle: quotaText ?? '有了孩子档案，才能定制今晚的故事',
               ),
               const SizedBox(height: 24),
@@ -789,267 +654,51 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('创作故事'),
-        backgroundColor: AppColors.background,
+        backgroundColor: AppColors.background.withValues(alpha: 0.92),
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        title: AnimatedOpacity(
+          opacity: _appBarTitleOpacity,
+          duration: const Duration(milliseconds: 120),
+          child: const Text('定制今晚的故事'),
+        ),
       ),
       body: Column(
         children: [
           Expanded(
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
-              children: [
-                BrandHeader(
-                  eyebrow: 'Lullvale · Studio',
-                  title: '定制今晚的枕边夜话',
-                  subtitle: quotaText ?? '温柔、可听、慢慢入睡',
-                ),
-                const SizedBox(height: 20),
-                _buildProfileCard(context),
-                const SizedBox(height: 14),
-                SectionCard(
-                  title: '今晚的故事',
-                  subtitle: '点选灵感与轻轻带上的事物；也可自己写一句',
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('孩子在故事中的角色', style: Theme.of(context).textTheme.labelLarge),
-                      const SizedBox(height: 8),
-                      _softChipRow(
-                        castRoles,
-                        childCastRole,
-                        (v) => setState(() => childCastRole = v),
-                      ),
-                      const SizedBox(height: 16),
-                      Row(
-                        children: [
-                          Text('故事灵感', style: Theme.of(context).textTheme.labelLarge),
-                          if (chipsLoading) ...[
-                            const SizedBox(width: 8),
-                            const SizedBox(
-                              width: 14,
-                              height: 14,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            ),
-                          ],
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      _suggestChipWrap(
-                        chips: inspirationChips,
-                        selectedKey: selectedInspirationKey,
-                        onSelect: (k) => setState(() => selectedInspirationKey = k),
-                      ),
-                      const SizedBox(height: 10),
-                      TextField(
-                        controller: themeCtrl,
-                        decoration: const InputDecoration(
-                          labelText: '今晚想讲什么（可选）',
-                          hintText: '不写也行，点灵感或交给我们安排',
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      Text('今晚一起出场', style: Theme.of(context).textTheme.labelLarge),
-                      const SizedBox(height: 8),
-                      if (rosterCharacters.isEmpty)
-                        Text(
-                          '可在「角色管理」添加家人或玩具；也可下方临时补充。',
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                color: AppColors.onSurfaceDim,
-                              ),
-                        )
-                      else
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: [
-                            for (final c in rosterCharacters)
-                              Builder(
-                                builder: (context) {
-                                  final cid = _asId(c['id']);
-                                  if (cid == null) return const SizedBox.shrink();
-                                  final kind = c['kind'] as String? ?? '';
-                                  final name = (c['name'] as String?)?.trim() ?? '';
-                                  final rel = (c['relation'] as String?)?.trim();
-                                  final label = kind == 'person' &&
-                                          rel != null &&
-                                          rel.isNotEmpty
-                                      ? '$name（$rel）'
-                                      : name;
-                                  final selected =
-                                      selectedCharacterIds.contains(cid);
-                                  return SoftChip(
-                                    label: label.isEmpty ? '角色' : label,
-                                    selected: selected,
-                                    onSelected: (_) {
-                                      setState(() {
-                                        if (selected) {
-                                          selectedCharacterIds.remove(cid);
-                                        } else if (selectedCharacterIds.length <
-                                            8) {
-                                          selectedCharacterIds.add(cid);
-                                        }
-                                      });
-                                    },
-                                  );
-                                },
-                              ),
-                          ],
-                        ),
-                      const SizedBox(height: 16),
-                      Text('轻轻带上', style: Theme.of(context).textTheme.labelLarge),
-                      const SizedBox(height: 8),
-                      _suggestChipWrap(
-                        chips: thingChips,
-                        selectedKey: selectedThingKey,
-                        onSelect: (k) => setState(() => selectedThingKey = k),
-                      ),
-                      const SizedBox(height: 10),
-                      TextField(
-                        controller: keywordsCtrl,
-                        decoration: const InputDecoration(
-                          labelText: '未建档的临时补充（可选）',
-                          hintText: '偶发事物，如：公园的鸽子',
-                        ),
-                        minLines: 1,
-                        maxLines: 3,
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 14),
-                SectionCard(
-                  title: '叙事风格',
-                  subtitle: '其余听感交给系统默认',
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      _labeledChips('生活 / 想象', wonders, wonder, (v) => wonder = v),
-                      _labeledChips('对话多少', dialogues, dialogue, (v) => dialogue = v),
-                      _labeledChips(
-                        '语言',
-                        languages,
-                        language,
-                        (v) => language = v,
-                      ),
-                      _durationTickPicker(),
-                      if (kFeatureSoftSeries) ...[
-                        SwitchListTile(
-                          contentPadding: EdgeInsets.zero,
-                          title: const Text('软系列（可续写）'),
-                          value: softSeries,
-                          onChanged: (v) => setState(() {
-                            softSeries = v;
-                            if (!v) continueSeriesId = null;
-                          }),
-                        ),
-                        if (softSeries) ...[
-                          TextField(
-                            controller: recapCtrl,
-                            decoration: const InputDecoration(
-                              labelText: '上一集轻钩子（可选）',
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          DropdownButtonFormField<int>(
-                            value: episodeCount,
-                            decoration: const InputDecoration(labelText: '系列集数'),
-                            items: [2, 3, 4, 5, 6, 7, 8]
-                                .map((n) =>
-                                    DropdownMenuItem(value: n, child: Text('$n')))
-                                .toList(),
-                            onChanged: (v) =>
-                                setState(() => episodeCount = v ?? 4),
-                          ),
-                        ],
-                      ],
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 14),
-                SectionCard(
-                  title: '声音电台',
-                  subtitle: '默认记住你上次的音色',
-                  child: Material(
-                    color: AppColors.inputWell,
-                    borderRadius: BorderRadius.circular(AppRadii.md),
-                    child: InkWell(
-                      onTap: voices.isEmpty ? null : _openVoicePicker,
-                      borderRadius: BorderRadius.circular(AppRadii.md),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 14,
-                        ),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: Builder(
-                                builder: (context) {
-                                  final v = _selectedVoice;
-                                  final tt = Theme.of(context).textTheme;
-                                  final name = (v?['name'] as String?)
-                                              ?.trim()
-                                              .isNotEmpty ==
-                                          true
-                                      ? v!['name'] as String
-                                      : (voices.isEmpty ? '暂无可用音色' : '请选择音色');
-                                  final desc =
-                                      (v?['description'] as String?)?.trim() ??
-                                          '';
-                                  return Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        '音色',
-                                        style: tt.labelSmall?.copyWith(
-                                          color: AppColors.onSurfaceDim,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(name, style: tt.titleMedium),
-                                      if (desc.isNotEmpty) ...[
-                                        const SizedBox(height: 2),
-                                        Text(
-                                          desc,
-                                          maxLines: 2,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: tt.bodySmall?.copyWith(
-                                            color: AppColors.onSurfaceMuted,
-                                          ),
-                                        ),
-                                      ],
-                                    ],
-                                  );
-                                },
-                              ),
-                            ),
-                            const Icon(
-                              Icons.chevron_right,
-                              color: AppColors.primarySoft,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
+            child: NotificationListener<ScrollNotification>(
+              onNotification: _onCreateScroll,
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(20, 4, 20, 28),
+                children: [
+                  _buildCreateHeader(context),
+                  const SizedBox(height: 18),
+                  _buildListenersCard(context),
+                  const SizedBox(height: 14),
+                  _buildStoryOptionsCard(context),
+                  const SizedBox(height: 14),
+                  _buildMoreOptions(context),
+                  const SizedBox(height: 14),
+                  _buildDreamRulesCard(context),
+                ],
+              ),
             ),
           ),
           Container(
             padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
             decoration: BoxDecoration(
-              color: AppColors.background,
-              border: Border(top: BorderSide(color: Colors.black.withValues(alpha: 0.06))),
+              color: AppColors.background.withValues(alpha: 0.92),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0xB3070A12),
+                  blurRadius: 32,
+                  offset: Offset(0, -8),
+                ),
+              ],
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                if (progressText != null) ...[
-                  Text(progressText!, textAlign: TextAlign.center),
-                  const SizedBox(height: 8),
-                ],
                 AmberCta(
                   label: busy ? '生成中…' : '生成今晚的故事',
                   busy: busy,
@@ -1063,70 +712,741 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
     );
   }
 
-  Widget _buildProfileCard(BuildContext context) {
+  bool _onCreateScroll(ScrollNotification notification) {
+    if (notification.metrics.axis != Axis.vertical) return false;
+    // Fade AppBar title in once the hero headline has mostly scrolled off.
+    final next = (notification.metrics.pixels / 56).clamp(0.0, 1.0);
+    if ((next - _appBarTitleOpacity).abs() >= 0.05 ||
+        (next == 0 && _appBarTitleOpacity != 0) ||
+        (next == 1 && _appBarTitleOpacity != 1)) {
+      setState(() => _appBarTitleOpacity = next);
+    }
+    return false;
+  }
+
+  Widget _buildCreateHeader(BuildContext context) {
+    final tt = Theme.of(context).textTheme;
+    final progress = storyLimit <= 0
+        ? 0.0
+        : (storyUsed / storyLimit).clamp(0.0, 1.0);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const BrandMark(),
+        const SizedBox(height: 10),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Expanded(
+              child: Text('定制今晚的故事', style: tt.headlineMedium),
+            ),
+            const SizedBox(width: 8),
+            RichText(
+              text: TextSpan(
+                style: tt.labelMedium?.copyWith(color: AppColors.onSurfaceMuted),
+                children: [
+                  const TextSpan(text: '本月故事 '),
+                  TextSpan(
+                    text: '$storyUsed',
+                    style: const TextStyle(
+                      color: AppColors.primary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  TextSpan(
+                    text: '/$storyLimit',
+                    style: const TextStyle(
+                      color: AppColors.primary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(999),
+          child: LinearProgressIndicator(
+            value: progress,
+            minHeight: 3,
+            backgroundColor: AppColors.surfaceHigh,
+            color: AppColors.primary,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildListenersCard(BuildContext context) {
+    final multi = children.length > 1;
     return SectionCard(
-      title: '小主角档案',
-      subtitle: '点按编辑角色信息',
+      title: '今晚，讲给谁听？',
+      subtitle: multi ? '可多选；故事会以小听众的偏好来编织' : '故事会以小听众偏好来编织',
+      trailing: IconButton(
+        tooltip: '管理小听众档案',
+        onPressed: _openChildEditor,
+        style: IconButton.styleFrom(
+          backgroundColor: AppColors.surfacePaperLayered,
+          side: const BorderSide(color: AppColors.outlineSubtle),
+        ),
+        icon: const Icon(Icons.manage_accounts_outlined, size: 18, color: AppColors.primarySoft),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (children.length > 1) ...[
+          if (multi)
+            for (final c in children) ...[
+              _listenerSelectTile(context, c),
+              const SizedBox(height: 10),
+            ]
+          else
+            _listenerProfileTile(context, children.first),
+        ],
+      ),
+    );
+  }
+
+  Widget _listenerSelectTile(BuildContext context, Map<String, dynamic> c) {
+    final id = _asId(c['id']);
+    if (id == null) return const SizedBox.shrink();
+    final selected = selectedChildIds.contains(id);
+    final isPrimary = id == childId;
+    final name = (c['nickname'] as String?)?.trim().isNotEmpty == true
+        ? (c['nickname'] as String).trim()
+        : '未命名';
+    final g = c['gender'] as String? ?? 'unspecified';
+    final bd = c['birth_date'] as String?;
+    final tags = (c['interests'] as List<dynamic>? ?? []).cast<String>();
+    final tagLine = tags.isEmpty ? '暂无特殊标签 · 偏爱睡前童话' : tags.take(4).join(' · ');
+
+    return Material(
+      color: selected ? AppColors.surfacePaperLayered : AppColors.inputWell,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: () => unawaited(_toggleChildSelection(id)),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          child: Row(
+            children: [
+              _avatarBubble(name),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(name, style: Theme.of(context).textTheme.titleMedium),
+                        ),
+                        if (isPrimary && selected) ...[
+                          const SizedBox(width: 8),
+                          Text(
+                            '主听众',
+                            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                  color: AppColors.primarySoft,
+                                ),
+                          ),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    _ageGenderPill(g, bd),
+                    const SizedBox(height: 6),
+                    Text(
+                      tagLine,
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
+                ),
+              ),
+              Icon(
+                selected ? Icons.check_circle : Icons.circle_outlined,
+                color: selected ? AppColors.primary : AppColors.onSurfaceDim,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _listenerProfileTile(BuildContext context, Map<String, dynamic> c) {
+    final name = (c['nickname'] as String?)?.trim().isNotEmpty == true
+        ? (c['nickname'] as String).trim()
+        : (nickname.isEmpty ? '未命名' : nickname);
+    final g = c['gender'] as String? ?? gender;
+    final bd = c['birth_date'] as String? ?? birthDate;
+    final tags = (c['interests'] as List<dynamic>? ?? interests);
+    final tagLine = tags.isEmpty
+        ? '暂无特殊标签 · 偏爱睡前童话'
+        : tags.take(4).map((e) => '$e').join(' · ');
+
+    return Material(
+      color: AppColors.surfacePaperLayered,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: _openChildEditor,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          child: Row(
+            children: [
+              _avatarBubble(name),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(name, style: Theme.of(context).textTheme.titleMedium),
+                    const SizedBox(height: 6),
+                    _ageGenderPill(g, bd),
+                    const SizedBox(height: 6),
+                    Text(tagLine, style: Theme.of(context).textTheme.bodySmall),
+                  ],
+                ),
+              ),
+              const Icon(Icons.chevron_right, color: AppColors.onSurfaceMuted),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _avatarBubble(String name) {
+    final ch = name.isEmpty ? '?' : String.fromCharCode(name.runes.first);
+    return Container(
+      width: 48,
+      height: 48,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(14),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF2A3A4F), Color(0xFF3A2A22)],
+        ),
+        border: Border.all(color: AppColors.outlineSubtle),
+      ),
+      alignment: Alignment.center,
+      child: Text(
+        ch,
+        style: const TextStyle(
+          fontFamily: 'Georgia',
+          fontSize: 20,
+          fontWeight: FontWeight.w600,
+          color: AppColors.primarySoft,
+        ),
+      ),
+    );
+  }
+
+  Widget _ageGenderPill(String g, String? bd) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(
+        color: AppColors.secondaryContainer.withValues(alpha: 0.6),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        '${_genderLabel(g)} · ${formatAgeYearsLabel(bd)}',
+        style: const TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.w600,
+          letterSpacing: 0.4,
+          color: AppColors.secondary,
+        ),
+      ),
+    );
+  }
+
+  Widget _sectionLabel(
+    BuildContext context,
+    IconData icon,
+    String label, {
+    String? hint,
+    Widget? action,
+  }) {
+    return Row(
+      children: [
+        Icon(icon, size: 18, color: AppColors.primary),
+        const SizedBox(width: 6),
+        Text(label, style: Theme.of(context).textTheme.labelLarge),
+        Expanded(
+          child: hint == null
+              ? const SizedBox.shrink()
+              : Text(
+                  hint,
+                  textAlign: TextAlign.right,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: AppColors.onSurfaceMuted,
+                        fontWeight: FontWeight.w400,
+                      ),
+                ),
+        ),
+        if (action != null) ...[
+          const SizedBox(width: 8),
+          action,
+        ],
+      ],
+    );
+  }
+
+  Widget _buildStoryOptionsCard(BuildContext context) {
+    return SectionCard(
+      title: '想听什么故事？',
+      subtitle: '故事将依据这些要素来创作',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _sectionLabel(
+            context,
+            Icons.auto_stories_outlined,
+            '故事灵感',
+            hint: '留空即由系统织梦',
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: themeCtrl,
+            decoration: const InputDecoration(
+              hintText: '今晚想讲什么（可选，例如：在云朵上看星星的小猫咪…）',
+            ),
+            minLines: 2,
+            maxLines: 4,
+            onChanged: (_) => unawaited(_saveDraft()),
+          ),
+          const SizedBox(height: 22),
+          _sectionLabel(
+            context,
+            Icons.groups_outlined,
+            '今晚一起出场',
+            action: TextButton(
+              onPressed: _openChildEditor,
+              style: TextButton.styleFrom(
+                foregroundColor: AppColors.primary,
+                padding: const EdgeInsets.symmetric(horizontal: 6),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                visualDensity: VisualDensity.compact,
+              ),
+              child: const Text('添加角色'),
+            ),
+          ),
+          const SizedBox(height: 10),
+          if (rosterCharacters.isEmpty)
+            Text(
+              '可在角色管理中添加小听众、家人或玩具。',
+              style: Theme.of(context).textTheme.bodySmall,
+            )
+          else
             Wrap(
               spacing: 8,
               runSpacing: 8,
               children: [
-                for (final c in children)
-                  SoftChip(
-                    label: (c['nickname'] as String?) ?? '孩子',
-                    selected: _asId(c['id']) == childId,
-                    onSelected: (_) async {
-                      _applyChild(c);
-                      setState(() {});
-                      await _loadSuggestionChips();
-                      await _reloadVoicePrefs();
+                for (final c in rosterCharacters)
+                  Builder(
+                    builder: (context) {
+                      final cid = _asId(c['id']);
+                      if (cid == null) return const SizedBox.shrink();
+                      final kind = c['kind'] as String? ?? '';
+                      final name = (c['name'] as String?)?.trim() ?? '';
+                      final rel = (c['relation'] as String?)?.trim();
+                      final label = kind == 'person' &&
+                              rel != null &&
+                              rel.isNotEmpty
+                          ? '$name（$rel）'
+                          : name;
+                      final selected = selectedCharacterIds.contains(cid);
+                      return SoftChip(
+                        label: label.isEmpty ? '角色' : label,
+                        selected: selected,
+                        onSelected: (_) {
+                          setState(() {
+                            if (selected) {
+                              selectedCharacterIds.remove(cid);
+                            } else if (selectedCharacterIds.length < 8) {
+                              selectedCharacterIds.add(cid);
+                            }
+                          });
+                        },
+                      );
                     },
                   ),
               ],
             ),
-            const SizedBox(height: 12),
-          ],
+          const SizedBox(height: 22),
+          _sectionLabel(context, Icons.auto_awesome_outlined, '故事类型'),
+          const SizedBox(height: 10),
+          _wonderSegmented(),
+          const SizedBox(height: 22),
+          _durationTickPicker(),
+          const SizedBox(height: 22),
+          _sectionLabel(
+            context,
+            Icons.graphic_eq,
+            '朗读音色',
+            hint: '已选：$_voiceSummaryName',
+          ),
+          const SizedBox(height: 10),
           Material(
-            color: AppColors.surfaceLow,
-            borderRadius: BorderRadius.circular(16),
+            color: AppColors.inputWell,
+            borderRadius: BorderRadius.circular(AppRadii.md),
             child: InkWell(
-              borderRadius: BorderRadius.circular(16),
-              onTap: _openChildEditor,
+              onTap: voices.isEmpty ? null : _openVoicePicker,
+              borderRadius: BorderRadius.circular(AppRadii.md),
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 14,
+                ),
                 child: Row(
                   children: [
                     Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            nickname.isEmpty ? '未命名' : nickname,
-                            style: Theme.of(context).textTheme.titleMedium,
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            '${_genderLabel(gender)} · ${formatAgeYearsLabel(birthDate)}',
-                            style: Theme.of(context).textTheme.bodySmall,
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            _interestsSummary,
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                  color: AppColors.onSurfaceMuted,
+                      child: Builder(
+                        builder: (context) {
+                          final v = _selectedVoice;
+                          final tt = Theme.of(context).textTheme;
+                          final name = _voiceSummaryName;
+                          final desc =
+                              (v?['description'] as String?)?.trim() ?? '';
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(name, style: tt.titleMedium),
+                              if (desc.isNotEmpty) ...[
+                                const SizedBox(height: 2),
+                                Text(
+                                  desc,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: tt.bodySmall,
                                 ),
-                          ),
-                        ],
+                              ],
+                            ],
+                          );
+                        },
                       ),
                     ),
-                    const Icon(Icons.chevron_right),
+                    Text(
+                      '更换',
+                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                            color: AppColors.primary,
+                          ),
+                    ),
+                    const SizedBox(width: 2),
+                    const Icon(
+                      Icons.chevron_right,
+                      color: AppColors.primarySoft,
+                      size: 20,
+                    ),
                   ],
                 ),
               ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _wonderSegmented() {
+    return Container(
+      padding: const EdgeInsets.all(6),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceLow,
+        borderRadius: BorderRadius.circular(AppRadii.xl),
+      ),
+      child: Row(
+        children: [
+          for (final (id, label) in wonders)
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 2),
+                child: Material(
+                  color: wonder == id
+                      ? AppColors.primaryContainer
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.circular(AppRadii.md),
+                  elevation: wonder == id ? 2 : 0,
+                  shadowColor: AppColors.lanternGlow,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(AppRadii.md),
+                    onTap: () {
+                      setState(() => wonder = id);
+                      unawaited(_saveDraft());
+                    },
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      child: Text(
+                        label,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight:
+                              wonder == id ? FontWeight.w700 : FontWeight.w500,
+                          color: wonder == id
+                              ? AppColors.onPrimaryContainer
+                              : AppColors.onSurfaceMuted,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMoreOptions(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: AppColors.card,
+        borderRadius: BorderRadius.circular(AppRadii.xl),
+        border: Border.all(color: AppColors.outlineSubtle),
+        boxShadow: const [
+          BoxShadow(
+            color: AppColors.paperShadow,
+            blurRadius: 24,
+            offset: Offset(0, 8),
+            spreadRadius: -4,
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(AppRadii.xl),
+              onTap: () => setState(() => moreOptionsOpen = !moreOptionsOpen),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 16, 16),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        '更多选项（语言与对话）',
+                        style: Theme.of(context).textTheme.labelLarge,
+                      ),
+                    ),
+                    Text(
+                      _moreOptionsSummary,
+                      style: Theme.of(context).textTheme.labelSmall,
+                    ),
+                    const SizedBox(width: 4),
+                    Icon(
+                      moreOptionsOpen ? Icons.expand_less : Icons.expand_more,
+                      color: AppColors.onSurfaceMuted,
+                      size: 20,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          if (moreOptionsOpen)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceLow,
+                  borderRadius: BorderRadius.circular(AppRadii.lg),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _sectionLabel(context, Icons.translate, '讲述语言'),
+                    const SizedBox(height: 10),
+                    _wonderLikeSegment(
+                      options: languages,
+                      selected: language,
+                      disabledIds: const {'en'},
+                      onDisabledTap: (id) {
+                        if (id == 'en') {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('英文故事暂未开放，敬请期待'),
+                            ),
+                          );
+                        }
+                      },
+                      onSelect: (v) {
+                        language = v;
+                        unawaited(_saveDraft());
+                      },
+                    ),
+                    const SizedBox(height: 22),
+                    _sectionLabel(context, Icons.forum_outlined, '对话多少'),
+                    const SizedBox(height: 10),
+                    _wonderLikeSegment(
+                      options: dialogues,
+                      selected: dialogue,
+                      onSelect: (v) {
+                        dialogue = v;
+                        unawaited(_saveDraft());
+                      },
+                    ),
+                    if (kFeatureSoftSeries) ...[
+                      SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('软系列（可续写）'),
+                        value: softSeries,
+                        onChanged: (v) => setState(() {
+                          softSeries = v;
+                          if (!v) continueSeriesId = null;
+                          unawaited(_saveDraft());
+                        }),
+                      ),
+                      if (softSeries) ...[
+                        TextField(
+                          controller: recapCtrl,
+                          decoration: const InputDecoration(
+                            labelText: '上一集轻钩子（可选）',
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        SoftSelectField<int>(
+                          label: '系列集数',
+                          value: episodeCount,
+                          options: [
+                            for (final n in [2, 3, 4, 5, 6, 7, 8]) (n, '$n'),
+                          ],
+                          onChanged: (v) => setState(() => episodeCount = v),
+                        ),
+                      ],
+                    ],
+                  ],
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _wonderLikeSegment({
+    required List<(String, String)> options,
+    required String selected,
+    required void Function(String) onSelect,
+    Set<String> disabledIds = const {},
+    void Function(String id)? onDisabledTap,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(6),
+      decoration: BoxDecoration(
+        color: AppColors.inputWell,
+        borderRadius: BorderRadius.circular(AppRadii.xl),
+      ),
+      child: Row(
+        children: [
+          for (final (id, label) in options)
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 2),
+                child: Builder(
+                  builder: (context) {
+                    final disabled = disabledIds.contains(id);
+                    final active = !disabled && selected == id;
+                    return Material(
+                      color: active
+                          ? AppColors.primaryContainer
+                          : Colors.transparent,
+                      borderRadius: BorderRadius.circular(AppRadii.md),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(AppRadii.md),
+                        onTap: () {
+                          if (disabled) {
+                            onDisabledTap?.call(id);
+                            return;
+                          }
+                          setState(() => onSelect(id));
+                        },
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          child: Text(
+                            label,
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: active
+                                  ? FontWeight.w700
+                                  : FontWeight.w500,
+                              color: disabled
+                                  ? AppColors.onSurfaceDim.withValues(alpha: 0.55)
+                                  : active
+                                      ? AppColors.onPrimaryContainer
+                                      : AppColors.onSurfaceMuted,
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDreamRulesCard(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceLow,
+        borderRadius: BorderRadius.circular(AppRadii.lg),
+        border: Border.all(color: AppColors.outlineSubtle),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFF2A3A4F), Color(0xFF3A2A22)],
+              ),
+            ),
+            child: const Icon(Icons.auto_awesome, color: AppColors.primary, size: 22),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.auto_awesome, size: 14, color: AppColors.primary),
+                    const SizedBox(width: 4),
+                    Text(
+                      '织梦守则',
+                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                            color: AppColors.onSurface,
+                            fontWeight: FontWeight.w600,
+                          ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '故事将自动调节平静舒缓的语言节奏，末尾缓缓淡入晚安白噪音。',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ],
             ),
           ),
         ],
@@ -1145,73 +1465,12 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
       setState(() {
         if (prefSpeed is String && prefSpeed.isNotEmpty) _speedTier = prefSpeed;
         if (prefTone is String && prefTone.isNotEmpty) _tonePreset = prefTone;
-        if (prefVoiceId != null && voices.any((v) => _asId(v['id']) == prefVoiceId)) {
+        if (prefVoiceId != null &&
+            voices.any((v) => _asId(v['id']) == prefVoiceId)) {
           voiceId = prefVoiceId;
         }
       });
     } catch (_) {}
-  }
-
-  Widget _suggestChipWrap({
-    required List<_ChipOpt> chips,
-    required String? selectedKey,
-    required void Function(String? key) onSelect,
-  }) {
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: [
-        SoftChip(
-          label: '自动',
-          selected: selectedKey == null,
-          onSelected: (_) => onSelect(null),
-        ),
-        for (final c in chips)
-          SoftChip(
-            label: c.label,
-            selected: selectedKey == c.key,
-            onSelected: (_) => onSelect(selectedKey == c.key ? null : c.key),
-          ),
-      ],
-    );
-  }
-
-  Widget _softChipRow(
-    List<(String, String)> options,
-    String selected,
-    void Function(String) onSelect,
-  ) {
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: [
-        for (final (id, label) in options)
-          SoftChip(
-            label: label,
-            selected: selected == id,
-            onSelected: (_) => onSelect(id),
-          ),
-      ],
-    );
-  }
-
-  Widget _labeledChips(
-    String label,
-    List<(String, String)> options,
-    String selected,
-    void Function(String) assign,
-  ) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(label, style: Theme.of(context).textTheme.labelLarge),
-          const SizedBox(height: 8),
-          _softChipRow(options, selected, (v) => setState(() => assign(v))),
-        ],
-      ),
-    );
   }
 
   Widget _durationTickPicker() {
@@ -1219,57 +1478,67 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
     var idx = ticks.indexOf(duration);
     if (idx < 0) idx = ticks.indexOf(5).clamp(0, ticks.length - 1);
     final tt = Theme.of(context).textTheme;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('时长（分钟）', style: tt.labelLarge),
-          const SizedBox(height: 4),
-          SliderTheme(
-            data: SliderTheme.of(context).copyWith(
-              trackHeight: 3,
-              activeTrackColor: AppColors.primary,
-              inactiveTrackColor: AppColors.surfaceHighest,
-              thumbColor: AppColors.primary,
-              overlayColor: AppColors.primary.withValues(alpha: 0.16),
-              activeTickMarkColor: AppColors.onPrimary,
-              inactiveTickMarkColor: AppColors.onSurfaceDim,
-              valueIndicatorColor: AppColors.primary,
-              showValueIndicator: ShowValueIndicator.never,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Icon(Icons.bedtime_outlined, size: 18, color: AppColors.primary),
+            const SizedBox(width: 6),
+            Text('时长 (分钟)', style: tt.labelLarge),
+            const Spacer(),
+            Text(
+              _durationMoodLabel(duration),
+              style: tt.labelMedium?.copyWith(
+                color: AppColors.primary,
+                fontWeight: FontWeight.w600,
+              ),
             ),
-            child: Slider(
-              value: idx.toDouble(),
-              min: 0,
-              max: (ticks.length - 1).toDouble(),
-              divisions: ticks.length - 1,
-              onChanged: (v) {
-                setState(() => duration = ticks[v.round()]);
-                unawaited(_saveDraft());
-              },
-            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        SliderTheme(
+          data: SliderTheme.of(context).copyWith(
+            trackHeight: 4,
+            activeTrackColor: AppColors.primary,
+            inactiveTrackColor: AppColors.surfaceHighest,
+            thumbColor: AppColors.primaryContainer,
+            overlayColor: AppColors.primary.withValues(alpha: 0.18),
+            activeTickMarkColor: AppColors.onPrimary,
+            inactiveTickMarkColor: AppColors.onSurfaceDim,
+            showValueIndicator: ShowValueIndicator.never,
           ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                for (final m in ticks)
-                  Text(
-                    '$m',
-                    style: tt.labelSmall?.copyWith(
-                      color: m == duration
-                          ? AppColors.primary
-                          : AppColors.onSurfaceDim,
-                      fontWeight:
-                          m == duration ? FontWeight.w700 : FontWeight.w500,
-                    ),
+          child: Slider(
+            value: idx.toDouble(),
+            min: 0,
+            max: (ticks.length - 1).toDouble(),
+            divisions: ticks.length - 1,
+            onChanged: (v) {
+              setState(() => duration = ticks[v.round()]);
+              unawaited(_saveDraft());
+            },
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              for (final m in ticks)
+                Text(
+                  '$m',
+                  style: tt.labelSmall?.copyWith(
+                    color: m == duration
+                        ? AppColors.primary
+                        : AppColors.onSurfaceDim,
+                    fontWeight:
+                        m == duration ? FontWeight.w700 : FontWeight.w500,
                   ),
-              ],
-            ),
+                ),
+            ],
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
