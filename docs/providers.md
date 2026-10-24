@@ -40,7 +40,7 @@ FISH_AUDIO_TTS_MODEL=s2-pro
 FISH_AUDIO_BASE_URL=https://api.fish.audio
 ```
 
-Clone creates a persistent model (`POST /model`), polls until `trained`, stores id as `provider_voice_id`. TTS uses `reference_id`. No Volc-style SSML — narration uses punctuation breaths.
+Clone creates a persistent model (`POST /model`), polls until `trained`, stores id as `provider_voice_id`. TTS uses `reference_id`. No Volc-style SSML — bedtime narration post-processes sentence/paragraph pauses into S2 bracket cues `[break]` / `[long-break]` in the speak text (display body stays clean).
 
 ## Volc / 豆包
 
@@ -77,6 +77,7 @@ ALIYUN_TTS_DEFAULT_VOICE=longanyang
 - 系统音色：`ALIYUN_TTS_DEFAULT_VOICE`（如 `longanyang`）
 - 克隆：`voice-enrollment` / `create_voice`；样本需**公网可访问 URL**（实现会先上传到 S3/R2 再传 URL）。本地 `STORAGE_BACKEND=local` 时克隆不可用
 - 复刻音色的 `target_model` 必须与 `ALIYUN_TTS_MODEL` / Admin `speech_model` 一致
+- 睡前停顿：TTS 前注入 CosyVoice SSML（`<speak>` + `<break time="…ms"/>`，`enable_ssml=true`）；个别音色不支持时自动降级为标点呼吸
 
 ## DeepSeek（故事）
 
@@ -127,7 +128,7 @@ ELEVENLABS_MODEL_ID=eleven_multilingual_v2
   - `wonder`: everyday | soft | fantasy
   - `wind_down`: deep | gentle | playful
   - `dialogue`: low | some | more
-- 时长 → 篇幅：中文约 **180 字/分钟**（±20%），英文约 **100 words/分钟**（±20%）；plan/draft 的 `user_payload.len` 为字符串如 `"720-1080"`；`max_tokens` 按上限估算
+- 时长 → 篇幅：中文约 **220 字/分钟**（±20%），英文约 **100 words/分钟**（±20%）；plan/draft 的 `user_payload.len` 为字符串如 `"880-1320"`（5 分钟）；`max_tokens` 按上限估算
 - `keywords` 为未建档临时补充；档案 `interests` 仅作轻度 likes，不并入 kw；`PATCH /children/{id}` 可改昵称/年龄/兴趣
 - 发展焦点可覆盖；母题白名单只借鉴安心内核
 
