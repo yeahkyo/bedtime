@@ -54,10 +54,21 @@ def _resolve_birth_and_band(
     return approx, sync_age_band(approx)
 
 
+def _prefer_list(child: Child) -> list[str]:
+    if not child.interests_json:
+        return []
+    try:
+        raw = json.loads(child.interests_json)
+    except json.JSONDecodeError:
+        return []
+    if isinstance(raw, list):
+        return [str(x).strip() for x in raw if str(x).strip()]
+    if isinstance(raw, str) and raw.strip():
+        return [raw.strip()]
+    return []
+
+
 def _to_out(child: Child) -> ChildOut:
-    interests: list[str] = []
-    if child.interests_json:
-        interests = json.loads(child.interests_json)
     # Response age_band is always computed from birth_date (legacy column not authoritative).
     band = sync_age_band(child.birth_date)
     return ChildOut(
@@ -67,7 +78,7 @@ def _to_out(child: Child) -> ChildOut:
         age_band=band,
         gender=normalize_gender(child.gender),
         intro=child.intro,
-        interests=interests,
+        prefer=_prefer_list(child),
     )
 
 
@@ -91,7 +102,7 @@ async def create_child(
         age_band=band,
         gender=normalize_gender(body.gender),
         intro=(body.intro or "").strip() or None,
-        interests_json=json.dumps(body.interests, ensure_ascii=False),
+        interests_json=json.dumps(body.prefer, ensure_ascii=False),
     )
     db.add(child)
     await db.flush()
@@ -167,8 +178,8 @@ async def update_child(
         child.gender = normalize_gender(body.gender)
     if body.intro is not None:
         child.intro = body.intro.strip() or None
-    if body.interests is not None:
-        child.interests_json = json.dumps(body.interests, ensure_ascii=False)
+    if body.prefer is not None:
+        child.interests_json = json.dumps(body.prefer, ensure_ascii=False)
     await ensure_child_character(db, user_id=user.id, child=child)
     await db.commit()
     await db.refresh(child)

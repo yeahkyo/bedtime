@@ -49,7 +49,8 @@ class ChildCreate(BaseModel):
     age_band: str | None = None
     gender: str = "unspecified"
     intro: str | None = Field(default=None, max_length=2000)
-    interests: list[str] = []
+    # Story preferences (tags); persisted in Child.interests_json column.
+    prefer: list[str] = []
 
     @field_validator("gender")
     @classmethod
@@ -65,7 +66,7 @@ class ChildUpdate(BaseModel):
     age_band: str | None = None  # deprecated
     gender: str | None = None
     intro: str | None = Field(default=None, max_length=2000)
-    interests: list[str] | None = None
+    prefer: list[str] | None = None
 
     @field_validator("gender")
     @classmethod
@@ -84,7 +85,7 @@ class ChildOut(BaseModel):
     age_band: str  # derived from birth_date for story dials
     gender: str = "unspecified"
     intro: str | None = None
-    interests: list[str] = []
+    prefer: list[str] = []
 
     model_config = {"from_attributes": True}
 
@@ -154,37 +155,29 @@ class VoiceUpdate(BaseModel):
     provider_voice_id: str | None = None
 
 
+class AudienceItem(BaseModel):
+    """Tonight's listeners for the story agent (name/age/gender/desc/prefer)."""
+
+    name: str = Field(min_length=1, max_length=64)
+    age: int | None = Field(default=None, ge=0, le=18)
+    gender: str | None = Field(default=None, max_length=32)
+    desc: str | None = Field(default=None, max_length=2000)
+    prefer: str | None = Field(default=None, max_length=2000)
+
+
 class StoryCreate(BaseModel):
     child_id: int
     theme: str = "a gentle forest adventure"
     language: str = "zh"
     duration_minutes: int = Field(default=5, ge=2, le=12)
     voice_id: int | None = None
-    values: list[str] = []
-    soft_series_mode: bool = False
-    recap: str | None = None
-    # Continue an existing soft series (omit to start a new one when soft_series_mode).
-    series_id: int | None = None
-    episode_count: int = Field(default=4, ge=2, le=8)
-    source: str = "manual"
-    memory_ids: list[int] = []
-    # Personalization tags: people / toys / places / events (also for future photo extract)
-    keywords: list[str] = []
-    # Tonight roster picks from /v1/characters (structured); keywords remain ad-hoc.
+    # Tonight listeners (primary + companions); age/gender live here, not at root.
+    audiences: list[AudienceItem] = []
+    # Tonight roster picks from /v1/characters.
     character_ids: list[int] = []
-    # Optional soft developmental focus id (e.g. tiny_brave); auto-picked by age if omitted
-    development_focus: str | None = None
-    # Optional catalog element id from chip pick; else server silently selects
-    story_element_id: str | None = Field(default=None, max_length=64)
-    # auto | protagonist | supporting | absent
-    child_cast_role: str = "auto"
-    # Style dials
-    plot_drive: str = "light"  # mood | light | arc
-    imagery: str = "balanced"  # sparse | balanced | rich
+    # Style dials still exposed in the create UI.
     wonder: str = "soft"  # everyday | soft | fantasy
-    wind_down: str = "gentle"  # deep | gentle | playful
     dialogue: str = "some"  # low | some | more
-    lead_in: str = "soft"  # none | soft | curious
 
 
 class StoryOut(BaseModel):
@@ -204,7 +197,7 @@ class StoryOut(BaseModel):
     progress: str | None = None
     error_message: str | None = None
     voice_name: str | None = None
-    development_focus_label: str | None = None
+    core: str | None = None
     story_provider: str | None = None
     speech_provider: str | None = None
     speech_model: str | None = None

@@ -128,7 +128,7 @@ ELEVENLABS_MODEL_ID=eleven_multilingual_v2
   - `wonder`: everyday | soft | fantasy
   - `wind_down`: deep | gentle | playful
   - `dialogue`: low | some | more
-- 时长 → 篇幅：中文约 **220 字/分钟**（±20%），英文约 **100 words/分钟**（±20%）；plan/draft 的 `user_payload.len` 为字符串如 `"880-1320"`（5 分钟）；`max_tokens` 按上限估算
+- 时长 → 篇幅：中文约 **220 字/分钟**（±1 分钟 = ±220 字），英文约 **100 words/分钟**（±1 分钟 = ±100 words）；plan/draft 的 `user_payload.len` 为字符串如 `"880-1320"`（5 分钟）；`max_tokens` 按上限估算
 - `keywords` 为未建档临时补充；档案 `interests` 仅作轻度 likes，不并入 kw；`PATCH /children/{id}` 可改昵称/年龄/兴趣
 - 发展焦点可覆盖；母题白名单只借鉴安心内核
 

@@ -1,5 +1,6 @@
 from datetime import date
 from types import SimpleNamespace
+from unittest.mock import MagicMock
 
 import pytest
 from fastapi import FastAPI
@@ -76,6 +77,15 @@ async def test_patch_age_band_preserves_existing_birth_date():
     class _Db:
         async def get(self, _model, child_id):
             return child if child_id == 1 else None
+
+        async def execute(self, _stmt):
+            return MagicMock(scalar_one_or_none=MagicMock(return_value=None))
+
+        def add(self, _obj):
+            return None
+
+        async def flush(self):
+            return None
 
         async def commit(self):
             return None

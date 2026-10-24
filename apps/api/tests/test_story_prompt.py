@@ -91,33 +91,35 @@ def test_merge_keywords_dedupes_and_caps():
     assert merged == ["小兔子玩偶", "奶奶", "火车"]
 
 
-def test_profile_interests_not_merged_into_tonight_kw():
-    from app.providers.story_prompt import pick_soft_likes
-
+def test_audiences_and_roster_in_plan_payload():
     req = StoryRequest(
         child_nickname="豆豆",
         age_band="3-5",
         language="zh",
         theme="月亮",
         duration_minutes=5,
-        keywords=["小灯"],
-        interests=["跳舞", "挖机", "恐龙"],
+        audiences=[
+            {
+                "name": "豆豆",
+                "age": 4,
+                "gender": "女孩",
+                "prefer": "跳舞、恐龙",
+            }
+        ],
+        roster=[{"name": "小灯", "desc": "会发光的灯"}],
         episode_no=1,
     )
     payload = build_user_payload(req)
-    assert payload["keywords"] == ["小灯"]
-    assert "跳舞" not in payload["keywords"]
-    assert "likes_tip" in payload
-    assert "禁止当主线" in payload["likes_tip"]
-    # Soft pick: at most one, and sometimes empty.
-    assert len(payload["likes"]) <= 1
-    assert all(x in ("跳舞", "挖机", "恐龙") for x in payload["likes"])
-    empty = pick_soft_likes(["跳舞"], salt="force-empty-check", max_n=1)
-    assert empty == [] or empty == ["跳舞"]
-    msg = build_plan_user_message(req)
-    assert '"keywords"' in msg
-    assert '"fantasy"' in msg
-    assert "likes_tip" not in msg
+    assert "keywords" not in payload
+    assert payload["audiences"][0]["prefer"] == "跳舞、恐龙"
+    assert payload["roster"][0]["name"] == "小灯"
+    plan = json.loads(build_plan_user_message(req))
+    assert "audiences" in plan
+    assert "fantasy" in plan
+    assert "keywords" not in plan
+    assert "age" not in plan
+    assert "gender" not in plan
+    assert plan["audiences"][0]["age"] == 4
 
 
 def test_focus_stable_for_same_inputs():
@@ -145,8 +147,9 @@ def test_oral_and_lead_in_in_system_prompt():
     assert "fantasy" in PLAN_SYSTEM_PROMPT
     assert "len" in PLAN_SYSTEM_PROMPT
     assert "roster" in PLAN_SYSTEM_PROMPT
-    assert "roster" in SYSTEM_PROMPT
+    assert "roster" not in SYSTEM_PROMPT
     assert "casts" in PLAN_SYSTEM_PROMPT
+    assert "casts" in SYSTEM_PROMPT
     assert "wish / snag" not in PLAN_SYSTEM_PROMPT
     assert "tonight_theme_pref" not in PLAN_SYSTEM_PROMPT
     assert "dials.wonder" not in PLAN_SYSTEM_PROMPT
@@ -266,16 +269,25 @@ def test_mood_rich_soft_guard():
     assert dials["imagery"]["level"] == "balanced"
 
 
-def test_length_band_220_chars_pm_plus_minus_20pct():
+def test_length_band_plus_minus_one_minute():
     zh5 = estimate_length_target("zh", 5)
     assert zh5["target"] == 5 * 220
-    assert zh5["min"] == int(round(1100 * 0.8))
-    assert zh5["max"] == int(round(1100 * 1.2))
-    assert length_range_for_llm("zh", 5) == f"{zh5['min']}-{zh5['max']}"
+    assert zh5["min"] == 1100 - 220
+    assert zh5["max"] == 1100 + 220
     assert length_range_for_llm("zh", 5) == "880-1320"
+    zh3 = estimate_length_target("zh", 3)
+    assert zh3["target"] == 660
+    assert zh3["min"] == 440
+    assert zh3["max"] == 880
+    assert length_range_for_llm("zh", 3) == "440-880"
+    zh10 = estimate_length_target("zh", 10)
+    assert zh10["min"] == 2200 - 220
+    assert zh10["max"] == 2200 + 220
     en5 = estimate_length_target("en", 5)
     assert en5["unit"] == "words"
     assert en5["target"] == 5 * 100
+    assert en5["min"] == 400
+    assert en5["max"] == 600
     zh5_tok = max_tokens_for_story("zh", 5)
     zh10_tok = max_tokens_for_story("zh", 10)
     assert zh5_tok >= 1024
@@ -291,7 +303,8 @@ def test_user_payload_includes_style_dials_and_len_band():
         language="zh",
         theme="月亮探险",
         duration_minutes=3,
-        keywords=["星星娃娃"],
+        audiences=[{"name": "豆豆", "age": 4}],
+        roster=[{"name": "星星娃娃"}],
         child_cast_role="absent",
         plot_drive="arc",
         imagery="sparse",
@@ -318,7 +331,8 @@ def test_user_payload_includes_style_dials_and_len_band():
     assert "12%" in payload["style_dials"]["lead_in"]["instruction"]
     assert any("开场白" in r for r in payload["style_reminders"])
     assert any("听感" in r or "口语" in r for r in payload["style_reminders"])
-    assert "child_profile_guidance" in payload
+    assert "audiences" in payload
+    assert "roster" in payload
     assert payload["duration_minutes"] == 3
     band = length_range_for_llm("zh", 3)
     plan_msg = build_plan_user_message(req)
@@ -331,6 +345,9 @@ def test_user_payload_includes_style_dials_and_len_band():
     assert '"dialog": 5' in draft_msg
     draft = json.loads(draft_msg)
     assert draft["len"] == band
+    assert "audiences" in draft
+    assert "roster" not in draft
+    assert "星星娃娃" not in draft_msg
 
 
 def test_slice_series_context_episode():
@@ -361,10 +378,9 @@ def test_plan_message_is_simplified_schema():
         language="zh",
         theme="森林",
         duration_minutes=5,
-        keywords=["小兔子"],
+        audiences=[{"name": "豆豆", "age": 4, "gender": "女孩"}],
+        roster=[{"name": "小兔子"}],
         wonder="soft",
-        child_gender="girl",
-        child_age_years=4,
         soft_series_mode=True,
         episode_no=2,
     )
@@ -372,22 +388,20 @@ def test_plan_message_is_simplified_schema():
     payload = json.loads(msg)
     assert set(payload) == {
         "theme",
-        "keywords",
+        "audiences",
         "roster",
-        "age",
-        "gender",
         "fantasy",
         "len",
     }
     assert payload["theme"] == "森林"
-    assert payload["keywords"] == ["小兔子"]
-    assert payload["roster"] == []
-    assert payload["age"] == 4
-    assert payload["gender"] == "女孩"
+    assert payload["audiences"][0]["name"] == "豆豆"
+    assert payload["roster"][0]["name"] == "小兔子"
     assert payload["fantasy"] == 3
     assert payload["len"] == length_range_for_llm("zh", 5)
     assert "series" not in payload
     assert "dials" not in payload
+    assert "age" not in payload
+    assert "gender" not in payload
 
 
 def test_prompt_age_years_falls_back_to_band():
@@ -435,8 +449,9 @@ def test_tonight_focus_drops_legacy_soft_guidance_label():
 
 
 def test_validate_accepts_new_plan_schema():
-    plan = validate_episode_plan(_sample_plan())
-    assert set(plan) == {"title", "theme", "casts", "beats", "shape"}
+    plan = validate_episode_plan(_sample_plan(core="一点点勇气"))
+    assert set(plan) == {"title", "theme", "core", "casts", "beats", "shape"}
+    assert plan["core"] == "一点点勇气"
     assert plan["casts"][0]["name"] == "小羊"
     assert plan["casts"][0]["desc"]
     assert isinstance(plan["beats"][0], str)
@@ -465,7 +480,8 @@ def test_validate_plan_is_lean():
         _sample_plan(title="窗边", theme="光"),
         story_element={"id": "el1", "name": "小灯"},
     )
-    assert set(plan.keys()) == {"title", "theme", "casts", "beats", "shape"}
+    assert set(plan.keys()) == {"title", "theme", "core", "casts", "beats", "shape"}
+    assert plan["core"] is None
     assert "eid" not in plan
     assert "hook" not in plan
     assert "setting" not in plan
@@ -475,6 +491,15 @@ def test_validate_plan_requires_beat_text():
     plan = validate_episode_plan(_sample_plan())
     assert plan["beats"][0]
     assert plan["casts"][0]["name"] == "小羊"
+
+
+def test_validate_plan_core_alias_and_truncate():
+    plan = validate_episode_plan(
+        _sample_plan(development_focus_label="第一次说对不起" + ("长" * 40))
+    )
+    assert plan["core"] is not None
+    assert plan["core"].startswith("第一次说对不起")
+    assert len(plan["core"]) == 32
 
 
 def test_draft_message_is_flat_outline():
@@ -501,20 +526,20 @@ def test_draft_message_is_flat_outline():
         "theme",
         "casts",
         "beats",
-        "age",
-        "gender",
+        "audiences",
         "dialog",
         "len",
-        "roster",
     }
+    assert "roster" not in payload
     assert payload["title"] == "窗边的月亮"
     assert "摸月亮" in payload["beats"]
-    assert payload["age"] == 3
-    assert payload["gender"] == "男孩"
+    assert payload["audiences"] == []
     assert payload["dialog"] == 3
     assert payload["len"] == length_range_for_llm("zh", 5)
     assert "plan" not in payload
     assert "check" not in payload
+    assert "age" not in payload
+    assert "gender" not in payload
 
 
 def test_child_profile_guidance_in_payload():

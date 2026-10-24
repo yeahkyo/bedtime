@@ -355,23 +355,23 @@ async def test_pipeline_uses_agent_messages_with_fallback():
             payload = json.loads(user[start:])
             assert set(payload) == {
                 "theme",
-                "keywords",
+                "audiences",
                 "roster",
-                "age",
-                "gender",
                 "fantasy",
                 "len",
             }
-            assert isinstance(payload["age"], int)
-            assert payload["gender"] == "不指定"
-            assert payload["len"] == "528-792"  # 3×220 ±20%
+            assert payload["len"] == "440-880"  # 3×220 ±1 minute
             return (
-                '{"title":"月亮夜","theme":"窗边一点光","casts":'
-                '[{"name":"豆豆","desc":"爱踮脚看月亮的孩子"}],'
+                '{"title":"月亮夜","theme":"窗边一点光","core":"一点暖光",'
+                '"casts":[{"name":"豆豆","desc":"爱踮脚看月亮的孩子"}],'
                 '"beats":["踮脚","看月亮","靠着窗坐下"],'
                 '"shape":"一点点靠近再安静"}'
             )
         assert "写睡前故事正文" in user
+        start = user.find("{")
+        draft_payload = json.loads(user[start:])
+        assert "roster" not in draft_payload
+        assert "casts" in draft_payload
         return '{"title":"夜","body":"从前有个孩子。晚安。"}'
 
     req = StoryRequest(

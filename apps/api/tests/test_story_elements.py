@@ -98,7 +98,8 @@ def test_plan_message_does_not_inject_tonight_element():
     msg = build_plan_user_message(req)
     assert '"element"' not in msg
     assert "rain_makes_puddles" not in msg
-    assert '"keywords"' in msg
+    assert '"theme"' in msg
+    assert '"fantasy"' in msg
 
 
 def test_validate_plan_ignores_element_meta():

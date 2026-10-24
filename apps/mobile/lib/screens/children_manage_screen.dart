@@ -101,8 +101,10 @@ class _ChildrenManageScreenState extends State<ChildrenManageScreen>
   Future<void> _editChild({Map<String, dynamic>? existing}) async {
     final nickCtrl = TextEditingController(text: existing?['nickname'] as String? ?? '');
     final introCtrl = TextEditingController(text: existing?['intro'] as String? ?? '');
-    final interestsCtrl = TextEditingController(
-      text: ((existing?['interests'] as List<dynamic>?) ?? []).cast<String>().join(', '),
+    final preferCtrl = TextEditingController(
+      text: ((existing?['prefer'] as List<dynamic>?) ?? [])
+          .cast<String>()
+          .join(', '),
     );
     var gender = existing?['gender'] as String? ?? 'unspecified';
     if (!genders.any((g) => g.$1 == gender)) {
@@ -202,10 +204,10 @@ class _ChildrenManageScreenState extends State<ChildrenManageScreen>
                     ),
                     const SizedBox(height: 12),
                     TextField(
-                      controller: interestsCtrl,
+                      controller: preferCtrl,
                       decoration: const InputDecoration(
-                        labelText: '兴趣（逗号分隔）',
-                        hintText: '恐龙, 画画',
+                        labelText: '故事偏好（逗号分隔）',
+                        hintText: '恐龙冒险, 温柔童话, 一点点幽默',
                       ),
                     ),
                     const SizedBox(height: 20),
@@ -213,7 +215,7 @@ class _ChildrenManageScreenState extends State<ChildrenManageScreen>
                       onPressed: () async {
                         final nick = nickCtrl.text.trim();
                         if (nick.isEmpty) return;
-                        final interests = interestsCtrl.text
+                        final prefer = preferCtrl.text
                             .split(RegExp(r'[,，]'))
                             .map((s) => s.trim())
                             .where((s) => s.isNotEmpty)
@@ -227,7 +229,7 @@ class _ChildrenManageScreenState extends State<ChildrenManageScreen>
                               intro: introCtrl.text.trim().isEmpty
                                   ? null
                                   : introCtrl.text.trim(),
-                              interests: interests,
+                              prefer: prefer,
                             );
                           } else {
                             await widget.api.updateChild(
@@ -236,7 +238,7 @@ class _ChildrenManageScreenState extends State<ChildrenManageScreen>
                               birthDate: _fmtDate(birth),
                               gender: gender,
                               intro: introCtrl.text.trim(),
-                              interests: interests,
+                              prefer: prefer,
                             );
                           }
                           if (ctx.mounted) Navigator.pop(ctx, true);
@@ -260,7 +262,7 @@ class _ChildrenManageScreenState extends State<ChildrenManageScreen>
     );
     nickCtrl.dispose();
     introCtrl.dispose();
-    interestsCtrl.dispose();
+    preferCtrl.dispose();
     if (saved == true) await _load();
   }
 
@@ -684,7 +686,7 @@ class _ChildrenManageScreenState extends State<ChildrenManageScreen>
         : '未命名';
     final gender = c['gender'] as String?;
     final birth = c['birth_date'] as String?;
-    final interests = ((c['interests'] as List<dynamic>?) ?? []).cast<String>();
+    final prefer = ((c['prefer'] as List<dynamic>?) ?? []).cast<String>();
     final intro = (c['intro'] as String?)?.trim() ?? '';
     final initial = name.isEmpty ? '?' : String.fromCharCode(name.runes.first);
 
@@ -787,16 +789,16 @@ class _ChildrenManageScreenState extends State<ChildrenManageScreen>
               ),
             ],
           ),
-          if (interests.isNotEmpty || intro.isNotEmpty) ...[
+          if (prefer.isNotEmpty || intro.isNotEmpty) ...[
             const SizedBox(height: 12),
             Wrap(
               spacing: 8,
               runSpacing: 8,
               children: [
-                if (interests.isNotEmpty)
+                if (prefer.isNotEmpty)
                   _infoChip(
-                    Icons.favorite_border,
-                    '最爱：${interests.take(3).join('、')}',
+                    Icons.auto_awesome_outlined,
+                    '偏好：${prefer.take(3).join('、')}',
                   ),
                 if (intro.isNotEmpty)
                   _infoChip(Icons.auto_stories_outlined, intro),

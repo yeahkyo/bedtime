@@ -32,7 +32,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
   String? birthDate;
   String gender = 'unspecified';
   String nickname = '';
-  List<String> interests = [];
+  List<String> prefer = [];
   List<Map<String, dynamic>> children = [];
 
   /// Listeners selected for tonight (multi-select when 2+ children).
@@ -132,33 +132,40 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
     return null;
   }
 
-  /// API only accepts characters belonging to the primary listener.
-  List<int> _characterIdsForApi() {
-    final primary = childId;
-    if (primary == null) return const [];
-    final out = <int>[];
-    for (final id in selectedCharacterIds) {
-      final c = _characterById(id);
-      if (c == null) continue;
-      if (_asId(c['related_child_id']) == primary) out.add(id);
+  /// All selected cast ids (any listener); server no longer scopes to primary only.
+  List<int> _characterIdsForApi() => selectedCharacterIds.toList();
+
+  List<Map<String, dynamic>> _audiencesForApi() {
+    final out = <Map<String, dynamic>>[];
+    for (final c in children) {
+      final id = _asId(c['id']);
+      if (id == null || !selectedChildIds.contains(id)) continue;
+      final name = (c['nickname'] as String?)?.trim() ?? '';
+      if (name.isEmpty) continue;
+      final item = <String, dynamic>{
+        'name': name,
+        'age': ageYearsFromBirthDate(c['birth_date'] as String?),
+      };
+      final g = c['gender'] as String? ?? 'unspecified';
+      final gLabel = _genderLabel(g);
+      if (g != 'unspecified' && gLabel.isNotEmpty) {
+        item['gender'] = gLabel;
+      }
+      final intro = (c['intro'] as String?)?.trim() ?? '';
+      if (intro.isNotEmpty) item['desc'] = intro;
+      final tags = _preferTags(c);
+      if (tags.isNotEmpty) item['prefer'] = tags.join('、');
+      out.add(item);
     }
     return out;
   }
 
-  /// Names of selected cast that cannot go on the primary child_id.
-  List<String> _extraCastKeywords() {
-    final primary = childId;
-    if (primary == null) return const [];
-    final names = <String>[];
-    for (final id in selectedCharacterIds) {
-      final c = _characterById(id);
-      if (c == null) continue;
-      if (_asId(c['related_child_id']) == primary) continue;
-      final name = (c['name'] as String?)?.trim() ?? '';
-      if (name.isNotEmpty) names.add(name);
+  List<String> _preferTags(Map<String, dynamic> c) {
+    final raw = c['prefer'];
+    if (raw is List) {
+      return raw.map((e) => '$e'.trim()).where((e) => e.isNotEmpty).toList();
     }
-    if (names.isEmpty) return const [];
-    return ['今晚一起出场：${names.join('、')}'];
+    return const [];
   }
 
   Map<String, dynamic>? _childById(int id) {
@@ -184,14 +191,14 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
         : '';
     birthDate = c['birth_date'] as String?;
     gender = c['gender'] as String? ?? gender;
-    interests = (c['interests'] as List<dynamic>? ?? []).cast<String>();
+    prefer = _preferTags(c);
     unawaited(_loadRosterForChild());
   }
 
   void _clearChildSelection() {
     childId = null;
     nickname = '';
-    interests = [];
+    prefer = [];
     gender = 'unspecified';
     birthDate = null;
     voiceId = null;
@@ -485,20 +492,6 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
     await _prepare();
   }
 
-  List<String> _companionListenerKeywords() {
-    final primary = childId;
-    if (primary == null || selectedChildIds.length <= 1) return const [];
-    final names = <String>[];
-    for (final c in children) {
-      final id = _asId(c['id']);
-      if (id == null || id == primary || !selectedChildIds.contains(id)) continue;
-      final n = (c['nickname'] as String?)?.trim() ?? '';
-      if (n.isNotEmpty) names.add(n);
-    }
-    if (names.isEmpty) return const [];
-    return ['今晚也讲给：${names.join('、')}'];
-  }
-
   Future<void> _generate() async {
     if (children.isEmpty || childId == null || selectedChildIds.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -521,10 +514,13 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
     }
 
     final theme = themeCtrl.text.trim();
-    final keywords = [
-      ..._companionListenerKeywords(),
-      ..._extraCastKeywords(),
-    ];
+    final audiences = _audiencesForApi();
+    if (audiences.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('请先选择今晚的小听众')),
+      );
+      return;
+    }
 
     setState(() => busy = true);
     try {
@@ -541,18 +537,8 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
         language: language,
         durationMinutes: duration,
         voiceId: voiceId,
-        softSeriesMode: kFeatureSoftSeries &&
-            (softSeries || continueSeriesId != null),
-        seriesId: kFeatureSoftSeries ? continueSeriesId : null,
-        episodeCount: episodeCount,
-        keywords: keywords,
+        audiences: audiences,
         characterIds: _characterIdsForApi(),
-        childCastRole: 'auto',
-        recap: kFeatureSoftSeries &&
-                softSeries &&
-                recapCtrl.text.trim().isNotEmpty
-            ? recapCtrl.text.trim()
-            : null,
         wonder: wonder,
         dialogue: dialogue,
       );
@@ -818,8 +804,9 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
         : '未命名';
     final g = c['gender'] as String? ?? 'unspecified';
     final bd = c['birth_date'] as String?;
-    final tags = (c['interests'] as List<dynamic>? ?? []).cast<String>();
-    final tagLine = tags.isEmpty ? '暂无特殊标签 · 偏爱睡前童话' : tags.take(4).join(' · ');
+    final tags = _preferTags(c);
+    final tagLine =
+        tags.isEmpty ? '暂无故事偏好 · 偏爱睡前童话' : tags.take(4).join(' · ');
 
     return Material(
       color: selected ? AppColors.surfacePaperLayered : AppColors.inputWell,
@@ -880,10 +867,10 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
         : (nickname.isEmpty ? '未命名' : nickname);
     final g = c['gender'] as String? ?? gender;
     final bd = c['birth_date'] as String? ?? birthDate;
-    final tags = (c['interests'] as List<dynamic>? ?? interests);
+    final tags = _preferTags(c);
     final tagLine = tags.isEmpty
-        ? '暂无特殊标签 · 偏爱睡前童话'
-        : tags.take(4).map((e) => '$e').join(' · ');
+        ? '暂无故事偏好 · 偏爱睡前童话'
+        : tags.take(4).join(' · ');
 
     return Material(
       color: AppColors.surfacePaperLayered,
@@ -1007,7 +994,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
             context,
             Icons.auto_stories_outlined,
             '故事灵感',
-            hint: '留空即由系统织梦',
+            hint: '可选，不写也可以',
           ),
           const SizedBox(height: 10),
           TextField(

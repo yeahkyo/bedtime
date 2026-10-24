@@ -21,28 +21,47 @@ def normalize_kind(raw: str | None) -> str:
     return k if k in ALLOWED_KINDS else ""
 
 
-def character_snapshot(row: Character) -> dict:
-    return {
+def roster_entry(row: Character, *, child: Child | None = None) -> dict:
+    """Prompt roster item: name + optional desc/age/gender."""
+    name = (row.name or "").strip() or "未命名"
+    out: dict = {"name": name}
+    rel = (row.relation or "").strip()
+    note = (row.note or "").strip()
+    desc_parts = [p for p in (rel, note) if p]
+    if desc_parts:
+        out["desc"] = "，".join(desc_parts)
+    if child is not None:
+        from app.services.child_profile import (
+            GENDER_LABELS_ZH,
+            age_years_int_on,
+            normalize_gender,
+        )
+
+        age = age_years_int_on(child.birth_date)
+        out["age"] = age
+        gender = normalize_gender(child.gender)
+        if gender and gender != "unspecified":
+            out["gender"] = GENDER_LABELS_ZH.get(gender, gender)
+    return out
+
+
+def character_snapshot(row: Character, *, child: Child | None = None) -> dict:
+    """Persist roster-ready fields so retry can rebuild without re-joining children."""
+    entry = roster_entry(row, child=child)
+    snap: dict = {
         "id": row.id,
         "kind": row.kind,
-        "name": row.name,
-        "relation": (row.relation or "").strip() or None,
-        "note": (row.note or "").strip() or None,
+        "name": entry["name"],
         "related_child_id": row.related_child_id,
         "listener_child_id": row.listener_child_id,
     }
-
-
-def roster_entry(row: Character) -> dict:
-    """Compact prompt payload: k/n/rel?/note?."""
-    out: dict = {"k": row.kind, "n": row.name}
-    rel = (row.relation or "").strip()
-    note = (row.note or "").strip()
-    if rel:
-        out["rel"] = rel
-    if note:
-        out["note"] = note
-    return out
+    if "desc" in entry:
+        snap["desc"] = entry["desc"]
+    if "age" in entry:
+        snap["age"] = entry["age"]
+    if "gender" in entry:
+        snap["gender"] = entry["gender"]
+    return snap
 
 
 async def ensure_child_character(
@@ -117,7 +136,13 @@ async def load_characters_for_story(
     character_ids: list[int],
     listener_child_id: int | None = None,
 ) -> list[Character]:
-    """Validate ownership/enabled/(optional) listener scope; order preserved, deduped."""
+    """Validate ownership/enabled; order preserved, deduped.
+
+    Characters may belong to any of the user's listeners (multi-audience nights).
+    ``listener_child_id`` is accepted for call-site compatibility but no longer
+    scopes the roster — selected ids are authoritative.
+    """
+    _ = listener_child_id
     if not character_ids:
         return []
     # Preserve order, drop dupes / over-limit.
@@ -145,15 +170,4 @@ async def load_characters_for_story(
         from fastapi import HTTPException
 
         raise HTTPException(status_code=404, detail="Character not found")
-    out = [by_id[i] for i in ordered]
-    if listener_child_id is not None:
-        for row in out:
-            # kind=child twin and person/toy must belong to tonight's listener.
-            if int(row.related_child_id or 0) != int(listener_child_id):
-                from fastapi import HTTPException
-
-                raise HTTPException(
-                    status_code=400,
-                    detail="Character does not belong to this child",
-                )
-    return out
+    return [by_id[i] for i in ordered]

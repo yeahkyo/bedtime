@@ -147,14 +147,21 @@ async def test_public_elements_and_kernels_routes():
     assert e.json()["items"][0]["name"] == "露珠"
 
 
-def test_story_create_accepts_story_element_id():
+def test_story_create_accepts_audiences_and_roster_ids():
     body = StoryCreate(
         child_id=1,
         theme="月亮",
-        story_element_id="el_moon",
-        development_focus="tiny_brave",
+        audiences=[{"name": "豆豆", "age": 4, "gender": "女孩", "prefer": "恐龙"}],
+        character_ids=[11, 12],
+        wonder="soft",
+        dialogue="some",
     )
-    assert body.story_element_id == "el_moon"
+    assert body.audiences[0].name == "豆豆"
+    assert body.character_ids == [11, 12]
+    dumped = body.model_dump()
+    assert "story_element_id" not in dumped
+    assert "development_focus" not in dumped
+    assert "keywords" not in dumped
 
 
 @pytest.mark.asyncio

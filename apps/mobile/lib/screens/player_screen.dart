@@ -83,7 +83,7 @@ class PlayerScreen extends StatefulWidget {
     this.softHook,
     this.theme,
     this.voiceName,
-    this.developmentFocusLabel,
+    this.core,
     this.localStore,
   });
 
@@ -94,7 +94,7 @@ class PlayerScreen extends StatefulWidget {
   final String? softHook;
   final String? theme;
   final String? voiceName;
-  final String? developmentFocusLabel;
+  final String? core;
   final LocalStore? localStore;
 
   /// Convenience for story JSON from API / list.
@@ -112,7 +112,8 @@ class PlayerScreen extends StatefulWidget {
       softHook: story['soft_hook'] as String?,
       theme: story['theme'] as String?,
       voiceName: story['voice_name'] as String?,
-      developmentFocusLabel: story['development_focus_label'] as String?,
+      core: story['core'] as String? ??
+          story['development_focus_label'] as String?,
       localStore: localStore,
     );
   }
@@ -546,10 +547,10 @@ class _PlayerScreenState extends State<PlayerScreen> {
         accent: true,
       ));
     }
-    final focus = widget.developmentFocusLabel?.trim();
+    final core = widget.core?.trim();
     final theme = widget.theme?.trim();
-    if (focus != null && focus.isNotEmpty) {
-      chips.add(_MetaChip(icon: Icons.auto_awesome_outlined, label: focus));
+    if (core != null && core.isNotEmpty) {
+      chips.add(_MetaChip(icon: Icons.auto_awesome_outlined, label: core));
     } else if (theme != null && theme.isNotEmpty) {
       chips.add(_MetaChip(icon: Icons.spa_outlined, label: theme));
     }

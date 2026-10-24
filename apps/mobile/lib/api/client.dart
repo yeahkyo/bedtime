@@ -321,12 +321,12 @@ class ApiClient {
     String? ageBand,
     String gender = 'unspecified',
     String? intro,
-    List<String> interests = const [],
+    List<String> prefer = const [],
   }) async {
     final payload = <String, dynamic>{
       'nickname': nickname,
       'gender': gender,
-      'interests': interests,
+      'prefer': prefer,
     };
     if (birthDate != null && birthDate.isNotEmpty) {
       payload['birth_date'] = birthDate;
@@ -345,7 +345,7 @@ class ApiClient {
     String? ageBand,
     String? gender,
     String? intro,
-    List<String>? interests,
+    List<String>? prefer,
   }) async {
     final body = <String, dynamic>{};
     if (nickname != null) body['nickname'] = nickname;
@@ -353,7 +353,7 @@ class ApiClient {
     if (ageBand != null) body['age_band'] = ageBand;
     if (gender != null) body['gender'] = gender;
     if (intro != null) body['intro'] = intro;
-    if (interests != null) body['interests'] = interests;
+    if (prefer != null) body['prefer'] = prefer;
     final res = await _patch(_u('/v1/children/$childId'), body: jsonEncode(body));
     return jsonDecode(res.body) as Map<String, dynamic>;
   }
@@ -438,50 +438,24 @@ class ApiClient {
     required String language,
     required int durationMinutes,
     int? voiceId,
-    bool softSeriesMode = false,
-    int? seriesId,
-    int episodeCount = 4,
-    List<String> keywords = const [],
+    List<Map<String, dynamic>> audiences = const [],
     List<int> characterIds = const [],
-    List<String> values = const [],
-    String? developmentFocus,
-    String? storyElementId,
-    String childCastRole = 'auto',
-    String? recap,
-    String plotDrive = 'light',
-    String imagery = 'balanced',
     String wonder = 'soft',
-    String windDown = 'gentle',
     String dialogue = 'some',
-    String leadIn = 'soft',
   }) async {
     final res = await _post(
       _u('/v1/stories'),
       body: jsonEncode({
-            'child_id': childId,
-            'theme': theme,
-            'language': language,
-            'duration_minutes': durationMinutes,
-            'voice_id': voiceId,
-            'soft_series_mode': softSeriesMode || seriesId != null,
-            if (seriesId != null) 'series_id': seriesId,
-            'episode_count': episodeCount,
-            'keywords': keywords,
-            'character_ids': characterIds,
-            'values': values,
-            'development_focus': developmentFocus,
-            if (storyElementId != null && storyElementId.isNotEmpty)
-              'story_element_id': storyElementId,
-            'child_cast_role': childCastRole,
-            'recap': recap,
-            'plot_drive': plotDrive,
-            'imagery': imagery,
-            'wonder': wonder,
-            'wind_down': windDown,
-            'dialogue': dialogue,
-            'lead_in': leadIn,
-            'source': 'manual',
-          }),
+        'child_id': childId,
+        'theme': theme,
+        'language': language,
+        'duration_minutes': durationMinutes,
+        'voice_id': voiceId,
+        'audiences': audiences,
+        'character_ids': characterIds,
+        'wonder': wonder,
+        'dialogue': dialogue,
+      }),
       timeout: const Duration(seconds: 45),
     );
     return jsonDecode(res.body) as Map<String, dynamic>;
@@ -494,22 +468,10 @@ class ApiClient {
     required String language,
     required int durationMinutes,
     int? voiceId,
-    bool softSeriesMode = false,
-    int? seriesId,
-    int episodeCount = 4,
-    List<String> keywords = const [],
+    List<Map<String, dynamic>> audiences = const [],
     List<int> characterIds = const [],
-    List<String> values = const [],
-    String? developmentFocus,
-    String? storyElementId,
-    String childCastRole = 'auto',
-    String? recap,
-    String plotDrive = 'light',
-    String imagery = 'balanced',
     String wonder = 'soft',
-    String windDown = 'gentle',
     String dialogue = 'some',
-    String leadIn = 'soft',
     void Function(String progress)? onProgress,
   }) async {
     final created = await createStory(
@@ -518,22 +480,10 @@ class ApiClient {
       language: language,
       durationMinutes: durationMinutes,
       voiceId: voiceId,
-      softSeriesMode: softSeriesMode,
-      seriesId: seriesId,
-      episodeCount: episodeCount,
-      keywords: keywords,
+      audiences: audiences,
       characterIds: characterIds,
-      values: values,
-      developmentFocus: developmentFocus,
-      storyElementId: storyElementId,
-      childCastRole: childCastRole,
-      recap: recap,
-      plotDrive: plotDrive,
-      imagery: imagery,
       wonder: wonder,
-      windDown: windDown,
       dialogue: dialogue,
-      leadIn: leadIn,
     );
     final status = created['status'] as String? ?? '';
     if (status == 'ready') return created;

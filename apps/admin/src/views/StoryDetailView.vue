@@ -61,19 +61,25 @@ const WONDER_LABELS: Record<string, string> = {
   fantasy: '更幻想',
 }
 
-const styleDialSummary = computed(() => {
+const DIALOGUE_LABELS: Record<string, string> = {
+  low: '少对话',
+  some: '适量对话',
+  more: '多对话',
+}
+
+const createDialSummary = computed(() => {
   const raw = story.value?.params_json
   if (!raw) return null
   try {
     const p = JSON.parse(raw) as Record<string, unknown>
-    const wonder = typeof p.wonder === 'string' ? p.wonder : 'soft'
+    const wonder = typeof p.wonder === 'string' ? p.wonder : null
+    const dialogue = typeof p.dialogue === 'string' ? p.dialogue : null
+    if (!wonder && !dialogue) return null
     return {
       wonder,
-      wonderLabel: WONDER_LABELS[wonder] || wonder,
-      plot_drive: typeof p.plot_drive === 'string' ? p.plot_drive : null,
-      imagery: typeof p.imagery === 'string' ? p.imagery : null,
-      wind_down: typeof p.wind_down === 'string' ? p.wind_down : null,
-      lead_in: typeof p.lead_in === 'string' ? p.lead_in : null,
+      wonderLabel: wonder ? WONDER_LABELS[wonder] || wonder : null,
+      dialogue,
+      dialogueLabel: dialogue ? DIALOGUE_LABELS[dialogue] || dialogue : null,
     }
   } catch {
     return null
@@ -210,6 +216,20 @@ onMounted(load)
           {{ story.language }} · {{ story.duration_minutes }} 分
         </el-descriptions-item>
         <el-descriptions-item label="创建时间">{{ formatAdminTime(story.created_at) }}</el-descriptions-item>
+        <el-descriptions-item label="生活 / 想象">
+          <template v-if="createDialSummary?.wonder">
+            <el-tag>{{ createDialSummary.wonderLabel }}</el-tag>
+            <span class="muted tiny"> {{ createDialSummary.wonder }}</span>
+          </template>
+          <template v-else>—</template>
+        </el-descriptions-item>
+        <el-descriptions-item label="对话多少">
+          <template v-if="createDialSummary?.dialogue">
+            <el-tag type="info">{{ createDialSummary.dialogueLabel }}</el-tag>
+            <span class="muted tiny"> {{ createDialSummary.dialogue }}</span>
+          </template>
+          <template v-else>—</template>
+        </el-descriptions-item>
         <el-descriptions-item label="主题" :span="2">{{ story.theme || '—' }}</el-descriptions-item>
         <el-descriptions-item v-if="story.series_id" label="软系列">
           <el-button link type="primary" @click="router.push(`/series/${story.series_id}`)">
@@ -380,24 +400,6 @@ onMounted(load)
       <p v-else class="muted">本故事无 plan 快照（旧数据，或失败发生在构思完成前）。</p>
 
       <h3>创建参数</h3>
-      <el-descriptions v-if="styleDialSummary" :column="2" border size="small" class="block">
-        <el-descriptions-item label="生活 / 想象 (wonder)">
-          <el-tag>{{ styleDialSummary.wonderLabel }}</el-tag>
-          <span class="muted tiny"> {{ styleDialSummary.wonder }}</span>
-        </el-descriptions-item>
-        <el-descriptions-item v-if="styleDialSummary.plot_drive" label="情节性">
-          {{ styleDialSummary.plot_drive }}
-        </el-descriptions-item>
-        <el-descriptions-item v-if="styleDialSummary.imagery" label="描写密度">
-          {{ styleDialSummary.imagery }}
-        </el-descriptions-item>
-        <el-descriptions-item v-if="styleDialSummary.wind_down" label="安眠节奏">
-          {{ styleDialSummary.wind_down }}
-        </el-descriptions-item>
-        <el-descriptions-item v-if="styleDialSummary.lead_in" label="听前开场">
-          {{ styleDialSummary.lead_in }}
-        </el-descriptions-item>
-      </el-descriptions>
       <el-collapse v-if="paramsPretty">
         <el-collapse-item title="params_json" name="params">
           <pre class="json">{{ paramsPretty }}</pre>

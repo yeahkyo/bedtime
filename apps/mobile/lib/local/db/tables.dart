@@ -19,7 +19,7 @@ class CachedStories extends Table {
   TextColumn get progress => text().nullable()();
   TextColumn get errorMessage => text().nullable()();
   TextColumn get voiceName => text().nullable()();
-  TextColumn get developmentFocusLabel => text().nullable()();
+  TextColumn get core => text().nullable()();
   TextColumn get storyProvider => text().nullable()();
   TextColumn get speechProvider => text().nullable()();
   TextColumn get speechModel => text().nullable()();

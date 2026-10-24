@@ -188,17 +188,15 @@ class $CachedStoriesTable extends CachedStories
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
-  static const VerificationMeta _developmentFocusLabelMeta =
-      const VerificationMeta('developmentFocusLabel');
+  static const VerificationMeta _coreMeta = const VerificationMeta('core');
   @override
-  late final GeneratedColumn<String> developmentFocusLabel =
-      GeneratedColumn<String>(
-        'development_focus_label',
-        aliasedName,
-        true,
-        type: DriftSqlType.string,
-        requiredDuringInsert: false,
-      );
+  late final GeneratedColumn<String> core = GeneratedColumn<String>(
+    'core',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _storyProviderMeta = const VerificationMeta(
     'storyProvider',
   );
@@ -262,7 +260,7 @@ class $CachedStoriesTable extends CachedStories
     progress,
     errorMessage,
     voiceName,
-    developmentFocusLabel,
+    core,
     storyProvider,
     speechProvider,
     speechModel,
@@ -389,13 +387,10 @@ class $CachedStoriesTable extends CachedStories
         voiceName.isAcceptableOrUnknown(data['voice_name']!, _voiceNameMeta),
       );
     }
-    if (data.containsKey('development_focus_label')) {
+    if (data.containsKey('core')) {
       context.handle(
-        _developmentFocusLabelMeta,
-        developmentFocusLabel.isAcceptableOrUnknown(
-          data['development_focus_label']!,
-          _developmentFocusLabelMeta,
-        ),
+        _coreMeta,
+        core.isAcceptableOrUnknown(data['core']!, _coreMeta),
       );
     }
     if (data.containsKey('story_provider')) {
@@ -510,9 +505,9 @@ class $CachedStoriesTable extends CachedStories
         DriftSqlType.string,
         data['${effectivePrefix}voice_name'],
       ),
-      developmentFocusLabel: attachedDatabase.typeMapping.read(
+      core: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
-        data['${effectivePrefix}development_focus_label'],
+        data['${effectivePrefix}core'],
       ),
       storyProvider: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
@@ -557,7 +552,7 @@ class CachedStory extends DataClass implements Insertable<CachedStory> {
   final String? progress;
   final String? errorMessage;
   final String? voiceName;
-  final String? developmentFocusLabel;
+  final String? core;
   final String? storyProvider;
   final String? speechProvider;
   final String? speechModel;
@@ -580,7 +575,7 @@ class CachedStory extends DataClass implements Insertable<CachedStory> {
     this.progress,
     this.errorMessage,
     this.voiceName,
-    this.developmentFocusLabel,
+    this.core,
     this.storyProvider,
     this.speechProvider,
     this.speechModel,
@@ -624,8 +619,8 @@ class CachedStory extends DataClass implements Insertable<CachedStory> {
     if (!nullToAbsent || voiceName != null) {
       map['voice_name'] = Variable<String>(voiceName);
     }
-    if (!nullToAbsent || developmentFocusLabel != null) {
-      map['development_focus_label'] = Variable<String>(developmentFocusLabel);
+    if (!nullToAbsent || core != null) {
+      map['core'] = Variable<String>(core);
     }
     if (!nullToAbsent || storyProvider != null) {
       map['story_provider'] = Variable<String>(storyProvider);
@@ -677,9 +672,7 @@ class CachedStory extends DataClass implements Insertable<CachedStory> {
       voiceName: voiceName == null && nullToAbsent
           ? const Value.absent()
           : Value(voiceName),
-      developmentFocusLabel: developmentFocusLabel == null && nullToAbsent
-          ? const Value.absent()
-          : Value(developmentFocusLabel),
+      core: core == null && nullToAbsent ? const Value.absent() : Value(core),
       storyProvider: storyProvider == null && nullToAbsent
           ? const Value.absent()
           : Value(storyProvider),
@@ -716,9 +709,7 @@ class CachedStory extends DataClass implements Insertable<CachedStory> {
       progress: serializer.fromJson<String?>(json['progress']),
       errorMessage: serializer.fromJson<String?>(json['errorMessage']),
       voiceName: serializer.fromJson<String?>(json['voiceName']),
-      developmentFocusLabel: serializer.fromJson<String?>(
-        json['developmentFocusLabel'],
-      ),
+      core: serializer.fromJson<String?>(json['core']),
       storyProvider: serializer.fromJson<String?>(json['storyProvider']),
       speechProvider: serializer.fromJson<String?>(json['speechProvider']),
       speechModel: serializer.fromJson<String?>(json['speechModel']),
@@ -746,9 +737,7 @@ class CachedStory extends DataClass implements Insertable<CachedStory> {
       'progress': serializer.toJson<String?>(progress),
       'errorMessage': serializer.toJson<String?>(errorMessage),
       'voiceName': serializer.toJson<String?>(voiceName),
-      'developmentFocusLabel': serializer.toJson<String?>(
-        developmentFocusLabel,
-      ),
+      'core': serializer.toJson<String?>(core),
       'storyProvider': serializer.toJson<String?>(storyProvider),
       'speechProvider': serializer.toJson<String?>(speechProvider),
       'speechModel': serializer.toJson<String?>(speechModel),
@@ -774,7 +763,7 @@ class CachedStory extends DataClass implements Insertable<CachedStory> {
     Value<String?> progress = const Value.absent(),
     Value<String?> errorMessage = const Value.absent(),
     Value<String?> voiceName = const Value.absent(),
-    Value<String?> developmentFocusLabel = const Value.absent(),
+    Value<String?> core = const Value.absent(),
     Value<String?> storyProvider = const Value.absent(),
     Value<String?> speechProvider = const Value.absent(),
     Value<String?> speechModel = const Value.absent(),
@@ -797,9 +786,7 @@ class CachedStory extends DataClass implements Insertable<CachedStory> {
     progress: progress.present ? progress.value : this.progress,
     errorMessage: errorMessage.present ? errorMessage.value : this.errorMessage,
     voiceName: voiceName.present ? voiceName.value : this.voiceName,
-    developmentFocusLabel: developmentFocusLabel.present
-        ? developmentFocusLabel.value
-        : this.developmentFocusLabel,
+    core: core.present ? core.value : this.core,
     storyProvider: storyProvider.present
         ? storyProvider.value
         : this.storyProvider,
@@ -832,9 +819,7 @@ class CachedStory extends DataClass implements Insertable<CachedStory> {
           ? data.errorMessage.value
           : this.errorMessage,
       voiceName: data.voiceName.present ? data.voiceName.value : this.voiceName,
-      developmentFocusLabel: data.developmentFocusLabel.present
-          ? data.developmentFocusLabel.value
-          : this.developmentFocusLabel,
+      core: data.core.present ? data.core.value : this.core,
       storyProvider: data.storyProvider.present
           ? data.storyProvider.value
           : this.storyProvider,
@@ -868,7 +853,7 @@ class CachedStory extends DataClass implements Insertable<CachedStory> {
           ..write('progress: $progress, ')
           ..write('errorMessage: $errorMessage, ')
           ..write('voiceName: $voiceName, ')
-          ..write('developmentFocusLabel: $developmentFocusLabel, ')
+          ..write('core: $core, ')
           ..write('storyProvider: $storyProvider, ')
           ..write('speechProvider: $speechProvider, ')
           ..write('speechModel: $speechModel, ')
@@ -896,7 +881,7 @@ class CachedStory extends DataClass implements Insertable<CachedStory> {
     progress,
     errorMessage,
     voiceName,
-    developmentFocusLabel,
+    core,
     storyProvider,
     speechProvider,
     speechModel,
@@ -923,7 +908,7 @@ class CachedStory extends DataClass implements Insertable<CachedStory> {
           other.progress == this.progress &&
           other.errorMessage == this.errorMessage &&
           other.voiceName == this.voiceName &&
-          other.developmentFocusLabel == this.developmentFocusLabel &&
+          other.core == this.core &&
           other.storyProvider == this.storyProvider &&
           other.speechProvider == this.speechProvider &&
           other.speechModel == this.speechModel &&
@@ -948,7 +933,7 @@ class CachedStoriesCompanion extends UpdateCompanion<CachedStory> {
   final Value<String?> progress;
   final Value<String?> errorMessage;
   final Value<String?> voiceName;
-  final Value<String?> developmentFocusLabel;
+  final Value<String?> core;
   final Value<String?> storyProvider;
   final Value<String?> speechProvider;
   final Value<String?> speechModel;
@@ -972,7 +957,7 @@ class CachedStoriesCompanion extends UpdateCompanion<CachedStory> {
     this.progress = const Value.absent(),
     this.errorMessage = const Value.absent(),
     this.voiceName = const Value.absent(),
-    this.developmentFocusLabel = const Value.absent(),
+    this.core = const Value.absent(),
     this.storyProvider = const Value.absent(),
     this.speechProvider = const Value.absent(),
     this.speechModel = const Value.absent(),
@@ -997,7 +982,7 @@ class CachedStoriesCompanion extends UpdateCompanion<CachedStory> {
     this.progress = const Value.absent(),
     this.errorMessage = const Value.absent(),
     this.voiceName = const Value.absent(),
-    this.developmentFocusLabel = const Value.absent(),
+    this.core = const Value.absent(),
     this.storyProvider = const Value.absent(),
     this.speechProvider = const Value.absent(),
     this.speechModel = const Value.absent(),
@@ -1024,7 +1009,7 @@ class CachedStoriesCompanion extends UpdateCompanion<CachedStory> {
     Expression<String>? progress,
     Expression<String>? errorMessage,
     Expression<String>? voiceName,
-    Expression<String>? developmentFocusLabel,
+    Expression<String>? core,
     Expression<String>? storyProvider,
     Expression<String>? speechProvider,
     Expression<String>? speechModel,
@@ -1049,8 +1034,7 @@ class CachedStoriesCompanion extends UpdateCompanion<CachedStory> {
       if (progress != null) 'progress': progress,
       if (errorMessage != null) 'error_message': errorMessage,
       if (voiceName != null) 'voice_name': voiceName,
-      if (developmentFocusLabel != null)
-        'development_focus_label': developmentFocusLabel,
+      if (core != null) 'core': core,
       if (storyProvider != null) 'story_provider': storyProvider,
       if (speechProvider != null) 'speech_provider': speechProvider,
       if (speechModel != null) 'speech_model': speechModel,
@@ -1077,7 +1061,7 @@ class CachedStoriesCompanion extends UpdateCompanion<CachedStory> {
     Value<String?>? progress,
     Value<String?>? errorMessage,
     Value<String?>? voiceName,
-    Value<String?>? developmentFocusLabel,
+    Value<String?>? core,
     Value<String?>? storyProvider,
     Value<String?>? speechProvider,
     Value<String?>? speechModel,
@@ -1102,8 +1086,7 @@ class CachedStoriesCompanion extends UpdateCompanion<CachedStory> {
       progress: progress ?? this.progress,
       errorMessage: errorMessage ?? this.errorMessage,
       voiceName: voiceName ?? this.voiceName,
-      developmentFocusLabel:
-          developmentFocusLabel ?? this.developmentFocusLabel,
+      core: core ?? this.core,
       storyProvider: storyProvider ?? this.storyProvider,
       speechProvider: speechProvider ?? this.speechProvider,
       speechModel: speechModel ?? this.speechModel,
@@ -1166,10 +1149,8 @@ class CachedStoriesCompanion extends UpdateCompanion<CachedStory> {
     if (voiceName.present) {
       map['voice_name'] = Variable<String>(voiceName.value);
     }
-    if (developmentFocusLabel.present) {
-      map['development_focus_label'] = Variable<String>(
-        developmentFocusLabel.value,
-      );
+    if (core.present) {
+      map['core'] = Variable<String>(core.value);
     }
     if (storyProvider.present) {
       map['story_provider'] = Variable<String>(storyProvider.value);
@@ -1209,7 +1190,7 @@ class CachedStoriesCompanion extends UpdateCompanion<CachedStory> {
           ..write('progress: $progress, ')
           ..write('errorMessage: $errorMessage, ')
           ..write('voiceName: $voiceName, ')
-          ..write('developmentFocusLabel: $developmentFocusLabel, ')
+          ..write('core: $core, ')
           ..write('storyProvider: $storyProvider, ')
           ..write('speechProvider: $speechProvider, ')
           ..write('speechModel: $speechModel, ')
@@ -5752,7 +5733,7 @@ typedef $$CachedStoriesTableCreateCompanionBuilder =
       Value<String?> progress,
       Value<String?> errorMessage,
       Value<String?> voiceName,
-      Value<String?> developmentFocusLabel,
+      Value<String?> core,
       Value<String?> storyProvider,
       Value<String?> speechProvider,
       Value<String?> speechModel,
@@ -5778,7 +5759,7 @@ typedef $$CachedStoriesTableUpdateCompanionBuilder =
       Value<String?> progress,
       Value<String?> errorMessage,
       Value<String?> voiceName,
-      Value<String?> developmentFocusLabel,
+      Value<String?> core,
       Value<String?> storyProvider,
       Value<String?> speechProvider,
       Value<String?> speechModel,
@@ -5880,8 +5861,8 @@ class $$CachedStoriesTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<String> get developmentFocusLabel => $composableBuilder(
-    column: $table.developmentFocusLabel,
+  ColumnFilters<String> get core => $composableBuilder(
+    column: $table.core,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -6000,8 +5981,8 @@ class $$CachedStoriesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<String> get developmentFocusLabel => $composableBuilder(
-    column: $table.developmentFocusLabel,
+  ColumnOrderings<String> get core => $composableBuilder(
+    column: $table.core,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -6090,10 +6071,8 @@ class $$CachedStoriesTableAnnotationComposer
   GeneratedColumn<String> get voiceName =>
       $composableBuilder(column: $table.voiceName, builder: (column) => column);
 
-  GeneratedColumn<String> get developmentFocusLabel => $composableBuilder(
-    column: $table.developmentFocusLabel,
-    builder: (column) => column,
-  );
+  GeneratedColumn<String> get core =>
+      $composableBuilder(column: $table.core, builder: (column) => column);
 
   GeneratedColumn<String> get storyProvider => $composableBuilder(
     column: $table.storyProvider,
@@ -6162,7 +6141,7 @@ class $$CachedStoriesTableTableManager
                 Value<String?> progress = const Value.absent(),
                 Value<String?> errorMessage = const Value.absent(),
                 Value<String?> voiceName = const Value.absent(),
-                Value<String?> developmentFocusLabel = const Value.absent(),
+                Value<String?> core = const Value.absent(),
                 Value<String?> storyProvider = const Value.absent(),
                 Value<String?> speechProvider = const Value.absent(),
                 Value<String?> speechModel = const Value.absent(),
@@ -6186,7 +6165,7 @@ class $$CachedStoriesTableTableManager
                 progress: progress,
                 errorMessage: errorMessage,
                 voiceName: voiceName,
-                developmentFocusLabel: developmentFocusLabel,
+                core: core,
                 storyProvider: storyProvider,
                 speechProvider: speechProvider,
                 speechModel: speechModel,
@@ -6212,7 +6191,7 @@ class $$CachedStoriesTableTableManager
                 Value<String?> progress = const Value.absent(),
                 Value<String?> errorMessage = const Value.absent(),
                 Value<String?> voiceName = const Value.absent(),
-                Value<String?> developmentFocusLabel = const Value.absent(),
+                Value<String?> core = const Value.absent(),
                 Value<String?> storyProvider = const Value.absent(),
                 Value<String?> speechProvider = const Value.absent(),
                 Value<String?> speechModel = const Value.absent(),
@@ -6236,7 +6215,7 @@ class $$CachedStoriesTableTableManager
                 progress: progress,
                 errorMessage: errorMessage,
                 voiceName: voiceName,
-                developmentFocusLabel: developmentFocusLabel,
+                core: core,
                 storyProvider: storyProvider,
                 speechProvider: speechProvider,
                 speechModel: speechModel,

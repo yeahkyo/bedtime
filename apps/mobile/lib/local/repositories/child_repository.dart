@@ -67,7 +67,7 @@ class ChildRepository {
   }
 
   CachedChildrenCompanion _companion(Map<String, dynamic> c, int id) {
-    final interests = (c['interests'] as List<dynamic>? ?? []).cast<String>();
+    final prefer = (c['prefer'] as List<dynamic>? ?? []).cast<String>();
     return CachedChildrenCompanion.insert(
       userId: userId,
       id: id,
@@ -76,16 +76,16 @@ class ChildRepository {
       ageBand: Value(c['age_band'] as String? ?? '3-5'),
       gender: Value(c['gender'] as String? ?? 'unspecified'),
       intro: Value(c['intro'] as String?),
-      interestsJson: Value(jsonEncode(interests)),
+      interestsJson: Value(jsonEncode(prefer)),
       syncedAt: DateTime.now(),
     );
   }
 
   Map<String, dynamic> _rowToMap(CachedChildrenData row) {
-    List<String> interests = const [];
+    List<String> prefer = const [];
     try {
       final decoded = jsonDecode(row.interestsJson);
-      if (decoded is List) interests = decoded.cast<String>();
+      if (decoded is List) prefer = decoded.cast<String>();
     } catch (_) {}
     return {
       'id': row.id,
@@ -94,7 +94,7 @@ class ChildRepository {
       'age_band': row.ageBand,
       'gender': row.gender,
       'intro': row.intro,
-      'interests': interests,
+      'prefer': prefer,
     };
   }
 

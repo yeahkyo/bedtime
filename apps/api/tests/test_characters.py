@@ -18,6 +18,7 @@ from app.schemas.common import StoryCreate
 from app.services.characters import (
     KIND_CHILD,
     KIND_PERSON,
+    character_snapshot,
     ensure_child_character,
     load_characters_for_story,
     roster_entry,
@@ -155,7 +156,8 @@ async def test_load_characters_missing_raises():
 
 
 @pytest.mark.asyncio
-async def test_load_characters_rejects_other_child_scope():
+async def test_load_characters_allows_other_child_scope():
+    """Selected roster may include characters from any of the user's listeners."""
     row = _char(id=5, related_child_id=99)
     session = MagicMock()
     session.execute = AsyncMock(
@@ -165,15 +167,13 @@ async def test_load_characters_rejects_other_child_scope():
             )
         )
     )
-    with pytest.raises(HTTPException) as ei:
-        await load_characters_for_story(
-            session,
-            user_id=7,
-            character_ids=[5],
-            listener_child_id=3,
-        )
-    assert ei.value.status_code == 400
-    assert "belong" in ei.value.detail.lower()
+    out = await load_characters_for_story(
+        session,
+        user_id=7,
+        character_ids=[5],
+        listener_child_id=3,
+    )
+    assert [r.id for r in out] == [5]
 
 
 @pytest.mark.asyncio
@@ -199,7 +199,7 @@ async def test_load_characters_order_and_cap():
 def test_roster_entry_and_prompt_payload():
     row = _char()
     entry = roster_entry(row)
-    assert entry == {"k": "person", "n": "外公", "rel": "外公", "note": "爱讲故事"}
+    assert entry == {"name": "外公", "desc": "外公，爱讲故事"}
 
     req = StoryRequest(
         child_nickname="小宝",
@@ -208,13 +208,44 @@ def test_roster_entry_and_prompt_payload():
         theme="月亮",
         duration_minutes=5,
         roster=[entry],
-        keywords=["临时猫"],
+        audiences=[{"name": "小宝", "age": 4, "gender": "男孩"}],
     )
     payload = build_user_payload(req)
-    assert payload["roster"][0]["n"] == "外公"
+    assert payload["roster"][0]["name"] == "外公"
+    assert payload["audiences"][0]["name"] == "小宝"
     plan_msg = build_plan_user_message(req)
     assert "外公" in plan_msg
     assert "roster" in plan_msg
+    assert "audiences" in plan_msg
+
+
+def test_child_snapshot_keeps_age_gender_for_retry():
+    from datetime import date
+
+    from app.api.stories import _roster_from_snapshot
+    from app.services.child_profile import age_years_int_on
+
+    twin = _char(
+        id=11,
+        kind=KIND_CHILD,
+        name="小宝",
+        related_child_id=3,
+        listener_child_id=3,
+        relation=None,
+        note=None,
+    )
+    birth = date(2021, 6, 1)
+    child = _child(id=3, nickname="小宝", birth_date=birth, gender="girl")
+    snap = character_snapshot(twin, child=child)
+    assert snap["name"] == "小宝"
+    assert snap["age"] == age_years_int_on(birth)
+    assert snap["gender"] == "女孩"
+
+    rebuilt = _roster_from_snapshot([snap])
+    assert rebuilt is not None
+    assert rebuilt[0]["name"] == "小宝"
+    assert rebuilt[0]["age"] == snap["age"]
+    assert rebuilt[0]["gender"] == "女孩"
 
 
 @pytest.mark.asyncio

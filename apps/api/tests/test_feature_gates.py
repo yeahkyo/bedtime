@@ -4,10 +4,9 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 
-from app.api import stories as stories_mod
 from app.api.voices import router as voices_router
 from app.core.config import Settings
 from app.core.db import get_db
@@ -114,34 +113,46 @@ async def test_list_voices_hides_clones_when_feature_off():
     assert body[0]["kind"] == "system"
 
 
-@pytest.mark.asyncio
-async def test_soft_series_rejected_when_feature_off():
-    body = StoryCreate(
-        child_id=1,
+def test_story_create_has_no_soft_series_fields():
+    """Soft-series knobs were removed from the public create protocol."""
+    body = StoryCreate(child_id=1, theme="月亮")
+    dumped = body.model_dump()
+    assert "soft_series_mode" not in dumped
+    assert "series_id" not in dumped
+    assert "episode_count" not in dumped
+    assert "audiences" in dumped
+    assert "character_ids" in dumped
+
+
+def test_story_focus_elements_off_skips_tonight_focus_auto_pick():
+    from app.core.config import get_settings
+    from app.providers.base import StoryRequest
+    from app.providers.story_prompt import build_plan_user_message, build_user_payload
+
+    get_settings.cache_clear()
+    req = StoryRequest(
+        child_nickname="豆豆",
+        age_band="3-5",
+        language="zh",
         theme="月亮",
-        soft_series_mode=True,
+        duration_minutes=5,
     )
-    with patch(
-        "app.api.stories.get_settings",
-        return_value=Settings(feature_soft_series=False),
-    ):
-        with pytest.raises(HTTPException) as ei:
-            await stories_mod._resolve_series_state(
-                MagicMock(), SimpleNamespace(id=1), body
-            )
-    assert ei.value.status_code == 403
-    assert ei.value.detail == "Soft series is not available"
+    # Default settings keep the feature off — no silent tonight_focus.
+    assert get_settings().feature_story_focus_elements is False
+    payload = build_user_payload(req)
+    assert "tonight_focus" not in payload
+    assert "focus_seed" not in build_plan_user_message(req)
 
-
-@pytest.mark.asyncio
-async def test_series_id_rejected_when_feature_off():
-    body = StoryCreate(child_id=1, theme="月亮", series_id=9)
-    with patch(
-        "app.api.stories.get_settings",
-        return_value=Settings(feature_soft_series=False),
-    ):
-        with pytest.raises(HTTPException) as ei:
-            await stories_mod._resolve_series_state(
-                MagicMock(), SimpleNamespace(id=1), body
-            )
-    assert ei.value.status_code == 403
+    # Explicit focus still surfaces when provided (legacy / re-enable path).
+    with_focus = StoryRequest(
+        child_nickname="豆豆",
+        age_band="3-5",
+        language="zh",
+        theme="月亮",
+        duration_minutes=5,
+        development_focus="tiny_brave",
+        development_focus_label="勇气",
+    )
+    focused = build_user_payload(with_focus)
+    assert focused["tonight_focus"]["id"] == "tiny_brave"
+    get_settings.cache_clear()

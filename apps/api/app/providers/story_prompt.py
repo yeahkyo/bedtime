@@ -164,19 +164,18 @@ DEFAULT_DIALS = {
 
 # Duration → length band for LLM `len` (+ max_tokens headroom).
 # zh: characters/minute; en: words/minute — units differ, must stay separate.
+# Band width is ±1 listening minute (per_minute units), not a percentage of target.
 LENGTH_RATES = {
     "zh": {
         "unit": "chars",
         "unit_label": "汉字（含标点近似按字计）",
         "per_minute": 220,
-        "tolerance": 0.20,
     },
     "en": {
         "unit": "words",
         "unit_label": "English words",
         # Bedtime speaking pace (independent of zh chars/min).
         "per_minute": 100,
-        "tolerance": 0.20,
     },
 }
 
@@ -382,7 +381,6 @@ SYSTEM_PROMPT = """你是一个资深的睡前故事作家。你擅长将一个�
 - gender：目标听众的性别（如：男孩、女孩、其他、不指定）。可轻柔影响称呼与细节，禁止刻板印象与说教。
 - dialog: 对话的多少，0-5打分。分数越高则写更多的对话，分数越低则少对话，0分是完全不要用直接的对话描写。
 - len：正文目标篇幅范围，字符串格式「下限-上限」（如 880-1320）；中文按汉字计、英文按词计。body（含开篇垫话与结尾）尽量落在该区间内；优先故事质量，禁止堆形容词或空描写凑字。
-- roster：今晚已选角色库（数组，可空）。元素含 k（child|person|toy）、n（名字），可选 rel（关系）、note（特征）。优先轻用 1～3 个与 casts/beats 呼应；禁止把名单当必须清单；与 casts（大纲已定角色）冲突时以 casts 为主、roster 作纠偏参考。
 
 【输出要求】
 输出一个json对象，字段说明如下：
@@ -445,7 +443,8 @@ PLAN_SYSTEM_PROMPT = """你是一位世界级的儿童睡前故事作家，你�
 【输出格式】
 将你构思的内容梳理为一个json，这个数据将用于给下一位作家用来写正文。json的字段说明如下：
 - title：故事题目。
-- theme：故事主题、内核、核心创意的简述。
+- theme：故事主题、背景与核心创意的简述（可稍完整）。
+- core：一句短标签（建议≤12字），概括今晚故事的情感或成长内核，供界面展示；具体、可感，禁止空话套话。
 - casts：故事中出现的角色，用数组的形式表示，每个元素是一个json，有以下两个字段。
   - name：角色名称。如果有昵称，用斜杠分格。如：哆啦A梦/小叮当
   - desc：角色概述。简述角色设定、性格、习惯等，让角色鲜活起来。
@@ -571,20 +570,21 @@ def story_http_timeout_seconds(duration_minutes: int) -> float:
 
 
 def estimate_length_target(language: str | None, duration_minutes: int) -> dict:
-    """Map duration → {min,max,target} band (zh chars / en words, ±tolerance)."""
+    """Map duration → {min,max,target} band (zh chars / en words, ±1 minute)."""
     minutes = max(2, min(12, int(duration_minutes or 5)))
     key = length_lang_key(language)
     cfg = LENGTH_RATES[key]
-    target = int(round(minutes * cfg["per_minute"]))
-    tol = float(cfg["tolerance"])
-    min_n = int(round(target * (1 - tol)))
-    max_n = int(round(target * (1 + tol)))
+    rate = int(cfg["per_minute"])
+    target = int(round(minutes * rate))
+    # ±1 listening minute of content, independent of total duration.
+    min_n = max(1, target - rate)
+    max_n = target + rate
     return {
         "language_key": key,
         "duration_minutes": minutes,
         "unit": cfg["unit"],
         "unit_label": cfg.get("unit_label") or cfg["unit"],
-        "rate_per_minute": cfg["per_minute"],
+        "rate_per_minute": rate,
         "target": target,
         "min": min_n,
         "max": max_n,
@@ -869,122 +869,132 @@ def focus_from_series_outline(
 
 
 def build_user_payload(request: StoryRequest) -> dict:
+    from app.core.config import get_settings
     from app.services.story_kernels import AXIS_LABELS_ZH, axis_for_focus
 
     spec = get_age_spec(request.age_band)
-    focus_id = request.development_focus
-    if not focus_id:
+    focus_id = (request.development_focus or "").strip() or None
+    # Auto-pick is gated off during phase-1 (FEATURE_STORY_FOCUS_ELEMENTS=0).
+    if not focus_id and get_settings().feature_story_focus_elements:
         focus_id, _pool_how = choose_development_focus(
             request.age_band,
             request.theme,
             preferred=request.development_focus,
             salt=request.child_nickname,
         )
-    axis, axis_label = axis_for_focus(focus_id)
-    # Accept short axis zh if already set; drop legacy long soft_guidance labels.
-    label_in = (request.development_focus_label or "").strip()
-    if label_in in AXIS_LABELS_ZH.values():
-        axis_label = label_in
-        for aid, zh in AXIS_LABELS_ZH.items():
-            if zh == label_in:
-                axis = aid
-                break
+    axis = None
+    axis_label = None
+    if focus_id:
+        axis, axis_label = axis_for_focus(focus_id)
+        # Accept short axis zh if already set; drop legacy long soft_guidance labels.
+        label_in = (request.development_focus_label or "").strip()
+        if label_in in AXIS_LABELS_ZH.values():
+            axis_label = label_in
+            for aid, zh in AXIS_LABELS_ZH.items():
+                if zh == label_in:
+                    axis = aid
+                    break
 
-    # Tonight chips only — do NOT merge profile interests into kw (that forced
-    # every episode to revolve around the same long-term tag, e.g. 跳舞).
-    keywords = merge_keywords(request.keywords, None)
+    audiences = [
+        a
+        for a in (request.audiences or [])
+        if isinstance(a, dict) and str(a.get("name") or "").strip()
+    ]
     roster = [
         r
         for r in (request.roster or [])
-        if isinstance(r, dict) and (r.get("n") or "").strip()
+        if isinstance(r, dict) and str(r.get("name") or r.get("n") or "").strip()
     ][:8]
-    likes = pick_soft_likes(
-        request.interests,
-        salt=f"{request.child_nickname}|{request.theme or ''}|{request.episode_no or 1}",
-        max_n=1,
-    )
+    # Normalize legacy roster keys if any slipped through.
+    normalized_roster: list[dict] = []
+    for r in roster:
+        name = str(r.get("name") or r.get("n") or "").strip()
+        if not name:
+            continue
+        item: dict = {"name": name}
+        desc = str(r.get("desc") or "").strip()
+        if not desc:
+            rel = str(r.get("rel") or r.get("relation") or "").strip()
+            note = str(r.get("note") or "").strip()
+            desc = "，".join(p for p in (rel, note) if p)
+        if desc:
+            item["desc"] = desc
+        if r.get("age") is not None:
+            try:
+                item["age"] = int(r["age"])
+            except (TypeError, ValueError):
+                pass
+        gender = str(r.get("gender") or "").strip()
+        if gender:
+            item["gender"] = gender
+        normalized_roster.append(item)
+
+    motif_salt = f"motif|{request.theme or ''}|{focus_id or 'none'}"
     motif_idx = (
-        int(hashlib.sha256(f"motif|{request.theme or ''}|{focus_id}".encode()).hexdigest()[:8], 16)
+        int(hashlib.sha256(motif_salt.encode()).hexdigest()[:8], 16)
         % len(MOTIF_WHITELIST)
     )
     cast_role = (request.child_cast_role or "auto").strip().lower()
     cast_hints = {
         "protagonist": f"请让「{request.child_nickname}」作为故事主角出场。",
         "supporting": f"「{request.child_nickname}」可以配角出场，主线可给玩具/伙伴。",
-        "absent": f"整篇不要出现「{request.child_nickname}」；可用 roster/kw 里的角色推进故事。",
+        "absent": f"整篇不要出现「{request.child_nickname}」；可用 roster 里的角色推进故事。",
         "auto": (
             "角色完全可选：孩子可作主角、配角，或整篇不出现；"
-            "roster 与 kw 里的玩具、娃娃、家人或物件都可当主角或伙伴。"
+            "roster 里的玩具、娃娃、家人或物件都可当主角或伙伴。"
         ),
     }
     cast_hint = cast_hints.get(cast_role, cast_hints["auto"])
-    if roster:
+    if normalized_roster:
         cast_hint += (
-            "roster 是今晚已选角色库（优先轻用 1～3 个）：k=child|person|toy，"
-            "n=名字，rel=关系，note=特征；禁止把名单当必须清单。"
+            "roster 是今晚已选角色库（优先轻用 1～3 个）："
+            "name=名字，desc=概述，age/gender 可选；禁止把名单当必须清单。"
         )
-    cast_hint += "kw 是未建档的临时补充，可不用或只用最贴 theme 的 1～2 个；禁止把 kw 当成必须清单。"
-    likes_tip = (
-        "likes 是档案里的长期兴趣（可选）：最多轻点 0～1 处作道具/氛围；"
-        "禁止当主线、禁止每集都出现、禁止整集围着某个兴趣转。"
-    )
+    if audiences:
+        cast_hint += (
+            "audiences 是今晚听众：name/age/gender/desc/prefer；"
+            "prefer 是故事偏好，可轻点，禁止当每集主线。"
+        )
 
     minutes = max(2, min(12, int(request.duration_minutes or 5)))
     max_places = 1 if minutes <= 3 else 2
     dials = resolve_style_dials(request)
 
-    from app.services.child_profile import GENDER_LABELS_ZH, normalize_gender
-
-    gender = normalize_gender(request.child_gender)
-    intro = (request.child_intro or "").strip() or None
-    profile_guidance = build_child_profile_guidance(
-        gender=gender,
-        intro=intro,
-        nickname=request.child_nickname,
-    )
-
-    return {
-        "child_nickname": request.child_nickname,
-        "age_band": spec.band,
-        "age_label": spec.label_zh,
-        "age_guidance": spec.guidance,
-        "child_gender": gender,
-        "child_gender_label": GENDER_LABELS_ZH.get(gender, "不指定"),
-        "child_intro": intro,
-        "child_profile_guidance": profile_guidance,
+    out = {
         "language": request.language,
         "theme": request.theme,
         "duration_minutes": minutes,
-        "keywords": keywords,
-        "roster": roster,
-        "likes": likes,
-        "likes_tip": likes_tip,
+        "audiences": audiences,
+        "roster": normalized_roster,
         "child_cast_role": cast_role,
         "cast_hint": cast_hint,
         "setting_hint": (
             f"全篇建议不超过 {max_places} 个地点（含入睡处）；"
-            "主线跟 theme 与今晚情节；roster/kw/likes 都是可选点缀；用动作推进，结尾自然安静入睡。"
+            "主线跟 theme 与今晚情节；audiences/roster 都是可选点缀；用动作推进，结尾自然安静入睡。"
         ),
         "style_dials": dials,
-        "values_hint": request.values or [],
         "require_emotional_closure": request.require_emotional_closure,
         "forbid_hard_cliffhanger": request.forbid_hard_cliffhanger,
         "recap": request.recap,
         "soft_series_mode": request.soft_series_mode,
         "series_opening_note": build_series_opening_note(request),
-        "tonight_focus": {
-            "id": focus_id,
-            "axis": axis,
-            "axis_label": axis_label,
-        },
         "allowed_motif": MOTIF_WHITELIST[motif_idx],
+        "age_band": spec.band,
+        "age_guidance": spec.guidance,
         "style_reminders": [
             "听感优先：口语旁白，一句一事；正文篇幅落在 len 给出的字数区间",
             "先听前开场白安顿听者，再渐入正文；勿像翻书开念",
             "忠实落地 plan；结尾自然收束；系列才写 hook；勿说教",
-            "勿把长期兴趣当成每集主线",
+            "勿把故事偏好当成每集主线",
         ],
     }
+    if focus_id:
+        out["tonight_focus"] = {
+            "id": focus_id,
+            "axis": axis,
+            "axis_label": axis_label,
+        }
+    return out
 
 
 def parse_json_object(content: str) -> dict:
@@ -1227,6 +1237,11 @@ def validate_episode_plan(
         theme_s = str(theme).strip()
         theme = theme_s or None
 
+    core_raw = _pick(plan, "core", "development_focus_label", default="")
+    core = str(core_raw or "").strip() or None
+    if core and len(core) > 32:
+        core = core[:32]
+
     shape = str(_pick(plan, "shape", "story_shape", default="") or "").strip() or "自由结构"
 
     beats_raw = plan.get("beats")
@@ -1271,6 +1286,7 @@ def validate_episode_plan(
     return {
         "title": title,
         "theme": theme,
+        "core": core,
         "casts": casts,
         "beats": beats,
         "shape": shape,
@@ -1280,7 +1296,6 @@ def validate_episode_plan(
 def build_outline_user_message(request: StoryRequest) -> str:
     payload = build_user_payload(request)
     count = clamp_episode_count(request.episode_count)
-    focus = payload["tonight_focus"]
     dials = _slim_dials(payload["style_dials"])
     # Outline only needs wonder tip in full; others level-only.
     dials_out = {
@@ -1291,23 +1306,20 @@ def build_outline_user_message(request: StoryRequest) -> str:
         "n": count,
         "theme": payload["theme"],
         "lang": payload["language"],
-        "age": prompt_age_years(request),
-        "gender": prompt_gender_label(request),
-        "age_how": payload["age_guidance"],
-        "kw": payload["keywords"],
+        "audiences": payload.get("audiences") or [],
         "roster": payload.get("roster") or [],
-        "likes": payload.get("likes") or [],
-        "likes_tip": payload.get("likes_tip"),
         "cast_tip": payload["cast_hint"],
         "dials": dials_out,
-        "focus_pool": FOCUS_POOLS.get(payload["age_band"], []),
-        "focus_seed": {
+        "age_how": payload["age_guidance"],
+    }
+    focus = payload.get("tonight_focus")
+    if isinstance(focus, dict) and focus.get("id"):
+        outline_payload["focus_pool"] = FOCUS_POOLS.get(payload["age_band"], [])
+        outline_payload["focus_seed"] = {
             "id": focus.get("id"),
             "axis": focus.get("axis"),
             "label": focus.get("axis_label"),
-        },
-        "values": payload["values_hint"],
-    }
+        }
     # Task lead lives in LLM Agent user_prompt_template — payload is JSON only.
     return json.dumps(outline_payload, ensure_ascii=False)
 
@@ -1325,10 +1337,8 @@ def build_plan_user_message(
     payload = build_user_payload(request)
     plan_payload = {
         "theme": payload["theme"],
-        "keywords": payload["keywords"],
+        "audiences": payload.get("audiences") or [],
         "roster": payload.get("roster") or [],
-        "age": prompt_age_years(request),
-        "gender": prompt_gender_label(request),
         "fantasy": fantasy_score_from_wonder(request.wonder),
         "len": length_range_for_llm(request.language, payload["duration_minutes"]),
     }
@@ -1343,11 +1353,9 @@ def build_user_message(request: StoryRequest, plan: dict | None = None) -> str:
         "theme": (plan or {}).get("theme") or payload["theme"],
         "casts": list((plan or {}).get("casts") or []),
         "beats": list((plan or {}).get("beats") or []),
-        "age": prompt_age_years(request),
-        "gender": prompt_gender_label(request),
+        "audiences": payload.get("audiences") or [],
         "dialog": dialog_score_from_dialogue(request.dialogue),
         "len": length_range_for_llm(request.language, payload["duration_minutes"]),
-        "roster": payload.get("roster") or [],
     }
     # Legacy plan rows: cast/move/does → casts; beat objects → strings.
     if not draft["casts"]:

@@ -16,22 +16,19 @@ class StoryRequest:
     language: str
     theme: str
     duration_minutes: int
-    values: list[str] | None = None
-    interests: list[str] | None = None
-    # Recent people / things / events (manual now; photo-extracted later).
-    keywords: list[str] | None = None
-    # Tonight structured roster from /v1/characters: [{k,n,rel?,note?}].
+    # Tonight listeners: [{name, age?, gender?, desc?, prefer?}].
+    audiences: list[dict[str, Any]] | None = None
+    # Tonight roster from /v1/characters: [{name, desc?, age?, gender?}].
     roster: list[dict[str, Any]] | None = None
-    # Profile extras for casting / personalization (optional).
+    # Profile extras kept for internal dials / legacy series paths.
     child_gender: str | None = None  # girl|boy|other|unspecified
-    # Whole years from birth_date (preferred for LLM age); None → derive from age_band.
     child_age_years: int | None = None
     child_intro: str | None = None
     require_emotional_closure: bool = True
     forbid_hard_cliffhanger: bool = True
     recap: str | None = None
     soft_series_mode: bool = False
-    # Soft developmental focus: focus_id + axis label zh (not soft_guidance).
+    # Soft developmental focus: focus_id + axis label zh (server-picked).
     development_focus: str | None = None
     development_focus_label: str | None = None
     # auto | protagonist | supporting | absent
@@ -43,20 +40,14 @@ class StoryRequest:
     wind_down: str = "gentle"  # deep | gentle | playful
     dialogue: str = "some"  # low | some | more
     lead_in: str = "soft"  # none | soft | curious
-    # Soft series (outline → episode plan → draft)
+    # Soft series (outline → episode plan → draft) — internal / legacy only.
     episode_count: int = 4
     episode_no: int = 1
-    # When set, skip outline LLM and use this for episode N.
     series_outline: dict[str, Any] | None = None
-    # True → provider must generate a new series outline before episode plan.
     need_series_outline: bool = False
-    # Silent tonight knowledge seed (objective name/description); optional.
     story_element: dict[str, Any] | None = None
-    # Soft-dedup / plan inject: recent shapes/themes/elements for this child.
     recent_history: dict[str, Any] | None = None
-    # Speakable feeling target for plan/draft (安心/困倦/…); optional override.
     target_feeling: str | None = None
-    # When set (e.g. retry after draft failure), skip episode_plan LLM and draft from this.
     episode_plan: dict[str, Any] | None = None
 
 

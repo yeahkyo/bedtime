@@ -96,7 +96,7 @@ CODE_DEFAULTS: dict[str, dict[str, Any]] = {
             (
                 "user_payload",
                 "代码组装的纯 JSON：theme/keywords/roster/age/gender/fantasy/len"
-                "（len 为「下限-上限」字符串，按时长×220字/分±20%）",
+                "（len 为「下限-上限」字符串，按时长×220字/分±1分钟）",
             ),
         ),
         "enabled": True,
@@ -115,7 +115,7 @@ CODE_DEFAULTS: dict[str, dict[str, Any]] = {
             (
                 "user_payload",
                 "代码组装的纯 JSON：title/theme/casts/beats/age/gender/dialog/len/roster"
-                "（len 为「下限-上限」字符串，按时长×220字/分±20%）",
+                "（len 为「下限-上限」字符串，按时长×220字/分±1分钟）",
             ),
         ),
         "enabled": True,

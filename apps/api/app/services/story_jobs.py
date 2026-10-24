@@ -478,8 +478,14 @@ async def process_story_job(
                         saved_plan.get("title"),
                     )
 
-            # Silent element: reuse params snapshot on retry; else select + record usage.
-            if story is not None and not req.story_element:
+            # Silent story-element pick (gated; off during phase-1 clarity testing).
+            from app.core.config import get_settings
+
+            if (
+                get_settings().feature_story_focus_elements
+                and story is not None
+                and not req.story_element
+            ):
                 reuse_id: str | None = None
                 try:
                     params = json.loads(story.params_json or "{}")
@@ -534,6 +540,16 @@ async def process_story_job(
                 title = str(plan.get("title") or "").strip()
                 if title and not (story_row.title or "").strip():
                     story_row.title = title[:256]
+                core = plan.get("core")
+                if isinstance(core, str) and core.strip():
+                    try:
+                        params = json.loads(story_row.params_json or "{}")
+                    except json.JSONDecodeError:
+                        params = {}
+                    if not isinstance(params, dict):
+                        params = {}
+                    params["core"] = core.strip()[:32]
+                    story_row.params_json = json.dumps(params, ensure_ascii=False)
                 await db.commit()
 
             provider = get_story_provider(story_name)
@@ -580,6 +596,9 @@ async def process_story_job(
                     params["plan_theme"] = hist.get("theme")
                 if hist.get("core_element"):
                     params["core_element"] = hist["core_element"]
+                plan_core = result.episode_plan.get("core")
+                if isinstance(plan_core, str) and plan_core.strip():
+                    params["core"] = plan_core.strip()[:32]
                 story.params_json = json.dumps(params, ensure_ascii=False)
             else:
                 story.episode_plan_json = None

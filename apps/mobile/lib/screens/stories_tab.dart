@@ -122,62 +122,11 @@ class StoriesTabState extends State<StoriesTab> {
 
   Future<void> _continueSeries(Map<String, dynamic> s) async {
     if (!kFeatureSoftSeries) return;
-    final seriesId = s['series_id'] as int?;
-    final childId = s['child_id'] as int?;
-    final status = s['status'] as String? ?? '';
-    if (seriesId == null || childId == null) return;
-    if (status == 'generating') {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('上一集还在生成中，请稍后再续写')),
-      );
-      return;
-    }
-    if (status == 'failed') {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('上一集生成失败，请先重新创作')),
-      );
-      return;
-    }
-    final theme = (s['theme'] as String?)?.trim();
-    setState(() => continuing = true);
-    try {
-      final story = await widget.api.createStoryAndWait(
-        childId: childId,
-        theme: theme ?? '',
-        language: s['language'] as String? ?? 'zh',
-        durationMinutes: s['duration_minutes'] as int? ?? 5,
-        softSeriesMode: true,
-        seriesId: seriesId,
-      );
-      await widget.localStore?.stories.upsertOne(story);
-      if (!mounted) return;
-      await Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => PlayerScreen.fromStory(
-            story,
-            localStore: widget.localStore,
-          ),
-        ),
-      );
-      await _load();
-    } catch (e) {
-      if (mounted) {
-        final id = e is ApiException ? e.storyId : null;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(friendlyNetworkError(e)),
-            action: id == null
-                ? null
-                : SnackBarAction(
-                    label: '继续等待',
-                    onPressed: () => unawaited(_resumeWait(id)),
-                  ),
-          ),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => continuing = false);
-    }
+    // Soft-series create fields were removed from the story protocol; open create.
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('系列续写请从「创作」页重新开始')),
+    );
+    await _openCreate();
   }
 
   Future<void> _resumeWait(int storyId) async {

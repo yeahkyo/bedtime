@@ -106,8 +106,10 @@ class Settings(BaseSettings):
 
     # Phase-1 product gates (App + public API). Admin catalog/ops stay available.
     # Re-enable: FEATURE_SOFT_SERIES=1 / FEATURE_VOICE_CLONE=1
+    # FEATURE_STORY_FOCUS_ELEMENTS=1 restores silent development-focus + story-element pick.
     feature_soft_series: bool = False
     feature_voice_clone: bool = False
+    feature_story_focus_elements: bool = False
 
     @property
     def is_dev(self) -> bool:
