@@ -125,8 +125,15 @@ def _roster_from_snapshot(raw: object) -> list[dict] | None:
 
 
 def _normalize_audiences(body: StoryCreate, child: Child) -> list[dict]:
-    """Build prompt audiences from request, falling back to primary child."""
-    from app.services.child_profile import GENDER_LABELS_ZH
+    """Build prompt audiences from request, falling back to primary child.
+
+    Accepts canonical gender tokens (boy|girl|…) or legacy display labels;
+    emits language-appropriate labels for the LLM (story language, not UI).
+    """
+    from app.services.child_profile import gender_label_for_language
+
+    lang = (body.language or "zh").strip()
+    prefer_sep = ", " if lang.lower().startswith("en") else "、"
 
     out: list[dict] = []
     for raw in body.audiences or []:
@@ -136,9 +143,9 @@ def _normalize_audiences(body: StoryCreate, child: Child) -> list[dict]:
         item: dict = {"name": name}
         if raw.age is not None:
             item["age"] = int(raw.age)
-        gender = (raw.gender or "").strip()
-        if gender:
-            item["gender"] = gender
+        g_label = gender_label_for_language(raw.gender, lang)
+        if g_label:
+            item["gender"] = g_label
         desc = (raw.desc or "").strip()
         if desc:
             item["desc"] = desc
@@ -159,18 +166,18 @@ def _normalize_audiences(body: StoryCreate, child: Child) -> list[dict]:
                 prefer_tags = [parsed.strip()]
         except json.JSONDecodeError:
             prefer_tags = []
-    gender = normalize_gender(child.gender)
     item = {
         "name": (child.nickname or "").strip() or "未命名",
         "age": age_years_int_on(child.birth_date),
     }
-    if gender and gender != "unspecified":
-        item["gender"] = GENDER_LABELS_ZH.get(gender, gender)
+    g_label = gender_label_for_language(child.gender, lang)
+    if g_label:
+        item["gender"] = g_label
     intro = (child.intro or "").strip()
     if intro:
         item["desc"] = intro
     if prefer_tags:
-        item["prefer"] = "、".join(prefer_tags)
+        item["prefer"] = prefer_sep.join(prefer_tags)
     return [item]
 
 

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../l10n/app_localizations.dart';
 import 'app_theme.dart';
 
 /// Shared brand mark (moon + label) for tab headers and page headers.
@@ -7,15 +8,15 @@ import 'app_theme.dart';
 class BrandMark extends StatelessWidget {
   const BrandMark({
     super.key,
-    this.label = BrandMark.defaultLabel,
+    this.label,
   });
 
-  static const defaultLabel = '呼呼 · 枕边故事';
-
-  final String label;
+  /// When null, uses [AppLocalizations.appTitle].
+  final String? label;
 
   @override
   Widget build(BuildContext context) {
+    final text = label ?? AppLocalizations.of(context).appTitle;
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -26,7 +27,7 @@ class BrandMark extends StatelessWidget {
         ),
         const SizedBox(width: 6),
         Text(
-          label,
+          text,
           style: Theme.of(context).textTheme.labelLarge?.copyWith(
                 color: AppColors.primarySoft,
                 letterSpacing: 1.1,
@@ -41,12 +42,13 @@ class BrandMark extends StatelessWidget {
 class BrandHeader extends StatelessWidget {
   const BrandHeader({
     super.key,
-    this.eyebrow = BrandMark.defaultLabel,
+    this.eyebrow,
     required this.title,
     this.subtitle,
   });
 
-  final String eyebrow;
+  /// When null, [BrandMark] falls back to [AppLocalizations.appTitle].
+  final String? eyebrow;
   final String title;
   final String? subtitle;
 
@@ -215,14 +217,15 @@ class SoftSelectField<T> extends StatefulWidget {
     required this.value,
     required this.options,
     required this.onChanged,
-    this.placeholder = '请选择',
+    this.placeholder,
   });
 
   final String label;
   final T value;
   final List<(T, String)> options;
   final ValueChanged<T> onChanged;
-  final String placeholder;
+  /// When null, uses [AppLocalizations.commonPleaseSelect].
+  final String? placeholder;
 
   @override
   State<SoftSelectField<T>> createState() => _SoftSelectFieldState<T>();
@@ -346,7 +349,9 @@ class _SoftSelectFieldState<T> extends State<SoftSelectField<T>> {
             ),
           ),
           child: Text(
-            matched ?? widget.placeholder,
+            matched ??
+                widget.placeholder ??
+                AppLocalizations.of(context).commonPleaseSelect,
             style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                   fontSize: 16,
                   height: 1.25,
@@ -508,7 +513,8 @@ class LibraryStoryTile extends StatelessWidget {
               ),
               if (onContinue != null)
                 IconButton(
-                  tooltip: '续写下一集',
+                  tooltip: AppLocalizations.of(context)
+                      .storiesContinueEpisodeTooltip,
                   onPressed: onContinue,
                   icon: const Icon(Icons.playlist_add, color: AppColors.secondary),
                 ),

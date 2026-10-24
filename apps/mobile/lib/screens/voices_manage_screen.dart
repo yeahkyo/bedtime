@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
 
 import '../api/client.dart';
+import '../l10n/app_localizations.dart';
 import '../config.dart';
 import '../theme/app_theme.dart';
 import '../theme/widgets.dart';
@@ -101,7 +102,7 @@ class _VoicesManageScreenState extends State<VoicesManageScreen> {
     if (url == null) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('该音色暂无试听，请稍后再试')),
+        SnackBar(content: Text(AppLocalizations.of(context).voicesPreviewUnavailableSnack)),
       );
       return;
     }
@@ -153,17 +154,17 @@ class _VoicesManageScreenState extends State<VoicesManageScreen> {
         _playingVoiceId = null;
       });
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('试听播放失败')),
+        SnackBar(content: Text(AppLocalizations.of(context).voicesPreviewFailed)),
       );
     }
   }
 
-  String _kindLabel(String? kind) {
+  String _kindLabel(AppLocalizations l10n, String? kind) {
     switch (kind) {
       case 'clone':
-        return '克隆音色';
+        return l10n.voicesKindClone;
       case 'system':
-        return '系统音色';
+        return l10n.voicesKindSystem;
       default:
         return kind ?? '';
     }
@@ -172,11 +173,12 @@ class _VoicesManageScreenState extends State<VoicesManageScreen> {
   @override
   Widget build(BuildContext context) {
     final tt = Theme.of(context).textTheme;
+    final l10n = AppLocalizations.of(context);
 
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('音色管理'),
+        title: Text(l10n.voicesManageTitle),
         backgroundColor: AppColors.background,
       ),
       body: loading
@@ -188,16 +190,16 @@ class _VoicesManageScreenState extends State<VoicesManageScreen> {
                 padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
                 children: [
                   BrandHeader(
-                    eyebrow: '呼呼 · Voice',
-                    title: '我的音色',
+                    eyebrow: l10n.voicesManageEyebrow,
+                    title: l10n.voicesManageHeaderTitle,
                     subtitle: kFeatureVoiceClone
-                        ? '管理朗读音色，或克隆家长声音给孩子讲故事'
-                        : '管理系统朗读音色，试听并选用',
+                        ? l10n.voicesManageSubtitleClone
+                        : l10n.voicesManageSubtitleSystem,
                   ),
                   const SizedBox(height: 18),
                   if (kFeatureVoiceClone) ...[
                     AmberCta(
-                      label: '克隆新音色',
+                      label: l10n.voicesManageCloneCta,
                       icon: Icons.mic_none,
                       onPressed: _openClone,
                     ),
@@ -208,15 +210,15 @@ class _VoicesManageScreenState extends State<VoicesManageScreen> {
                     const SizedBox(height: 12),
                   ],
                   SectionCard(
-                    title: '已有音色',
+                    title: l10n.voicesManageSectionTitle,
                     subtitle: voices.isEmpty
-                        ? '暂无音色'
-                        : '共 ${voices.length} 个 · 可试听',
+                        ? l10n.voicesManageNone
+                        : l10n.voicesManageCount(voices.length),
                     child: voices.isEmpty
                         ? Text(
                             kFeatureVoiceClone
-                                ? '可先点上方按钮克隆家长声音。'
-                                : '暂无可用系统音色，请稍后再试或联系管理员。',
+                                ? l10n.voicesManageEmptyCloneHint
+                                : l10n.voicesManageEmptySystemHint,
                             style: tt.bodyMedium,
                           )
                         : Column(
@@ -242,8 +244,8 @@ class _VoicesManageScreenState extends State<VoicesManageScreen> {
                                     final subtitle = (desc != null &&
                                             desc.isNotEmpty)
                                         ? desc
-                                        : '${_kindLabel(kind)} · ${m['language'] ?? 'zh'}'
-                                            '${hasPreview ? '' : ' · 暂无试听'}';
+                                        : '${_kindLabel(l10n, kind)} · ${m['language'] ?? 'zh'}'
+                                            '${hasPreview ? '' : l10n.voicesNoPreviewSuffix}';
                                     return Row(
                                       children: [
                                         Container(
@@ -284,10 +286,12 @@ class _VoicesManageScreenState extends State<VoicesManageScreen> {
                                         ),
                                         IconButton(
                                           tooltip: !hasPreview
-                                              ? '暂无试听'
+                                              ? l10n.voicesPreviewUnavailable
                                               : (previewLoading
-                                                  ? '加载中'
-                                                  : (playing ? '停止试听' : '试听')),
+                                                  ? l10n.commonLoading
+                                                  : (playing
+                                                      ? l10n.voicesPreviewStop
+                                                      : l10n.voicesPreviewPlay)),
                                           onPressed: hasPreview
                                               ? () => _togglePreview(m)
                                               : null,

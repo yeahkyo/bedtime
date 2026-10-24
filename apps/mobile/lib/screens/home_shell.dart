@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../api/client.dart';
+import '../l10n/app_localizations.dart';
 import '../local/local_store.dart';
 import '../theme/app_theme.dart';
 import 'me_tab.dart';
@@ -40,7 +41,7 @@ class _HomeShellState extends State<HomeShell> {
         if (!mounted || _offlineBannerShown) return;
         _offlineBannerShown = true;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('离线模式：显示本地缓存，联网后自动同步')),
+          SnackBar(content: Text(AppLocalizations.of(context).homeOfflineSnackbar)),
         );
       });
     }
@@ -54,7 +55,7 @@ class _HomeShellState extends State<HomeShell> {
         if (!mounted) return;
         _offlineBannerShown = true;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('离线模式：显示本地缓存，联网后自动同步')),
+          SnackBar(content: Text(AppLocalizations.of(context).homeOfflineSnackbar)),
         );
       });
     }
@@ -99,16 +100,16 @@ class _HomeShellState extends State<HomeShell> {
             _storiesKey.currentState?.reload();
           }
         },
-        destinations: const [
+        destinations: [
           NavigationDestination(
-            icon: Icon(Icons.menu_book_outlined),
-            selectedIcon: Icon(Icons.menu_book),
-            label: '故事',
+            icon: const Icon(Icons.menu_book_outlined),
+            selectedIcon: const Icon(Icons.menu_book),
+            label: AppLocalizations.of(context).tabStories,
           ),
           NavigationDestination(
-            icon: Icon(Icons.person_outline),
-            selectedIcon: Icon(Icons.person),
-            label: '我的',
+            icon: const Icon(Icons.person_outline),
+            selectedIcon: const Icon(Icons.person),
+            label: AppLocalizations.of(context).meTitle,
           ),
         ],
       ),

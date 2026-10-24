@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../api/client.dart';
+import '../l10n/app_localizations.dart';
 import '../config.dart';
 import '../local/local_store.dart';
 import '../local/network_errors.dart';
@@ -123,23 +124,25 @@ class StoriesTabState extends State<StoriesTab> {
   Future<void> _continueSeries(Map<String, dynamic> s) async {
     if (!kFeatureSoftSeries) return;
     // Soft-series create fields were removed from the story protocol; open create.
+    final l10n = AppLocalizations.of(context);
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('系列续写请从「创作」页重新开始')),
+      SnackBar(content: Text(l10n.storiesSeriesContinueHint)),
     );
     await _openCreate();
   }
 
   Future<void> _resumeWait(int storyId) async {
+    final l10n = AppLocalizations.of(context);
     setState(() {
       continuing = true;
-      retryProgress = '继续等待生成…';
+      retryProgress = l10n.storyResumeWaiting;
     });
     try {
       final story = await widget.api.waitForStory(
         storyId,
         onProgress: (p) {
           if (!mounted) return;
-          setState(() => retryProgress = _progressLabel(p));
+          setState(() => retryProgress = _progressLabel(AppLocalizations.of(context), p));
         },
       );
       await widget.localStore?.stories.upsertOne(story);
@@ -170,14 +173,15 @@ class StoriesTabState extends State<StoriesTab> {
   }
 
   void _openPlayer(Map<String, dynamic> s) {
+    final l10n = AppLocalizations.of(context);
     final status = s['status'] as String? ?? '';
     final audioUrl = s['audio_url'] as String?;
     if (status != 'ready' || audioUrl == null || audioUrl.isEmpty) {
       final msg = status == 'generating'
-          ? '故事还在生成中，请下拉刷新后再听'
+          ? l10n.storyStillGenerating
           : status == 'failed'
-              ? (s['error_message'] as String? ?? '故事生成失败，可点重试')
-              : '暂无音频，无法播放';
+              ? (s['error_message'] as String? ?? l10n.storyGenerateFailedRetry)
+              : l10n.storyNoAudio;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
       return;
     }
@@ -191,40 +195,41 @@ class StoriesTabState extends State<StoriesTab> {
     );
   }
 
-  String _progressLabel(String progress) {
+  String _progressLabel(AppLocalizations l10n, String progress) {
     switch (progress) {
       case 'queued':
-        return '排队中…';
+        return l10n.storyProgressQueued;
       case 'series_outline':
-        return '正在构思系列大纲…';
+        return l10n.storyProgressSeriesOutline;
       case 'episode_plan':
-        return '正在构思今晚情节…';
+        return l10n.storyProgressEpisodePlan;
       case 'draft':
-        return '正在写故事正文…';
+        return l10n.storyProgressDraft;
       case 'tts':
-        return '正在生成朗读音频…';
+        return l10n.storyProgressTts;
       case 'ready':
-        return '完成';
+        return l10n.storyProgressReady;
       case 'failed':
-        return '生成失败';
+        return l10n.storyProgressFailed;
       default:
-        return '生成中（$progress）…';
+        return l10n.storyProgressGenerating(progress);
     }
   }
 
   Future<void> _retryStory(Map<String, dynamic> s) async {
     final id = s['id'] as int?;
     if (id == null || retrying) return;
+    final l10n = AppLocalizations.of(context);
     setState(() {
       retrying = true;
-      retryProgress = '正在重新生成…';
+      retryProgress = l10n.storyRetrying;
     });
     try {
       final story = await widget.api.retryStoryAndWait(
         id,
         onProgress: (p) {
           if (!mounted) return;
-          setState(() => retryProgress = _progressLabel(p));
+          setState(() => retryProgress = _progressLabel(AppLocalizations.of(context), p));
         },
       );
       await widget.localStore?.stories.upsertOne(story);
@@ -247,7 +252,7 @@ class StoriesTabState extends State<StoriesTab> {
             action: resumeId == null
                 ? null
                 : SnackBarAction(
-                    label: '继续等待',
+                    label: AppLocalizations.of(context).storyContinueWaiting,
                     onPressed: () => unawaited(_resumeWait(resumeId)),
                   ),
           ),
@@ -266,6 +271,7 @@ class StoriesTabState extends State<StoriesTab> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     if (continuing || retrying) {
       return Center(
         child: Column(
@@ -275,8 +281,8 @@ class StoriesTabState extends State<StoriesTab> {
             const SizedBox(height: 12),
             Text(
               retrying
-                  ? (retryProgress ?? '正在重新生成…')
-                  : '正在续写下一集…',
+                  ? (retryProgress ?? l10n.storyRetrying)
+                  : l10n.storyContinuingEpisode,
               style: Theme.of(context).textTheme.bodyMedium,
             ),
           ],
@@ -304,12 +310,14 @@ class StoriesTabState extends State<StoriesTab> {
                       Row(
                         children: [
                           Text(
-                            '枕边故事宝盒',
+                            l10n.storiesLibraryTitle,
                             style: Theme.of(context).textTheme.titleMedium,
                           ),
                           const Spacer(),
                           Text(
-                            stories.isEmpty ? '暂无故事' : '按时间倒序 · ${stories.length} 篇',
+                            stories.isEmpty
+                                ? l10n.storiesLibraryEmpty
+                                : l10n.storiesLibraryCount(stories.length),
                             style: Theme.of(context).textTheme.bodySmall,
                           ),
                         ],
@@ -317,9 +325,9 @@ class StoriesTabState extends State<StoriesTab> {
                       const SizedBox(height: 14),
                       if (stories.isEmpty)
                         SectionCard(
-                          title: '空空的书架',
+                          title: l10n.storiesEmptyShelfTitle,
                           child: Text(
-                            '今晚的第一本小书，还在等你点上方金色卡片。',
+                            l10n.storiesEmptyShelfBody,
                             style: Theme.of(context).textTheme.bodyLarge,
                           ),
                         )
@@ -339,13 +347,13 @@ class StoriesTabState extends State<StoriesTab> {
                               } else {
                                 meta.write('${s['language'] ?? 'zh'} · ${s['status'] ?? ''}');
                                 if (s['duration_minutes'] != null) {
-                                  meta.write(' · ${s['duration_minutes']} 分钟');
+                                  meta.write(' · ${l10n.storiesMinutes(s['duration_minutes'])}');
                                 }
                               }
                               if (kFeatureSoftSeries && seriesId != null) {
                                 meta.write(meta.isEmpty ? '' : ' · ');
-                                meta.write('系列 #$seriesId');
-                                if (ep != null) meta.write(' 第$ep集');
+                                meta.write(l10n.storiesSeriesMeta(seriesId));
+                                if (ep != null) meta.write(l10n.storiesEpisodeMeta(ep));
                               }
                               final status = s['status'] as String? ?? '';
                               final failed = status == 'failed';
@@ -357,7 +365,11 @@ class StoriesTabState extends State<StoriesTab> {
                               if (failed) {
                                 final err = (s['error_message'] as String?)?.trim();
                                 meta.clear();
-                                meta.write(err == null || err.isEmpty ? '生成失败 · 可重试' : '失败 · $err');
+                                meta.write(
+                                  err == null || err.isEmpty
+                                      ? l10n.storiesFailedRetry
+                                      : l10n.storiesFailedWithError(err),
+                                );
                               }
                               return Padding(
                                 padding: const EdgeInsets.only(bottom: 12),
@@ -366,7 +378,7 @@ class StoriesTabState extends State<StoriesTab> {
                                       ? s['title'] as String
                                       : ((s['theme'] as String?)?.trim().isNotEmpty == true
                                           ? s['theme'] as String
-                                          : '未完成的故事'),
+                                          : l10n.storiesUntitled),
                                   meta: meta.toString(),
                                   failed: canRetry,
                                   onPlay: () => _openPlayer(s),
@@ -400,6 +412,7 @@ class _StoriesHeroHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tt = Theme.of(context).textTheme;
+    final l10n = AppLocalizations.of(context);
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 10, 20, 12),
       child: Column(
@@ -414,7 +427,7 @@ class _StoriesHeroHeader extends StatelessWidget {
                   children: [
                     const BrandMark(),
                     const SizedBox(height: 8),
-                    Text('故事', style: tt.headlineMedium),
+                    Text(l10n.storiesTitle, style: tt.headlineMedium),
                   ],
                 ),
               ),
@@ -445,7 +458,9 @@ class _StoriesHeroHeader extends StatelessWidget {
                     ),
                     const SizedBox(width: 6),
                     Text(
-                      storyCount == 0 ? '等待第一篇' : '夜光模式已就绪',
+                      storyCount == 0
+                          ? l10n.storiesStatusWaitingFirst
+                          : l10n.storiesStatusReady,
                       style: tt.labelSmall?.copyWith(
                         color: AppColors.onSurfaceMuted,
                         fontSize: 11,
@@ -491,7 +506,7 @@ class _StoriesHeroHeader extends StatelessWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              '织梦引擎 · 新章',
+                              l10n.storiesCreateEyebrow,
                               style: tt.labelMedium?.copyWith(
                                 color: const Color(0xFF693C19),
                                 letterSpacing: 0.8,
@@ -500,7 +515,7 @@ class _StoriesHeroHeader extends StatelessWidget {
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              '创作今晚的故事',
+                              l10n.storiesCreateTitle,
                               style: tt.titleLarge?.copyWith(
                                 color: const Color(0xFF4E2604),
                                 fontWeight: FontWeight.w700,
@@ -509,7 +524,7 @@ class _StoriesHeroHeader extends StatelessWidget {
                             ),
                             const SizedBox(height: 6),
                             Text(
-                              '定制专属角色、故事情节与助眠音画',
+                              l10n.storiesCreateSubtitle,
                               style: tt.bodySmall?.copyWith(
                                 color: const Color(0xCC4E2604),
                                 height: 1.35,

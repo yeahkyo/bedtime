@@ -5,11 +5,13 @@ Clients hit **Cloudflare** (orange-cloud + Universal SSL); origin speaks **HTTP*
 
 ```text
 App (HTTPS) → Cloudflare edge → Origin VPS :8080 → Docker api (uvicorn :8000)
+App legal links → Cloudflare → Origin VPS :8082 → Lullvale web (nginx /legal/*)
 Media put/get → Cloudflare R2 (S3 API + presigned URLs)
 ```
 
-Default host port is **8080** so this stack can share the Bandage VPS (Bandage API already uses **:80**).  
+Default API host port is **8080** so this stack can share the Bandage VPS (Bandage API already uses **:80**).  
 Set Cloudflare **Origin Rule**: hostname `bedtime-api.*` → origin port **8080**.  
+Legal / product site: `huhu.lullvale.com` → origin port **8082** (sibling repo [`../Lullvale`](../../Lullvale)).  
 (Dedicated VPS with free :80: set `API_HOST_PORT=80` in `.env.staging`.)
 
 ## Secrets: local `.env.staging` + scp (no SSH editing)
@@ -22,6 +24,8 @@ cp apps/api/.env.staging.example apps/api/.env.staging
 ./deploy.sh          # scp → /srv/bedtime/apps/api/.env, git pull, compose up
 ./deploy.sh env      # only refresh remote .env
 ./deploy.sh code     # code + compose only (keep remote .env)
+# Legal / marketing sites (Featee + studio + Huhu):
+cd ../Lullvale && ./deploy.sh
 ```
 
 | Local (gitignored) | Remote |
@@ -53,8 +57,11 @@ Override SSH target: `DEPLOY_SSH=root@lullvale01 REMOTE_REPO_ROOT=/srv/bedtime .
 6. `./deploy.sh` (API **:8080** + Admin UI **:8083**)
 7. Admin UI: open `http://<VPS_IP>:8083` (or a Cloudflare hostname with Origin Rule → **8083**).  
    SPA uses same-origin `/admin/*`; nginx proxies to the `api` container — leave `ADMIN_UI_API_BASE` empty.
-8. App: `flutter run --dart-define=API_BASE_URL=https://bedtime-api.lullvale.com`
-9. Retention cron on the VPS (see below).
+8. Legal site: deploy sibling [`../Lullvale`](../../Lullvale); DNS `huhu.lullvale.com` → VPS, Proxied; Origin Rule → **8082**.  
+   Smoke: `curl -sI https://huhu.lullvale.com/legal/privacy/en.html` → **200**.
+9. App: `flutter run --dart-define=API_BASE_URL=https://bedtime-api.lullvale.com`  
+   (legal URLs default to `https://huhu.lullvale.com`; optional `LEGAL_HOST=…`)
+10. Retention cron on the VPS (see below).
 
 ## Fill these in `.env.staging` before first deploy
 
@@ -76,21 +83,26 @@ Override SSH target: `DEPLOY_SSH=root@lullvale01 REMOTE_REPO_ROOT=/srv/bedtime .
 | Host port | Owner |
 |-----------|--------|
 | 80 | Bandage API — **do not reuse** |
-| 8081 / 8082 | Bandage admin / web |
+| 8081 | Bandage admin |
+| **8082** | Lullvale web (Featee / studio / Huhu) |
 | **8080** | Bedtime staging API (default) |
-| **8083** | Bedtime admin UI (`--profile admin`) |
+| **8083** | Bedtime admin UI |
 | 3307 / 6390 | Bandage DB/Redis published — bedtime staging does **not** publish DB/Redis |
 
 Use a separate Compose project (`-p bedtime` via `deploy.sh`).
 
 ## Cloudflare (edge)
 
+| Hostname | Origin port | Service |
+|----------|-------------|---------|
+| `bedtime-api.lullvale.com` | **8080** | bedtime `api` |
+| `huhu.lullvale.com` | **8082** | Lullvale `web` (shared with Featee / studio) |
+
 | Setting | Value |
 |---------|--------|
 | Proxy | Orange cloud |
 | SSL/TLS | **Full** |
-| Origin port | **8080** (Origin Rule) when co-located with Bandage |
-| On-box Caddy/nginx | Not required |
+| On-box Caddy/nginx | Not required (compose publishes ports; CF Origin Rules by Host) |
 
 ## Object storage (R2)
 
@@ -124,9 +136,10 @@ curl -fsS -X POST -H "X-Retention-Admin-Token: $RETENTION_ADMIN_TOKEN" \
 ## Smoke test
 
 1. `curl -sS https://bedtime-api.lullvale.com/health`  
-2. App with HTTPS `API_BASE_URL`  
-3. Create child → story → play (R2). Soft series / voice clone are off by default (`FEATURE_SOFT_SERIES` / `FEATURE_VOICE_CLONE`).  
-4. Retention curl above  
+2. `curl -sI https://huhu.lullvale.com/legal/privacy/en.html` → **200**  
+3. App with HTTPS `API_BASE_URL`  
+4. Create child → story → play (R2). Soft series / voice clone are off by default (`FEATURE_SOFT_SERIES` / `FEATURE_VOICE_CLONE`).  
+5. Retention curl above  
 
 ## Before public prod
 

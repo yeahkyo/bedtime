@@ -1,3 +1,5 @@
+import '../l10n/app_localizations.dart';
+
 /// Display helpers for child age — UI shows years, not internal age_band.
 int ageYearsFromBirthDate(String? raw, {DateTime? on}) {
   final today = on ?? DateTime.now();
@@ -13,17 +15,29 @@ int ageYearsFromBirthDate(String? raw, {DateTime? on}) {
   return years < 0 ? 0 : years;
 }
 
-/// e.g. `3岁`
-String formatAgeYearsLabel(String? birthDate, {DateTime? on}) {
-  return '${ageYearsFromBirthDate(birthDate, on: on)}岁';
+/// e.g. `3岁` / `3 years old`
+String formatAgeYearsLabel(
+  AppLocalizations l10n,
+  String? birthDate, {
+  DateTime? on,
+}) {
+  return l10n.ageYears(ageYearsFromBirthDate(birthDate, on: on));
 }
 
 /// e.g. `4岁 3个月` — for character cards matching design copy.
-String formatAgeDetailedLabel(String? birthDate, {DateTime? on}) {
+String formatAgeDetailedLabel(
+  AppLocalizations l10n,
+  String? birthDate, {
+  DateTime? on,
+}) {
   final today = on ?? DateTime.now();
-  if (birthDate == null || birthDate.trim().isEmpty) return '4岁';
+  if (birthDate == null || birthDate.trim().isEmpty) {
+    return l10n.ageYears(4);
+  }
   final birth = DateTime.tryParse(birthDate.trim());
-  if (birth == null || birth.isAfter(today)) return '0岁';
+  if (birth == null || birth.isAfter(today)) {
+    return l10n.ageYears(0);
+  }
   var years = today.year - birth.year;
   var months = today.month - birth.month;
   if (today.day < birth.day) months -= 1;
@@ -31,7 +45,7 @@ String formatAgeDetailedLabel(String? birthDate, {DateTime? on}) {
     years -= 1;
     months += 12;
   }
-  if (years < 0) return '0岁';
-  if (months <= 0) return '$years岁';
-  return '$years岁 $months个月';
+  if (years < 0) return l10n.ageYears(0);
+  if (months <= 0) return l10n.ageYears(years);
+  return l10n.ageYearsMonths(years, months);
 }

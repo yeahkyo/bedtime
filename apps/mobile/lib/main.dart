@@ -8,6 +8,8 @@ import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'api/auth_storage.dart';
 import 'api/client.dart';
 import 'config.dart';
+import 'l10n/app_localizations.dart';
+import 'l10n/locale_controller.dart';
 import 'local/local_store.dart';
 import 'local/network_errors.dart';
 import 'local/user_scope.dart';
@@ -16,27 +18,48 @@ import 'screens/home_shell.dart';
 import 'splash/splash_screen.dart';
 import 'theme/app_theme.dart';
 
-void main() {
+Future<void> main() async {
   final widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
   FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
+  await LocaleController.instance.load();
   runApp(const BedtimeApp());
 }
 
-class BedtimeApp extends StatelessWidget {
+class BedtimeApp extends StatefulWidget {
   const BedtimeApp({super.key});
 
   @override
+  State<BedtimeApp> createState() => _BedtimeAppState();
+}
+
+class _BedtimeAppState extends State<BedtimeApp> {
+  @override
+  void initState() {
+    super.initState();
+    LocaleController.instance.addListener(_onLocale);
+  }
+
+  @override
+  void dispose() {
+    LocaleController.instance.removeListener(_onLocale);
+    super.dispose();
+  }
+
+  void _onLocale() {
+    if (mounted) setState(() {});
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final locale = LocaleController.instance.locale;
     return MaterialApp(
-      title: '呼呼 - 枕边故事',
+      onGenerateTitle: (ctx) => AppLocalizations.of(ctx).appTitle,
       debugShowCheckedModeBanner: false,
       theme: buildBedtimeTheme(),
-      locale: const Locale('zh', 'CN'),
-      supportedLocales: const [
-        Locale('zh', 'CN'),
-        Locale('en', 'US'),
-      ],
+      locale: locale,
+      supportedLocales: AppLocalizations.supportedLocales,
       localizationsDelegates: const [
+        AppLocalizations.delegate,
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
@@ -286,12 +309,9 @@ class _BootstrapGateState extends State<BootstrapGate>
         return;
       }
 
-      final hint = apiBaseUrlLooksRemote
-          ? '线上/内测请用 Cloudflare HTTPS 域名：\n'
-              '--dart-define=API_BASE_URL=https://bedtime-api.<你的域名>\n'
-              '并使用邀请码注册或手机号登录。'
-          : '若卡在白屏或连不上：系统设置 → 隐私与安全性 → 本地网络 → 打开本 App；\n'
-              '并确认用 --dart-define=API_BASE_URL=http://<电脑局域网IP>:8000 启动。';
+      final l10n = lookupAppLocalizations(LocaleController.instance.locale);
+      final hint =
+          apiBaseUrlLooksRemote ? l10n.bootHintRemote : l10n.bootHintLocal;
       setState(() {
         error = '${friendlyNetworkError(e)}\n\nAPI: $apiBaseUrl\n\n$hint';
         loading = false;
@@ -336,13 +356,17 @@ class _BootstrapGateState extends State<BootstrapGate>
       return const ColoredBox(color: SplashColors.background);
     }
     if (error != null) {
+      final l10n = AppLocalizations.of(context);
       return Scaffold(
         body: Padding(
           padding: const EdgeInsets.all(24),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Text('无法连接', style: Theme.of(context).textTheme.headlineMedium),
+              Text(
+                l10n.bootCannotConnect,
+                style: Theme.of(context).textTheme.headlineMedium,
+              ),
               const SizedBox(height: 12),
               Text(error!, textAlign: TextAlign.center),
               const SizedBox(height: 24),
@@ -354,7 +378,7 @@ class _BootstrapGateState extends State<BootstrapGate>
                   });
                   unawaited(_boot());
                 },
-                child: const Text('重试'),
+                child: Text(l10n.bootRetry),
               ),
             ],
           ),

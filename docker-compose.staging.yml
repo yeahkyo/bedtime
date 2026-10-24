@@ -74,6 +74,8 @@ services:
         condition: service_started
     restart: unless-stopped
 
+  # Huhu legal / marketing: sibling repo ../Lullvale (not this compose).
+
 volumes:
   bedtime_staging_mariadb:
   bedtime_staging_redis:

@@ -5,7 +5,7 @@
 		<key>CFBundleDevelopmentRegion</key>
 		<string>$(DEVELOPMENT_LANGUAGE)</string>
 		<key>CFBundleDisplayName</key>
-		<string>呼呼 - 枕边故事</string>
+		<string>呼呼 · 枕边故事</string>
 		<key>NSMicrophoneUsageDescription</key>
 		<string>用于录制家长声音以克隆睡前故事朗读音色。原始录音上传后会尽快删除。</string>
 		<key>NSLocalNetworkUsageDescription</key>
@@ -30,7 +30,7 @@
 		<key>CFBundleInfoDictionaryVersion</key>
 		<string>6.0</string>
 		<key>CFBundleName</key>
-		<string>呼呼</string>
+		<string>呼呼 · 枕边故事</string>
 		<key>CFBundlePackageType</key>
 		<string>APPL</string>
 		<key>CFBundleShortVersionString</key>

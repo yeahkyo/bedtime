@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
 
 import '../config.dart';
+import '../l10n/app_localizations.dart';
 import '../theme/app_theme.dart';
 
 /// Modal picker: system / clone sections, preview, description.
@@ -95,7 +96,7 @@ class _VoicePickerSheetState extends State<_VoicePickerSheet> {
     if (url == null) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('该音色暂无试听')),
+        SnackBar(content: Text(AppLocalizations.of(context).voicesPreviewUnavailableShort)),
       );
       return;
     }
@@ -149,13 +150,14 @@ class _VoicePickerSheetState extends State<_VoicePickerSheet> {
         _playingId = null;
       });
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('试听播放失败')),
+        SnackBar(content: Text(AppLocalizations.of(context).voicesPreviewFailed)),
       );
     }
   }
 
   Widget _section(String title, List<Map<String, dynamic>> rows) {
     final tt = Theme.of(context).textTheme;
+    final l10n = AppLocalizations.of(context);
     if (rows.isEmpty) {
       return Padding(
         padding: const EdgeInsets.only(bottom: 16),
@@ -164,7 +166,7 @@ class _VoicePickerSheetState extends State<_VoicePickerSheet> {
           children: [
             Text(title, style: tt.titleSmall?.copyWith(color: AppColors.primarySoft)),
             const SizedBox(height: 8),
-            Text('暂无', style: tt.bodySmall?.copyWith(color: AppColors.onSurfaceDim)),
+            Text(l10n.voicePickerEmpty, style: tt.bodySmall?.copyWith(color: AppColors.onSurfaceDim)),
           ],
         ),
       );
@@ -189,9 +191,10 @@ class _VoicePickerSheetState extends State<_VoicePickerSheet> {
     final tt = Theme.of(context).textTheme;
     final id = _asId(voice['id']);
     final selected = id != null && id == _selectedId;
+    final l10n = AppLocalizations.of(context);
     final name = (voice['name'] as String?)?.trim().isNotEmpty == true
         ? voice['name'] as String
-        : '未命名音色';
+        : l10n.voicePickerUnnamed;
     final desc = (voice['description'] as String?)?.trim() ?? '';
     final hasPreview = (voice['preview_audio_url'] as String?)?.isNotEmpty == true;
     final loading = id != null && _loadingId == id;
@@ -231,8 +234,12 @@ class _VoicePickerSheetState extends State<_VoicePickerSheet> {
             ),
             IconButton(
               tooltip: !hasPreview
-                  ? '暂无试听'
-                  : (loading ? '加载中' : (playing ? '停止' : '试听')),
+                  ? l10n.voicesPreviewUnavailable
+                  : (loading
+                      ? l10n.commonLoading
+                      : (playing
+                          ? l10n.voicesPreviewStopShort
+                          : l10n.voicesPreviewPlay)),
               onPressed: hasPreview ? () => _togglePreview(voice) : null,
               icon: loading
                   ? const SizedBox(
@@ -261,6 +268,7 @@ class _VoicePickerSheetState extends State<_VoicePickerSheet> {
   @override
   Widget build(BuildContext context) {
     final tt = Theme.of(context).textTheme;
+    final l10n = AppLocalizations.of(context);
     final system = _ofKind('system');
     final clones = kFeatureVoiceClone ? _ofKind('clone') : const <Map<String, dynamic>>[];
     final maxH = MediaQuery.of(context).size.height * 0.78;
@@ -276,10 +284,10 @@ class _VoicePickerSheetState extends State<_VoicePickerSheet> {
               child: Row(
                 children: [
                   Expanded(
-                    child: Text('选择音色', style: tt.titleLarge),
+                    child: Text(l10n.voicePickerTitle, style: tt.titleLarge),
                   ),
                   IconButton(
-                    tooltip: '关闭',
+                    tooltip: l10n.commonClose,
                     onPressed: () => Navigator.of(context).pop(),
                     icon: const Icon(Icons.close),
                   ),
@@ -289,7 +297,7 @@ class _VoicePickerSheetState extends State<_VoicePickerSheet> {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Text(
-                '试听后点确定使用',
+                l10n.voicePickerHint,
                 style: tt.bodySmall?.copyWith(color: AppColors.onSurfaceDim),
               ),
             ),
@@ -298,8 +306,8 @@ class _VoicePickerSheetState extends State<_VoicePickerSheet> {
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(20, 8, 12, 12),
                 children: [
-                  _section('系统音色', system),
-                  if (kFeatureVoiceClone) _section('克隆音色', clones),
+                  _section(l10n.voicesKindSystem, system),
+                  if (kFeatureVoiceClone) _section(l10n.voicesKindClone, clones),
                 ],
               ),
             ),
@@ -309,7 +317,7 @@ class _VoicePickerSheetState extends State<_VoicePickerSheet> {
                 onPressed: _selectedId == null
                     ? null
                     : () => Navigator.of(context).pop(_selectedId),
-                child: const Text('使用此音色'),
+                child: Text(l10n.voicePickerUse),
               ),
             ),
           ],

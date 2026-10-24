@@ -404,6 +404,49 @@ def test_plan_message_is_simplified_schema():
     assert "gender" not in payload
 
 
+
+def test_normalize_audiences_maps_gender_token_by_story_language():
+    from datetime import date
+
+    from app.api.stories import _normalize_audiences
+    from app.models.child import Child
+    from app.schemas.common import AudienceItem, StoryCreate
+
+    child = Child(
+        user_id=1,
+        nickname="豆豆",
+        birth_date=date(2020, 1, 1),
+        gender="boy",
+    )
+    body_zh = StoryCreate(
+        child_id=1,
+        theme="月亮",
+        language="zh",
+        audiences=[AudienceItem(name="豆豆", age=4, gender="girl")],
+    )
+    out_zh = _normalize_audiences(body_zh, child)
+    assert out_zh[0]["gender"] == "女孩"
+
+    body_en = StoryCreate(
+        child_id=1,
+        theme="moon",
+        language="en",
+        audiences=[AudienceItem(name="Ada", age=5, gender="boy")],
+    )
+    out_en = _normalize_audiences(body_en, child)
+    assert out_en[0]["gender"] == "boy"
+
+    # Legacy Chinese label still accepted and remapped for English stories.
+    body_legacy = StoryCreate(
+        child_id=1,
+        theme="moon",
+        language="en",
+        audiences=[AudienceItem(name="Ada", age=5, gender="女孩")],
+    )
+    out_legacy = _normalize_audiences(body_legacy, child)
+    assert out_legacy[0]["gender"] == "girl"
+
+
 def test_prompt_age_years_falls_back_to_band():
     from app.providers.story_prompt import prompt_age_years, prompt_gender_label
 

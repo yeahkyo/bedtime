@@ -1174,18 +1174,15 @@ def prompt_age_years(request: StoryRequest) -> int:
 
 
 def prompt_gender_label(request: StoryRequest) -> str:
-    """Human-readable gender for plan/draft LLM JSON."""
-    from app.services.child_profile import GENDER_LABELS_ZH, normalize_gender
+    """Human-readable gender for plan/draft LLM JSON (by story language)."""
+    from app.services.child_profile import gender_label_for_language
 
-    g = normalize_gender(request.child_gender)
+    label = gender_label_for_language(request.child_gender, request.language)
+    if label:
+        return label
     if (request.language or "zh").strip().lower().startswith("en"):
-        return {
-            "girl": "girl",
-            "boy": "boy",
-            "other": "other",
-            "unspecified": "unspecified",
-        }.get(g, "unspecified")
-    return GENDER_LABELS_ZH.get(g, "不指定")
+        return "unspecified"
+    return "不指定"
 
 
 def fantasy_score_from_wonder(wonder: str | None) -> int:

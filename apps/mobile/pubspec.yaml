@@ -1,5 +1,5 @@
 name: bedtime_mobile
-description: 呼呼 - 枕边故事 — personalized bilingual bedtime stories
+description: 呼呼 · 枕边故事 / Huhu · Pillow Tales — personalized bilingual bedtime stories
 publish_to: "none"
 version: 1.0.0+1
 
@@ -24,6 +24,9 @@ dependencies:
   drift_flutter: ^0.2.8
   path: ^1.9.1
   connectivity_plus: ^7.3.2
+  package_info_plus: ^8.3.0
+  url_launcher: ^6.3.1
+  intl: any
 
 dev_dependencies:
   flutter_test:
@@ -54,6 +57,7 @@ flutter_native_splash:
   android: true
 
 flutter:
+  generate: true
   uses-material-design: true
   assets:
     - assets/audio/

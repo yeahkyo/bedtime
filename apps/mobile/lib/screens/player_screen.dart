@@ -6,7 +6,9 @@ import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../api/client.dart';
 import '../config.dart';
+import '../l10n/app_localizations.dart';
 import '../local/local_store.dart';
 import '../local/network_errors.dart';
 import '../theme/app_theme.dart';
@@ -125,10 +127,12 @@ class PlayerScreen extends StatefulWidget {
 class _PlayerScreenState extends State<PlayerScreen> {
   static const _bedTrack = _BedTrack(
     id: 'music_box',
-    label: '八音盒',
+    label: 'Music box', // localized via playerBedMusicBox when shown
     asset:
         'assets/audio/denis-pavlov-music-calm-baby-lullaby-sweet-dreams-music-box-397059.mp3',
   );
+
+  String _bedTrackLabel(AppLocalizations l10n) => l10n.playerBedMusicBox;
 
   static const _bedVolumeDefault = 0.14;
   /// 0 = stop bed music as soon as narration ends.
@@ -207,6 +211,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
     required String? localPath,
     required String? url,
   }) async {
+    final noAudioMsg = AppLocalizations.of(context).storyNoAudioShort;
     if (localPath != null) {
       try {
         await narration.setFilePath(localPath);
@@ -252,7 +257,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
     }
 
     if (url == null) {
-      throw StateError('暂无音频');
+      throw ApiException(noAudioMsg);
     }
     await narration.setUrl(url);
   }
@@ -268,7 +273,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
     final url = _resolveUrl(widget.audioUrl);
     if (localPath == null && url == null) {
       if (!mounted) return;
-      setState(() => error = '暂无音频');
+      setState(() => error = AppLocalizations.of(context).storyNoAudioShort);
       return;
     }
     try {
@@ -558,21 +563,22 @@ class _PlayerScreenState extends State<PlayerScreen> {
   }
 
   String _outroMoodLabel(int minutes) {
+    final l10n = AppLocalizations.of(context);
     switch (minutes) {
       case 0:
-        return '0 分钟 · 故事结束即关';
+        return l10n.playerOutroMood0;
       case 1:
-        return '1 分钟 · 余韵轻停';
+        return l10n.playerOutroMood1;
       case 5:
-        return '5 分钟 · 温柔收束';
+        return l10n.playerOutroMood5;
       case 10:
-        return '10 分钟 · 慢慢入静';
+        return l10n.playerOutroMood10;
       case 15:
-        return '15 分钟 · 安睡余音';
+        return l10n.playerOutroMood15;
       case 30:
-        return '30 分钟 · 整夜轻伴';
+        return l10n.playerOutroMood30;
       default:
-        return '$minutes 分钟';
+        return l10n.playerOutroMoodMinutes(minutes);
     }
   }
 
@@ -622,10 +628,10 @@ class _PlayerScreenState extends State<PlayerScreen> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Text('朗读倍速', style: Theme.of(ctx).textTheme.titleMedium),
+                  Text(AppLocalizations.of(ctx).playerSpeedTitle, style: Theme.of(ctx).textTheme.titleMedium),
                   const SizedBox(height: 6),
                   Text(
-                    '只改变故事朗读速度，背景音乐不受影响。不会重新合成音频。',
+                    AppLocalizations.of(ctx).playerSpeedHint,
                     style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
                           color: AppColors.onSurfaceDim,
                         ),
@@ -657,7 +663,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
                     ],
                   ),
                   Text(
-                    '当前 ${playSpeed.toStringAsFixed(2)}×',
+                    AppLocalizations.of(ctx).playerSpeedCurrent(playSpeed.toStringAsFixed(2)),
                     textAlign: TextAlign.center,
                     style: Theme.of(ctx).textTheme.labelLarge?.copyWith(
                           color: AppColors.primary,
@@ -704,7 +710,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          '摇篮背景音 · ${_bedTrack.label}',
+                          AppLocalizations.of(context).playerBedTrack(_bedTrackLabel(AppLocalizations.of(context))),
                           style: Theme.of(ctx).textTheme.titleMedium,
                         ),
                       ),
@@ -810,7 +816,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
       child: Scaffold(
         backgroundColor: AppColors.background,
         appBar: AppBar(
-          title: const Text('伴读'),
+          title: Text(AppLocalizations.of(context).playerTitle),
           leading: IconButton(
             icon: const Icon(Icons.arrow_back_ios_new, size: 20),
             onPressed: () => Navigator.of(context).maybePop(),
@@ -858,7 +864,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
                               const SizedBox(width: 8),
                               Flexible(
                                 child: Text(
-                                  '床头暖灯 · 伴睡夜播中',
+                                  AppLocalizations.of(context).playerStatusLive,
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: tt.bodySmall?.copyWith(
@@ -882,12 +888,12 @@ class _PlayerScreenState extends State<PlayerScreen> {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             _ModePill(
-                              label: '绘本伴读',
+                              label: AppLocalizations.of(context).playerModePicture,
                               selected: showText,
                               onTap: () => setState(() => showText = true),
                             ),
                             _ModePill(
-                              label: '纯听',
+                              label: AppLocalizations.of(context).playerModeAudio,
                               selected: !showText,
                               onTap: () => setState(() => showText = false),
                             ),
@@ -939,7 +945,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
                                   ),
                                   const SizedBox(height: 6),
                                   Text(
-                                    '枕边暖光',
+                                    AppLocalizations.of(context).playerWarmLight,
                                     style: tt.titleMedium?.copyWith(
                                       color: AppColors.primarySoft,
                                     ),
@@ -964,7 +970,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
                   ),
                   if (!textExpanded) ...[
                     const SizedBox(height: 2),
-                    Text('呼呼 · 枕边故事', style: tt.bodyMedium),
+                    Text(AppLocalizations.of(context).playerBrandLine, style: tt.bodyMedium),
                     if (_metaChips().isNotEmpty) ...[
                       const SizedBox(height: 8),
                       Wrap(
@@ -1031,7 +1037,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
                   const Icon(Icons.auto_stories, size: 16, color: AppColors.primary),
                   const SizedBox(width: 6),
                   Text(
-                    '亲子同屏伴读',
+                    AppLocalizations.of(context).playerCoRead,
                     style: tt.bodySmall?.copyWith(
                       color: AppColors.primary,
                       fontWeight: FontWeight.w600,
@@ -1039,7 +1045,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
                   ),
                   const Spacer(),
                   Text(
-                    textExpanded ? '全文' : '字句平滑随行',
+                    textExpanded
+                        ? AppLocalizations.of(context).playerFullText
+                        : AppLocalizations.of(context).playerFollowAlong,
                     style: tt.bodySmall?.copyWith(color: AppColors.onSurfaceDim),
                   ),
                   const SizedBox(width: 8),
@@ -1056,7 +1064,11 @@ class _PlayerScreenState extends State<PlayerScreen> {
                       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                       foregroundColor: AppColors.secondary,
                     ),
-                    child: Text(textExpanded ? '收起' : '查看全文'),
+                    child: Text(
+                      textExpanded
+                          ? AppLocalizations.of(context).playerCollapse
+                          : AppLocalizations.of(context).playerExpand,
+                    ),
                   ),
                 ],
               ),
@@ -1191,16 +1203,16 @@ class _PlayerScreenState extends State<PlayerScreen> {
                   final remain = total > pos ? total - pos : Duration.zero;
                   final centerBits = <String>[];
                   if (total > Duration.zero) {
-                    centerBits.add('剩余 ${_fmt(remain)}');
+                    centerBits.add(AppLocalizations.of(context).playerRemain(_fmt(remain)));
                   }
                   if (_outroActive &&
                       outroRemain != null &&
                       !outroRemain.isNegative) {
-                    centerBits.add('背景音正慢慢停下');
+                    centerBits.add(AppLocalizations.of(context).playerBedFading);
                   } else if (outroMinutes <= 0) {
-                    centerBits.add('结束后即关助眠音乐');
+                    centerBits.add(AppLocalizations.of(context).playerOutroOff);
                   } else {
-                    centerBits.add('结束后再播$outroMinutes分钟');
+                    centerBits.add(AppLocalizations.of(context).playerOutroMinutes(outroMinutes));
                   }
                   return Column(
                     children: [
@@ -1273,7 +1285,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
                     children: [
                       _DockAction(
                         icon: Icons.alarm_outlined,
-                        label: outroMinutes <= 0 ? '即关' : '$outroMinutes分钟',
+                        label: outroMinutes <= 0
+                            ? AppLocalizations.of(context).playerOutroOffShort
+                            : AppLocalizations.of(context).playerOutroMinutesShort(outroMinutes),
                         onTap: _openTimerSheet,
                       ),
                       _DockAction(
@@ -1316,14 +1330,16 @@ class _PlayerScreenState extends State<PlayerScreen> {
                         icon: bedEnabled
                             ? Icons.music_note_outlined
                             : Icons.music_off_outlined,
-                        label: bedEnabled ? _bedTrack.label : '已关',
+                        label: bedEnabled
+                            ? _bedTrackLabel(AppLocalizations.of(context))
+                            : AppLocalizations.of(context).playerBedOff,
                         onTap: _openBedSheet,
                       ),
                       _DockAction(
                         icon: showText
                             ? Icons.menu_book_rounded
                             : Icons.menu_book_outlined,
-                        label: '文稿',
+                        label: AppLocalizations.of(context).playerScript,
                         onTap: () => setState(() => showText = !showText),
                       ),
                     ],
@@ -1405,10 +1421,10 @@ class _OutroTimerSheetState extends State<_OutroTimerSheet> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text('定时关闭音乐', style: tt.titleMedium),
+          Text(AppLocalizations.of(context).playerTimerTitle, style: tt.titleMedium),
           const SizedBox(height: 6),
           Text(
-            '故事结束后延迟关闭助眠音乐',
+            AppLocalizations.of(context).playerTimerSubtitle,
             style: tt.bodySmall?.copyWith(
               color: AppColors.onSurfaceDim,
             ),
@@ -1416,7 +1432,7 @@ class _OutroTimerSheetState extends State<_OutroTimerSheet> {
           if (active && remain != null && !remain.isNegative) ...[
             const SizedBox(height: 8),
             Text(
-              '助眠音乐正慢慢停下 · 剩余 ${widget.formatRemain(remain)}',
+              AppLocalizations.of(context).playerTimerFading(widget.formatRemain(remain)),
               style: tt.bodySmall?.copyWith(
                 color: AppColors.secondary,
                 fontWeight: FontWeight.w600,
@@ -1428,7 +1444,7 @@ class _OutroTimerSheetState extends State<_OutroTimerSheet> {
             children: [
               const Icon(Icons.alarm_outlined, size: 18, color: AppColors.primary),
               const SizedBox(width: 6),
-              Text('延迟时长', style: tt.labelLarge),
+              Text(AppLocalizations.of(context).playerTimerDelay, style: tt.labelLarge),
               const Spacer(),
               Text(
                 widget.moodLabel(minutes),
@@ -1469,7 +1485,7 @@ class _OutroTimerSheetState extends State<_OutroTimerSheet> {
               children: [
                 for (final m in ticks)
                   Text(
-                    m == 0 ? '即关' : '$m',
+                    m == 0 ? AppLocalizations.of(context).playerOutroOffShort : '$m',
                     style: tt.labelSmall?.copyWith(
                       color: m == minutes
                           ? AppColors.primary

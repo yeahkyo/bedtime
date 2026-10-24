@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../api/client.dart';
+import '../l10n/app_localizations.dart';
 import '../config.dart';
 import '../local/create_draft.dart';
 import '../local/local_store.dart';
@@ -62,28 +63,28 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
   List<Map<String, dynamic>> rosterCharacters = [];
   final Set<int> selectedCharacterIds = {};
 
-  static const genders = [
-    ('unspecified', '不指定'),
-    ('boy', '男孩'),
-    ('girl', '女孩'),
-  ];
+  List<(String, String)> _genders(AppLocalizations l10n) => [
+        ('unspecified', l10n.genderUnspecified),
+        ('boy', l10n.genderBoy),
+        ('girl', l10n.genderGirl),
+      ];
 
   /// everyday | soft | fantasy — 生活向 ↔ 想象力
-  static const wonders = [
-    ('everyday', '日常生活'),
-    ('soft', '一点想象'),
-    ('fantasy', '奇妙世界'),
-  ];
+  List<(String, String)> _wonders(AppLocalizations l10n) => [
+        ('everyday', l10n.createStoryTypeEveryday),
+        ('soft', l10n.createStoryTypeSoft),
+        ('fantasy', l10n.createStoryTypeFantasy),
+      ];
   /// low | some | more
-  static const dialogues = [
-    ('low', '很少对话'),
-    ('some', '一点对话'),
-    ('more', '对话多些'),
-  ];
-  static const languages = [
-    ('zh', '中文'),
-    ('en', 'English'),
-  ];
+  List<(String, String)> _dialogues(AppLocalizations l10n) => [
+        ('low', l10n.createStoryDialogueLow),
+        ('some', l10n.createStoryDialogueSome),
+        ('more', l10n.createStoryDialogueMore),
+      ];
+  List<(String, String)> _languages(AppLocalizations l10n) => [
+        ('zh', l10n.createStoryLangZh),
+        ('en', 'English'),
+      ];
   /// Discrete duration ticks (minutes).
   static const durationTicks = [3, 5, 8, 10, 12];
 
@@ -117,12 +118,12 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
     return int.tryParse('$value');
   }
 
-  String _genderLabel(String? id) {
-    for (final (gid, label) in genders) {
+  String _genderLabel(AppLocalizations l10n, String? id) {
+    for (final (gid, label) in _genders(l10n)) {
       if (gid == id) return label;
     }
-    if (id == 'other') return '其他';
-    return '不指定';
+    if (id == 'other') return l10n.genderOther;
+    return l10n.genderUnspecified;
   }
 
   Map<String, dynamic>? _characterById(int id) {
@@ -146,15 +147,18 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
         'name': name,
         'age': ageYearsFromBirthDate(c['birth_date'] as String?),
       };
-      final g = c['gender'] as String? ?? 'unspecified';
-      final gLabel = _genderLabel(g);
-      if (g != 'unspecified' && gLabel.isNotEmpty) {
-        item['gender'] = gLabel;
+      // Canonical token for API/DB; server maps to prompt label by story language.
+      final g = (c['gender'] as String? ?? 'unspecified').trim().toLowerCase();
+      if (g.isNotEmpty && g != 'unspecified') {
+        item['gender'] = g;
       }
       final intro = (c['intro'] as String?)?.trim() ?? '';
       if (intro.isNotEmpty) item['desc'] = intro;
       final tags = _preferTags(c);
-      if (tags.isNotEmpty) item['prefer'] = tags.join('、');
+      if (tags.isNotEmpty) {
+        final sep = language == 'en' ? ', ' : '、';
+        item['prefer'] = tags.join(sep);
+      }
       out.add(item);
     }
     return out;
@@ -334,44 +338,44 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
   void _applyQuotaMap(Map<String, dynamic> q) {
     storyUsed = (q['story_used'] as num?)?.toInt() ?? 0;
     storyLimit = (q['story_limit'] as num?)?.toInt() ?? 0;
-    final story = '本月故事 $storyUsed/$storyLimit';
-    quotaText = kFeatureVoiceClone
-        ? '$story · 克隆 ${q['clone_used']}/${q['clone_limit']}'
-        : story;
+    // Numbers only; UI localizes via createStoryQuotaLine.
+    quotaText = null; // unused for display; kept for empty-state fallback path
   }
 
-  String get _voiceSummaryName {
+  String _voiceSummaryName(AppLocalizations l10n) {
     final v = _selectedVoice;
     final name = (v?['name'] as String?)?.trim();
     if (name != null && name.isNotEmpty) return name;
-    return voices.isEmpty ? '未选音色' : '请选音色';
+    return voices.isEmpty ? l10n.createStoryVoiceNone : l10n.createStoryVoicePick;
   }
 
-  String get _languageLabel => language == 'en' ? 'English' : '中文';
+  String _languageLabel(AppLocalizations l10n) =>
+      language == 'en' ? 'English' : l10n.createStoryLangZh;
 
-  String get _moreOptionsSummary => '$_languageLabel · ${_dialogueLabel()}';
+  String _moreOptionsSummary(AppLocalizations l10n) =>
+      '${_languageLabel(l10n)} · ${_dialogueLabel(l10n)}';
 
-  String _dialogueLabel() {
-    for (final (id, label) in dialogues) {
+  String _dialogueLabel(AppLocalizations l10n) {
+    for (final (id, label) in _dialogues(l10n)) {
       if (id == dialogue) return label;
     }
-    return '一点对话';
+    return l10n.createStoryDialogueSome;
   }
 
-  String _durationMoodLabel(int minutes) {
+  String _durationMoodLabel(AppLocalizations l10n, int minutes) {
     switch (minutes) {
       case 3:
-        return '3 分钟 · 短篇微睡';
+        return l10n.createStoryDurationMood3;
       case 5:
-        return '5 分钟 · 适合入睡';
+        return l10n.createStoryDurationMood5;
       case 8:
-        return '8 分钟 · 沉浸暖梦';
+        return l10n.createStoryDurationMood8;
       case 10:
-        return '10 分钟 · 悠长童话';
+        return l10n.createStoryDurationMood10;
       case 12:
-        return '12 分钟 · 深度安歇';
+        return l10n.createStoryDurationMood12;
       default:
-        return '$minutes 分钟';
+        return l10n.createStoryDurationMinutes(minutes);
     }
   }
 
@@ -495,20 +499,20 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
   Future<void> _generate() async {
     if (children.isEmpty || childId == null || selectedChildIds.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('请先添加孩子档案')),
+        SnackBar(content: Text(AppLocalizations.of(context).createStoryErrAddChild)),
       );
       await _openChildEditor();
       return;
     }
     if (nickname.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('请先完善孩子昵称（点档案卡片编辑）')),
+        SnackBar(content: Text(AppLocalizations.of(context).createStoryErrNickname)),
       );
       return;
     }
     if (voiceId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('请选择音色（或先到「音色」页创建系统音色）')),
+        SnackBar(content: Text(AppLocalizations.of(context).createStoryErrVoice)),
       );
       return;
     }
@@ -517,7 +521,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
     final audiences = _audiencesForApi();
     if (audiences.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('请先选择今晚的小听众')),
+        SnackBar(content: Text(AppLocalizations.of(context).createStoryErrListener)),
       );
       return;
     }
@@ -551,13 +555,14 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
       final id = created['id'];
       final storyId = id is int ? id : int.tryParse('$id');
       if (storyId == null) {
-        throw ApiException('故事创建失败');
+        throw ApiException(AppLocalizations.of(context).storyCreateFailed);
       }
 
       final status = created['status'] as String? ?? '';
       if (status == 'failed') {
         throw ApiException(
-          created['error_message'] as String? ?? '故事生成失败',
+          created['error_message'] as String? ??
+              AppLocalizations.of(context).storyGenerateFailed,
           storyId: storyId,
         );
       }
@@ -603,6 +608,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
         body: const Center(child: CircularProgressIndicator()),
       );
     }
+    final l10n = AppLocalizations.of(context);
     if (children.isEmpty) {
       return Scaffold(
         backgroundColor: AppColors.background,
@@ -616,20 +622,22 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               BrandHeader(
-                title: '先添加小听众',
-                subtitle: quotaText ?? '有了孩子档案，才能定制今晚的故事',
+                title: l10n.createStoryNeedListenerTitle,
+                subtitle: storyLimit > 0
+                    ? l10n.createStoryQuotaLine(storyUsed, storyLimit)
+                    : l10n.createStoryNeedListenerSubtitle,
               ),
               const SizedBox(height: 24),
               SectionCard(
-                title: '还没有角色',
+                title: l10n.createStoryNoRolesTitle,
                 child: Text(
-                  '请先创建孩子档案（昵称、年龄等）。创建后即可回来生成故事。',
+                  l10n.createStoryNoRolesBody,
                   style: Theme.of(context).textTheme.bodyLarge,
                 ),
               ),
               const Spacer(),
               AmberCta(
-                label: '去添加孩子档案',
+                label: l10n.createStoryGoAddChild,
                 onPressed: _openChildEditor,
               ),
             ],
@@ -646,7 +654,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
         title: AnimatedOpacity(
           opacity: _appBarTitleOpacity,
           duration: const Duration(milliseconds: 120),
-          child: const Text('定制今晚的故事'),
+          child: Text(l10n.createStoryTitle),
         ),
       ),
       body: Column(
@@ -686,7 +694,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 AmberCta(
-                  label: busy ? '生成中…' : '生成今晚的故事',
+                  label: busy ? l10n.createStoryGenerating : l10n.createStoryGenerate,
                   busy: busy,
                   onPressed: busy ? null : _generate,
                 ),
@@ -712,6 +720,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
 
   Widget _buildCreateHeader(BuildContext context) {
     final tt = Theme.of(context).textTheme;
+    final l10n = AppLocalizations.of(context);
     final progress = storyLimit <= 0
         ? 0.0
         : (storyUsed / storyLimit).clamp(0.0, 1.0);
@@ -724,14 +733,14 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
             Expanded(
-              child: Text('定制今晚的故事', style: tt.headlineMedium),
+              child: Text(l10n.createStoryTitle, style: tt.headlineMedium),
             ),
             const SizedBox(width: 8),
             RichText(
               text: TextSpan(
                 style: tt.labelMedium?.copyWith(color: AppColors.onSurfaceMuted),
                 children: [
-                  const TextSpan(text: '本月故事 '),
+                  TextSpan(text: l10n.createStoryQuotaPrefix),
                   TextSpan(
                     text: '$storyUsed',
                     style: const TextStyle(
@@ -766,12 +775,15 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
   }
 
   Widget _buildListenersCard(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final multi = children.length > 1;
     return SectionCard(
-      title: '今晚，讲给谁听？',
-      subtitle: multi ? '可多选；故事会以小听众的偏好来编织' : '故事会以小听众偏好来编织',
+      title: l10n.createStoryListenersTitle,
+      subtitle: multi
+          ? l10n.createStoryListenersSubMulti
+          : l10n.createStoryListenersSubSingle,
       trailing: IconButton(
-        tooltip: '管理小听众档案',
+        tooltip: l10n.createStoryManageListeners,
         onPressed: _openChildEditor,
         style: IconButton.styleFrom(
           backgroundColor: AppColors.surfacePaperLayered,
@@ -795,18 +807,19 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
   }
 
   Widget _listenerSelectTile(BuildContext context, Map<String, dynamic> c) {
+    final l10n = AppLocalizations.of(context);
     final id = _asId(c['id']);
     if (id == null) return const SizedBox.shrink();
     final selected = selectedChildIds.contains(id);
     final isPrimary = id == childId;
     final name = (c['nickname'] as String?)?.trim().isNotEmpty == true
         ? (c['nickname'] as String).trim()
-        : '未命名';
+        : l10n.commonUnnamed;
     final g = c['gender'] as String? ?? 'unspecified';
     final bd = c['birth_date'] as String?;
     final tags = _preferTags(c);
     final tagLine =
-        tags.isEmpty ? '暂无故事偏好 · 偏爱睡前童话' : tags.take(4).join(' · ');
+        tags.isEmpty ? l10n.createStoryNoPrefer : tags.take(4).join(' · ');
 
     return Material(
       color: selected ? AppColors.surfacePaperLayered : AppColors.inputWell,
@@ -832,7 +845,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
                         if (isPrimary && selected) ...[
                           const SizedBox(width: 8),
                           Text(
-                            '主听众',
+                            l10n.createStoryPrimaryListener,
                             style: Theme.of(context).textTheme.labelSmall?.copyWith(
                                   color: AppColors.primarySoft,
                                 ),
@@ -862,14 +875,15 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
   }
 
   Widget _listenerProfileTile(BuildContext context, Map<String, dynamic> c) {
+    final l10n = AppLocalizations.of(context);
     final name = (c['nickname'] as String?)?.trim().isNotEmpty == true
         ? (c['nickname'] as String).trim()
-        : (nickname.isEmpty ? '未命名' : nickname);
+        : (nickname.isEmpty ? l10n.commonUnnamed : nickname);
     final g = c['gender'] as String? ?? gender;
     final bd = c['birth_date'] as String? ?? birthDate;
     final tags = _preferTags(c);
     final tagLine = tags.isEmpty
-        ? '暂无故事偏好 · 偏爱睡前童话'
+        ? l10n.createStoryNoPrefer
         : tags.take(4).join(' · ');
 
     return Material(
@@ -939,7 +953,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
-        '${_genderLabel(g)} · ${formatAgeYearsLabel(bd)}',
+        '${_genderLabel(AppLocalizations.of(context), g)} · ${formatAgeYearsLabel(AppLocalizations.of(context), bd)}',
         style: const TextStyle(
           fontSize: 10,
           fontWeight: FontWeight.w600,
@@ -984,23 +998,24 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
   }
 
   Widget _buildStoryOptionsCard(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return SectionCard(
-      title: '想听什么故事？',
-      subtitle: '故事将依据这些要素来创作',
+      title: l10n.createStoryOptionsTitle,
+      subtitle: l10n.createStoryOptionsSubtitle,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _sectionLabel(
             context,
             Icons.auto_stories_outlined,
-            '故事灵感',
-            hint: '可选，不写也可以',
+            l10n.createStoryInspiration,
+            hint: l10n.createStoryInspirationHint,
           ),
           const SizedBox(height: 10),
           TextField(
             controller: themeCtrl,
-            decoration: const InputDecoration(
-              hintText: '今晚想讲什么（可选，例如：在云朵上看星星的小猫咪…）',
+            decoration: InputDecoration(
+              hintText: l10n.createStoryThemeHint,
             ),
             minLines: 2,
             maxLines: 4,
@@ -1010,7 +1025,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
           _sectionLabel(
             context,
             Icons.groups_outlined,
-            '今晚一起出场',
+            l10n.createStoryCastTitle,
             action: TextButton(
               onPressed: _openChildEditor,
               style: TextButton.styleFrom(
@@ -1020,13 +1035,13 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 visualDensity: VisualDensity.compact,
               ),
-              child: const Text('添加角色'),
+              child: Text(l10n.createStoryAddCharacter),
             ),
           ),
           const SizedBox(height: 10),
           if (rosterCharacters.isEmpty)
             Text(
-              '可在角色管理中添加小听众、家人或玩具。',
+              l10n.createStoryCastEmpty,
               style: Theme.of(context).textTheme.bodySmall,
             )
           else
@@ -1049,7 +1064,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
                           : name;
                       final selected = selectedCharacterIds.contains(cid);
                       return SoftChip(
-                        label: label.isEmpty ? '角色' : label,
+                        label: label.isEmpty ? l10n.createStoryCharacterFallback : label,
                         selected: selected,
                         onSelected: (_) {
                           setState(() {
@@ -1066,7 +1081,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
               ],
             ),
           const SizedBox(height: 22),
-          _sectionLabel(context, Icons.auto_awesome_outlined, '故事类型'),
+          _sectionLabel(context, Icons.auto_awesome_outlined, l10n.createStoryType),
           const SizedBox(height: 10),
           _wonderSegmented(),
           const SizedBox(height: 22),
@@ -1075,8 +1090,8 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
           _sectionLabel(
             context,
             Icons.graphic_eq,
-            '朗读音色',
-            hint: '已选：$_voiceSummaryName',
+            l10n.createStoryVoice,
+            hint: l10n.createStoryVoiceSelected(_voiceSummaryName(l10n)),
           ),
           const SizedBox(height: 10),
           Material(
@@ -1097,7 +1112,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
                         builder: (context) {
                           final v = _selectedVoice;
                           final tt = Theme.of(context).textTheme;
-                          final name = _voiceSummaryName;
+                          final name = _voiceSummaryName(l10n);
                           final desc =
                               (v?['description'] as String?)?.trim() ?? '';
                           return Column(
@@ -1119,7 +1134,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
                       ),
                     ),
                     Text(
-                      '更换',
+                      l10n.createStoryVoiceChange,
                       style: Theme.of(context).textTheme.labelMedium?.copyWith(
                             color: AppColors.primary,
                           ),
@@ -1141,6 +1156,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
   }
 
   Widget _wonderSegmented() {
+    final l10n = AppLocalizations.of(context);
     return Container(
       padding: const EdgeInsets.all(6),
       decoration: BoxDecoration(
@@ -1149,7 +1165,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
       ),
       child: Row(
         children: [
-          for (final (id, label) in wonders)
+          for (final (id, label) in _wonders(l10n))
             Expanded(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 2),
@@ -1191,6 +1207,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
   }
 
   Widget _buildMoreOptions(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
@@ -1219,12 +1236,12 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
                   children: [
                     Expanded(
                       child: Text(
-                        '更多选项（语言与对话）',
+                        AppLocalizations.of(context).createStoryMoreOptions,
                         style: Theme.of(context).textTheme.labelLarge,
                       ),
                     ),
                     Text(
-                      _moreOptionsSummary,
+                      _moreOptionsSummary(AppLocalizations.of(context)),
                       style: Theme.of(context).textTheme.labelSmall,
                     ),
                     const SizedBox(width: 4),
@@ -1251,17 +1268,17 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    _sectionLabel(context, Icons.translate, '讲述语言'),
+                    _sectionLabel(context, Icons.translate, l10n.createStoryLanguage),
                     const SizedBox(height: 10),
                     _wonderLikeSegment(
-                      options: languages,
+                      options: _languages(l10n),
                       selected: language,
                       disabledIds: const {'en'},
                       onDisabledTap: (id) {
                         if (id == 'en') {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('英文故事暂未开放，敬请期待'),
+                            SnackBar(
+                              content: Text(l10n.createStoryEnglishSoon),
                             ),
                           );
                         }
@@ -1272,10 +1289,10 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
                       },
                     ),
                     const SizedBox(height: 22),
-                    _sectionLabel(context, Icons.forum_outlined, '对话多少'),
+                    _sectionLabel(context, Icons.forum_outlined, l10n.createStoryDialogue),
                     const SizedBox(height: 10),
                     _wonderLikeSegment(
-                      options: dialogues,
+                      options: _dialogues(l10n),
                       selected: dialogue,
                       onSelect: (v) {
                         dialogue = v;
@@ -1285,7 +1302,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
                     if (kFeatureSoftSeries) ...[
                       SwitchListTile(
                         contentPadding: EdgeInsets.zero,
-                        title: const Text('软系列（可续写）'),
+                        title: Text(l10n.createStorySoftSeries),
                         value: softSeries,
                         onChanged: (v) => setState(() {
                           softSeries = v;
@@ -1296,13 +1313,13 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
                       if (softSeries) ...[
                         TextField(
                           controller: recapCtrl,
-                          decoration: const InputDecoration(
-                            labelText: '上一集轻钩子（可选）',
+                          decoration: InputDecoration(
+                            labelText: l10n.createStorySoftHook,
                           ),
                         ),
                         const SizedBox(height: 12),
                         SoftSelectField<int>(
-                          label: '系列集数',
+                          label: l10n.createStoryEpisodeNo,
                           value: episodeCount,
                           options: [
                             for (final n in [2, 3, 4, 5, 6, 7, 8]) (n, '$n'),
@@ -1420,7 +1437,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
                     const Icon(Icons.auto_awesome, size: 14, color: AppColors.primary),
                     const SizedBox(width: 4),
                     Text(
-                      '织梦守则',
+                      AppLocalizations.of(context).createStoryDreamRules,
                       style: Theme.of(context).textTheme.labelMedium?.copyWith(
                             color: AppColors.onSurface,
                             fontWeight: FontWeight.w600,
@@ -1430,7 +1447,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  '故事将自动调节平静舒缓的语言节奏，末尾缓缓淡入晚安白噪音。',
+                  AppLocalizations.of(context).createStoryDreamRulesBody,
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
               ],
@@ -1472,10 +1489,10 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
           children: [
             const Icon(Icons.bedtime_outlined, size: 18, color: AppColors.primary),
             const SizedBox(width: 6),
-            Text('时长 (分钟)', style: tt.labelLarge),
+            Text(AppLocalizations.of(context).createStoryDuration, style: tt.labelLarge),
             const Spacer(),
             Text(
-              _durationMoodLabel(duration),
+              _durationMoodLabel(AppLocalizations.of(context), duration),
               style: tt.labelMedium?.copyWith(
                 color: AppColors.primary,
                 fontWeight: FontWeight.w600,

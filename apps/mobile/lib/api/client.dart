@@ -5,7 +5,12 @@ import 'dart:io';
 import 'package:http/http.dart' as http;
 
 import '../config.dart';
+import '../l10n/app_localizations.dart';
+import '../l10n/locale_controller.dart';
 import 'auth_storage.dart';
+
+AppLocalizations get _l10n =>
+    lookupAppLocalizations(LocaleController.instance.locale);
 
 class ApiException implements Exception {
   ApiException(
@@ -110,7 +115,7 @@ class ApiClient {
   Future<Map<String, dynamic>> refreshSession() async {
     final rt = refreshToken;
     if (rt == null || rt.isEmpty) {
-      throw ApiException('登录已失效，请重新进入', statusCode: 401, unauthorized: true);
+      throw ApiException(_l10n.apiSessionExpired, statusCode: 401, unauthorized: true);
     }
     final res = await http
         .post(
@@ -130,7 +135,7 @@ class ApiClient {
     final access = data['access_token'] as String?;
     final refresh = data['refresh_token'] as String?;
     if (access == null || refresh == null) {
-      throw ApiException('刷新登录失败', statusCode: 401, unauthorized: true);
+      throw ApiException(_l10n.apiRefreshFailed, statusCode: 401, unauthorized: true);
     }
     token = access;
     refreshToken = refresh;
@@ -490,13 +495,13 @@ class ApiClient {
     final id = created['id'] as int?;
     if (status == 'failed') {
       throw ApiException(
-        created['error_message'] as String? ?? '故事生成失败',
+        created['error_message'] as String? ?? _l10n.apiStoryGenerateFailed,
         storyId: id,
         storyFailed: true,
       );
     }
     if (id == null) {
-      throw ApiException('故事创建失败', storyFailed: true);
+      throw ApiException(_l10n.apiStoryCreateFailed, storyFailed: true);
     }
     return waitForStory(id, onProgress: onProgress);
   }
@@ -520,7 +525,7 @@ class ApiClient {
     final id = created['id'] as int? ?? storyId;
     if (status == 'failed') {
       throw ApiException(
-        created['error_message'] as String? ?? '故事生成失败',
+        created['error_message'] as String? ?? _l10n.apiStoryGenerateFailed,
         storyId: id,
         storyFailed: true,
       );
@@ -546,7 +551,7 @@ class ApiClient {
         if (st == 'ready') return story;
         if (st == 'failed') {
           throw ApiException(
-            story['error_message'] as String? ?? '故事生成失败',
+            story['error_message'] as String? ?? _l10n.apiStoryGenerateFailed,
             storyId: id,
             storyFailed: true,
           );
@@ -556,7 +561,7 @@ class ApiClient {
         consecutiveNetworkErrors++;
         if (consecutiveNetworkErrors >= 5) {
           throw ApiException(
-            '网络不稳定，生成可能仍在进行。可稍后在「故事」刷新，或点继续等待',
+            _l10n.apiStoryWaitNetworkUnstable,
             storyId: id,
           );
         }
@@ -564,7 +569,7 @@ class ApiClient {
         consecutiveNetworkErrors++;
         if (consecutiveNetworkErrors >= 5) {
           throw ApiException(
-            '网络超时，生成可能仍在进行。可稍后刷新或点继续等待',
+            _l10n.apiStoryWaitTimeout,
             storyId: id,
           );
         }
@@ -572,14 +577,14 @@ class ApiClient {
         consecutiveNetworkErrors++;
         if (consecutiveNetworkErrors >= 5) {
           throw ApiException(
-            '网络不可用，生成可能仍在进行。恢复网络后可点继续等待',
+            _l10n.apiStoryWaitOffline,
             storyId: id,
           );
         }
       }
     }
     throw ApiException(
-      '等待故事生成超时，可在「故事」里查看是否已完成',
+      _l10n.apiStoryWaitDeadline,
       storyId: id,
     );
   }
@@ -602,7 +607,7 @@ class ApiClient {
   void _ensure(http.Response res) {
     if (res.statusCode < 400) return;
     if (res.statusCode == 401) {
-      throw ApiException('登录已失效，请重新进入', statusCode: 401, unauthorized: true);
+      throw ApiException(_l10n.apiSessionExpired, statusCode: 401, unauthorized: true);
     }
     throw ApiException(_friendlyError(res.statusCode, res.body), statusCode: res.statusCode);
   }
@@ -644,7 +649,7 @@ class ApiClient {
         // Access still rejected after a fresh pair — treat as hard logout.
         await _clearAuthTokens();
         onUnauthorized?.call();
-        throw ApiException('登录已失效，请重新进入', statusCode: 401, unauthorized: true);
+        throw ApiException(_l10n.apiSessionExpired, statusCode: 401, unauthorized: true);
       }
       _ensure(res);
       return res;
@@ -653,10 +658,10 @@ class ApiClient {
         outcome == RefreshOutcome.missing) {
       await _clearAuthTokens();
       onUnauthorized?.call();
-      throw ApiException('登录已失效，请重新进入', statusCode: 401, unauthorized: true);
+      throw ApiException(_l10n.apiSessionExpired, statusCode: 401, unauthorized: true);
     }
     // Network blip while renewing — keep stored refresh; surface a soft error.
-    throw ApiException('网络不稳定，请稍后重试', statusCode: res.statusCode);
+    throw ApiException(_l10n.apiNetworkUnstableRetry, statusCode: res.statusCode);
   }
 
   static String _friendlyError(int statusCode, String body) {
@@ -664,11 +669,12 @@ class ApiClient {
     if (detail != null && detail.isNotEmpty) {
       return detail.length > 160 ? '${detail.substring(0, 160)}…' : detail;
     }
-    if (statusCode == 403) return '没有权限执行该操作';
-    if (statusCode == 404) return '未找到相关内容';
-    if (statusCode == 429) return '请求过于频繁，请稍后再试';
-    if (statusCode >= 500) return '服务暂时不可用，请稍后再试';
-    return '请求失败 ($statusCode)';
+    final l10n = _l10n;
+    if (statusCode == 403) return l10n.apiForbidden;
+    if (statusCode == 404) return l10n.apiNotFound;
+    if (statusCode == 429) return l10n.apiTooManyRequests;
+    if (statusCode >= 500) return l10n.apiServerUnavailable;
+    return l10n.apiRequestFailed(statusCode);
   }
 
   static String? _extractDetail(String body) {

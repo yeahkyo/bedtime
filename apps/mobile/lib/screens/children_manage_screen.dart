@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../api/client.dart';
+import '../l10n/app_localizations.dart';
 import '../local/network_errors.dart';
 import '../theme/app_theme.dart';
 import '../theme/widgets.dart';
@@ -23,11 +24,11 @@ class _ChildrenManageScreenState extends State<ChildrenManageScreen>
   List<Map<String, dynamic>> characters = [];
   bool loading = true;
 
-  static const genders = [
-    ('unspecified', '不指定'),
-    ('boy', '男孩'),
-    ('girl', '女孩'),
-  ];
+  List<(String, String)> _genders(AppLocalizations l10n) => [
+        ('unspecified', l10n.genderUnspecified),
+        ('boy', l10n.genderBoy),
+        ('girl', l10n.genderGirl),
+      ];
 
   @override
   void initState() {
@@ -63,25 +64,25 @@ class _ChildrenManageScreenState extends State<ChildrenManageScreen>
     }
   }
 
-  String _genderLabel(String? id) {
-    for (final (gid, label) in genders) {
+  String _genderLabel(AppLocalizations l10n, String? id) {
+    for (final (gid, label) in _genders(l10n)) {
       if (gid == id) return label;
     }
     // Legacy API values (e.g. other) — UI options no longer include them.
-    if (id == 'other') return '其他';
-    return '不指定';
+    if (id == 'other') return l10n.genderOther;
+    return l10n.genderUnspecified;
   }
 
-  String _childName(int? id) {
-    if (id == null) return '未关联';
+  String _childName(AppLocalizations l10n, int? id) {
+    if (id == null) return l10n.childrenUnlinked;
     for (final c in children) {
       if (c['id'] == id) {
         return (c['nickname'] as String?)?.trim().isNotEmpty == true
             ? c['nickname'] as String
-            : '未命名';
+            : l10n.commonUnnamed;
       }
     }
-    return '小孩 #$id';
+    return l10n.childrenChildFallback(id);
   }
 
   DateTime _parseBirth(String? raw) {
@@ -99,6 +100,7 @@ class _ChildrenManageScreenState extends State<ChildrenManageScreen>
       characters.where((c) => c['kind'] == kind).toList();
 
   Future<void> _editChild({Map<String, dynamic>? existing}) async {
+    final l10n = AppLocalizations.of(context);
     final nickCtrl = TextEditingController(text: existing?['nickname'] as String? ?? '');
     final introCtrl = TextEditingController(text: existing?['intro'] as String? ?? '');
     final preferCtrl = TextEditingController(
@@ -107,7 +109,7 @@ class _ChildrenManageScreenState extends State<ChildrenManageScreen>
           .join(', '),
     );
     var gender = existing?['gender'] as String? ?? 'unspecified';
-    if (!genders.any((g) => g.$1 == gender)) {
+    if (!_genders(l10n).any((g) => g.$1 == gender)) {
       gender = 'unspecified';
     }
     var birth = _parseBirth(existing?['birth_date'] as String?);
@@ -117,6 +119,7 @@ class _ChildrenManageScreenState extends State<ChildrenManageScreen>
       isScrollControlled: true,
       backgroundColor: AppColors.surfaceLow,
       builder: (ctx) {
+        final sheetL10n = AppLocalizations.of(ctx);
         return Padding(
           padding: EdgeInsets.only(
             left: 20,
@@ -132,19 +135,19 @@ class _ChildrenManageScreenState extends State<ChildrenManageScreen>
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Text(
-                      '小听众档案',
+                      sheetL10n.childrenSheetTitle,
                       style: Theme.of(ctx).textTheme.titleLarge,
                     ),
                     const SizedBox(height: 16),
                     TextField(
                       controller: nickCtrl,
-                      decoration: const InputDecoration(labelText: '昵称'),
+                      decoration: InputDecoration(labelText: sheetL10n.childrenNickname),
                     ),
                     const SizedBox(height: 12),
                     SoftSelectField<String>(
-                      label: '性别',
+                      label: sheetL10n.childrenGender,
                       value: gender,
-                      options: genders,
+                      options: _genders(sheetL10n),
                       onChanged: (v) => setModal(() => gender = v),
                     ),
                     const SizedBox(height: 12),
@@ -155,12 +158,12 @@ class _ChildrenManageScreenState extends State<ChildrenManageScreen>
                         if (!ctx.mounted) return;
                         final picked = await showDatePicker(
                           context: ctx,
-                          locale: const Locale('zh', 'CN'),
-                          helpText: '选择生日',
-                          cancelText: '取消',
-                          confirmText: '确定',
-                          fieldLabelText: '生日',
-                          fieldHintText: '年/月/日',
+                          locale: Localizations.localeOf(ctx),
+                          helpText: sheetL10n.childrenPickBirthday,
+                          cancelText: sheetL10n.commonCancel,
+                          confirmText: sheetL10n.commonConfirm,
+                          fieldLabelText: sheetL10n.childrenBirthday,
+                          fieldHintText: sheetL10n.childrenBirthdayHint,
                           initialDate: birth,
                           firstDate: DateTime(DateTime.now().year - 14),
                           lastDate: DateTime.now(),
@@ -175,9 +178,9 @@ class _ChildrenManageScreenState extends State<ChildrenManageScreen>
                       },
                       child: InputDecorator(
                         isEmpty: false,
-                        decoration: const InputDecoration(
-                          labelText: '生日',
-                          suffixIcon: Icon(
+                        decoration: InputDecoration(
+                          labelText: sheetL10n.childrenBirthday,
+                          suffixIcon: const Icon(
                             Icons.calendar_today_outlined,
                             size: 20,
                             color: AppColors.onSurfaceMuted,
@@ -196,18 +199,18 @@ class _ChildrenManageScreenState extends State<ChildrenManageScreen>
                     const SizedBox(height: 12),
                     TextField(
                       controller: introCtrl,
-                      decoration: const InputDecoration(
-                        labelText: '简介（可选）',
-                        hintText: '性格、近期心情…',
+                      decoration: InputDecoration(
+                        labelText: sheetL10n.childrenIntroOptional,
+                        hintText: sheetL10n.childrenIntroHint,
                       ),
                       maxLines: 3,
                     ),
                     const SizedBox(height: 12),
                     TextField(
                       controller: preferCtrl,
-                      decoration: const InputDecoration(
-                        labelText: '故事偏好（逗号分隔）',
-                        hintText: '恐龙冒险, 温柔童话, 一点点幽默',
+                      decoration: InputDecoration(
+                        labelText: sheetL10n.childrenPreferLabel,
+                        hintText: sheetL10n.childrenPreferHint,
                       ),
                     ),
                     const SizedBox(height: 20),
@@ -250,7 +253,9 @@ class _ChildrenManageScreenState extends State<ChildrenManageScreen>
                           }
                         }
                       },
-                      child: Text(existing == null ? '创建' : '保存'),
+                      child: Text(
+                        existing == null ? sheetL10n.commonCreate : sheetL10n.commonSave,
+                      ),
                     ),
                   ],
                 ),
@@ -272,7 +277,7 @@ class _ChildrenManageScreenState extends State<ChildrenManageScreen>
   }) async {
     if (children.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('请先添加小听众')),
+        SnackBar(content: Text(AppLocalizations.of(context).childrenNeedListenerFirst)),
       );
       return;
     }
@@ -299,6 +304,7 @@ class _ChildrenManageScreenState extends State<ChildrenManageScreen>
           ),
           child: StatefulBuilder(
             builder: (ctx, setModal) {
+              final sheetL10n = AppLocalizations.of(ctx);
               return SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -306,21 +312,31 @@ class _ChildrenManageScreenState extends State<ChildrenManageScreen>
                   children: [
                     Text(
                       existing == null
-                          ? (kind == 'toy' ? '添加玩具' : '添加家人 / 朋友')
-                          : (kind == 'toy' ? '编辑玩具' : '编辑家人 / 朋友'),
+                          ? (kind == 'toy'
+                              ? sheetL10n.childrenAddToy
+                              : sheetL10n.childrenAddPerson)
+                          : (kind == 'toy'
+                              ? sheetL10n.childrenEditToy
+                              : sheetL10n.childrenEditPerson),
                       style: Theme.of(ctx).textTheme.titleLarge,
                     ),
                     const SizedBox(height: 16),
                     TextField(
                       controller: nameCtrl,
                       decoration: InputDecoration(
-                        labelText: kind == 'toy' ? '名字' : '称呼',
-                        hintText: kind == 'toy' ? '星星娃娃' : '外公',
+                        labelText: kind == 'toy'
+                            ? sheetL10n.childrenToyName
+                            : sheetL10n.childrenPersonName,
+                        hintText: kind == 'toy'
+                            ? sheetL10n.childrenToyNameHint
+                            : sheetL10n.childrenPersonNameHint,
                       ),
                     ),
                     const SizedBox(height: 12),
                     SoftSelectField<int>(
-                      label: kind == 'toy' ? '属于谁' : '关联小听众',
+                      label: kind == 'toy'
+                          ? sheetL10n.childrenBelongsTo
+                          : sheetL10n.childrenLinkedListener,
                       value: relatedId,
                       options: [
                         for (final c in children)
@@ -328,7 +344,7 @@ class _ChildrenManageScreenState extends State<ChildrenManageScreen>
                             c['id'] as int,
                             (c['nickname'] as String?)?.trim().isNotEmpty == true
                                 ? c['nickname'] as String
-                                : '未命名',
+                                : sheetL10n.commonUnnamed,
                           ),
                       ],
                       onChanged: (v) => setModal(() => relatedId = v),
@@ -337,9 +353,9 @@ class _ChildrenManageScreenState extends State<ChildrenManageScreen>
                       const SizedBox(height: 12),
                       TextField(
                         controller: relationCtrl,
-                        decoration: const InputDecoration(
-                          labelText: '关系',
-                          hintText: '外公 / 同学 / 老师…',
+                        decoration: InputDecoration(
+                          labelText: sheetL10n.childrenRelation,
+                          hintText: sheetL10n.childrenRelationHint,
                         ),
                       ),
                     ],
@@ -347,8 +363,12 @@ class _ChildrenManageScreenState extends State<ChildrenManageScreen>
                     TextField(
                       controller: noteCtrl,
                       decoration: InputDecoration(
-                        labelText: kind == 'toy' ? '外观 / 脾气（可选）' : '特征（可选）',
-                        hintText: kind == 'toy' ? '蓝色耳朵、会唱歌' : '爱讲故事',
+                        labelText: kind == 'toy'
+                            ? sheetL10n.childrenToyNote
+                            : sheetL10n.childrenPersonNote,
+                        hintText: kind == 'toy'
+                            ? sheetL10n.childrenToyNoteHint
+                            : sheetL10n.childrenPersonNoteHint,
                       ),
                       maxLines: 2,
                     ),
@@ -390,7 +410,11 @@ class _ChildrenManageScreenState extends State<ChildrenManageScreen>
                           }
                         }
                       },
-                      child: Text(existing == null ? '创建' : '保存'),
+                      child: Text(
+                        existing == null
+                            ? sheetL10n.commonCreate
+                            : sheetL10n.commonSave,
+                      ),
                     ),
                   ],
                 ),
@@ -409,30 +433,37 @@ class _ChildrenManageScreenState extends State<ChildrenManageScreen>
   Future<void> _confirmDeleteChild(Map<String, dynamic> c) async {
     final childId = c['id'] as int?;
     if (childId == null) return;
+    final l10n = AppLocalizations.of(context);
     final name = (c['nickname'] as String?)?.trim().isNotEmpty == true
         ? (c['nickname'] as String).trim()
-        : '未命名';
+        : l10n.commonUnnamed;
     final ok = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.surfaceLow,
-        title: const Text('删除小听众？'),
-        content: Text('将一并删除「$name」名下的家人与玩具角色。'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('取消')),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('删除'),
-          ),
-        ],
-      ),
+      builder: (ctx) {
+        final d = AppLocalizations.of(ctx);
+        return AlertDialog(
+          backgroundColor: AppColors.surfaceLow,
+          title: Text(d.childrenDeleteListenerTitle),
+          content: Text(d.childrenDeleteListenerBody(name)),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text(d.commonCancel),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: Text(d.commonDelete),
+            ),
+          ],
+        );
+      },
     );
     if (ok != true || !mounted) return;
     try {
       await widget.api.deleteChild(childId);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('已删除「$name」')),
+        SnackBar(content: Text(l10n.childrenDeleted(name))),
       );
       await _load();
     } catch (e) {
@@ -446,21 +477,28 @@ class _ChildrenManageScreenState extends State<ChildrenManageScreen>
   Future<void> _confirmDeleteCharacter(Map<String, dynamic> c) async {
     final id = c['id'] as int?;
     if (id == null) return;
-    final name = (c['name'] as String?)?.trim() ?? '角色';
+    final l10n = AppLocalizations.of(context);
+    final name = (c['name'] as String?)?.trim() ?? l10n.childrenDefaultCharacter;
     final ok = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.surfaceLow,
-        title: const Text('删除角色？'),
-        content: Text('删除「$name」后，创作时将无法再勾选。'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('取消')),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('删除'),
-          ),
-        ],
-      ),
+      builder: (ctx) {
+        final d = AppLocalizations.of(ctx);
+        return AlertDialog(
+          backgroundColor: AppColors.surfaceLow,
+          title: Text(d.childrenDeleteCharacterTitle),
+          content: Text(d.childrenDeleteCharacterBody(name)),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text(d.commonCancel),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: Text(d.commonDelete),
+            ),
+          ],
+        );
+      },
     );
     if (ok != true || !mounted) return;
     try {
@@ -485,18 +523,19 @@ class _ChildrenManageScreenState extends State<ChildrenManageScreen>
     }
   }
 
-  String get _fabLabel => switch (_tabs.index) {
-        1 => '添加家人朋友',
-        2 => '添加玩具伙伴',
-        _ => '添加小听众',
+  String _fabLabel(AppLocalizations l10n) => switch (_tabs.index) {
+        1 => l10n.childrenFabPeople,
+        2 => l10n.childrenFabToy,
+        _ => l10n.childrenFabListener,
       };
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('角色管理'),
+        title: Text(l10n.childrenManageTitle),
         backgroundColor: Colors.transparent,
         elevation: 0,
       ),
@@ -517,7 +556,7 @@ class _ChildrenManageScreenState extends State<ChildrenManageScreen>
                       const SizedBox(width: 6),
                       Expanded(
                         child: Text(
-                          '梦境主角簿 · 定制专属睡前入眠物语',
+                          l10n.childrenManageTagline,
                           style: Theme.of(context).textTheme.labelMedium?.copyWith(
                                 color: AppColors.onSurfaceMuted,
                               ),
@@ -550,7 +589,7 @@ class _ChildrenManageScreenState extends State<ChildrenManageScreen>
                     ],
                   ),
                   child: AmberCta(
-                    label: _fabLabel,
+                    label: _fabLabel(l10n),
                     icon: Icons.add,
                     onPressed: _onFab,
                   ),
@@ -561,10 +600,11 @@ class _ChildrenManageScreenState extends State<ChildrenManageScreen>
   }
 
   Widget _segmentedTabs() {
-    const items = [
-      (Icons.face_retouching_natural, '小听众档案'),
-      (Icons.groups_outlined, '家人朋友'),
-      (Icons.cruelty_free_outlined, '玩具伙伴'),
+    final l10n = AppLocalizations.of(context);
+    final items = [
+      (Icons.face_retouching_natural, l10n.childrenTabListeners),
+      (Icons.groups_outlined, l10n.childrenTabPeople),
+      (Icons.cruelty_free_outlined, l10n.childrenTabToys),
     ];
     return Container(
       padding: const EdgeInsets.all(5),
@@ -649,17 +689,17 @@ class _ChildrenManageScreenState extends State<ChildrenManageScreen>
         children: [
           if (children.isEmpty)
             SectionCard(
-              title: '还没有小听众',
+              title: AppLocalizations.of(context).childrenEmptyListenersTitle,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Text(
-                    '添加小听众档案后，才能创建故事并挂上家人、玩具。',
+                    AppLocalizations.of(context).childrenEmptyListenersBody,
                     style: Theme.of(context).textTheme.bodyLarge,
                   ),
                   const SizedBox(height: 14),
                   AmberCta(
-                    label: '添加第一个小听众',
+                    label: AppLocalizations.of(context).childrenEmptyListenersCta,
                     icon: Icons.add,
                     onPressed: () => _editChild(),
                   ),
@@ -681,9 +721,10 @@ class _ChildrenManageScreenState extends State<ChildrenManageScreen>
   }
 
   Widget _listenerCard(Map<String, dynamic> c) {
+    final l10n = AppLocalizations.of(context);
     final name = (c['nickname'] as String?)?.trim().isNotEmpty == true
         ? (c['nickname'] as String).trim()
-        : '未命名';
+        : l10n.commonUnnamed;
     final gender = c['gender'] as String?;
     final birth = c['birth_date'] as String?;
     final prefer = ((c['prefer'] as List<dynamic>?) ?? []).cast<String>();
@@ -766,24 +807,24 @@ class _ChildrenManageScreenState extends State<ChildrenManageScreen>
                           ),
                         ),
                         const SizedBox(width: 8),
-                        _pillTag('小听众', mauve: true),
+                        _pillTag(l10n.childrenTagListener, mauve: true),
                       ],
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      '${_genderLabel(gender)} · ${formatAgeDetailedLabel(birth)}',
+                      '${_genderLabel(l10n, gender)} · ${formatAgeDetailedLabel(l10n, birth)}',
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
                   ],
                 ),
               ),
               IconButton(
-                tooltip: '删除',
+                tooltip: l10n.commonDelete,
                 onPressed: () => _confirmDeleteChild(c),
                 icon: const Icon(Icons.delete_outline, size: 20, color: AppColors.onSurfaceDim),
               ),
               IconButton(
-                tooltip: '编辑',
+                tooltip: l10n.commonEdit,
                 onPressed: () => _editChild(existing: c),
                 icon: const Icon(Icons.tune, size: 20, color: AppColors.onSurfaceMuted),
               ),
@@ -798,7 +839,7 @@ class _ChildrenManageScreenState extends State<ChildrenManageScreen>
                 if (prefer.isNotEmpty)
                   _infoChip(
                     Icons.auto_awesome_outlined,
-                    '偏好：${prefer.take(3).join('、')}',
+                    l10n.childrenPreferPrefix(prefer.take(3).join('、')),
                   ),
                 if (intro.isNotEmpty)
                   _infoChip(Icons.auto_stories_outlined, intro),
@@ -820,14 +861,14 @@ class _ChildrenManageScreenState extends State<ChildrenManageScreen>
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        '编辑档案与睡前偏好',
+                        l10n.childrenEditPrefs,
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
                               color: AppColors.onSurface,
                             ),
                       ),
                     ),
                     Text(
-                      '入眠预设',
+                      l10n.childrenSleepPreset,
                       style: Theme.of(context).textTheme.labelSmall?.copyWith(
                             color: AppColors.primary,
                           ),
@@ -844,12 +885,15 @@ class _ChildrenManageScreenState extends State<ChildrenManageScreen>
   }
 
   Widget _rosterTab({required String kind}) {
+    final l10n = AppLocalizations.of(context);
     final rows = _ofKind(kind);
-    final emptyTitle = kind == 'toy' ? '还没有玩具伙伴' : '还没有家人 / 朋友';
+    final emptyTitle = kind == 'toy'
+        ? l10n.childrenEmptyToysTitle
+        : l10n.childrenEmptyPeopleTitle;
     final emptyHint = kind == 'toy'
-        ? '把娃娃、玩偶建档后，创作故事时可勾选出场。'
-        : '把外公、同学等建档后，创作故事时可勾选出场。';
-    final tag = kind == 'toy' ? '安抚布偶' : '家人朋友';
+        ? l10n.childrenEmptyToysBody
+        : l10n.childrenEmptyPeopleBody;
+    final tag = kind == 'toy' ? l10n.childrenTagToy : l10n.childrenTagPeople;
 
     return RefreshIndicator(
       color: AppColors.primary,
@@ -881,19 +925,20 @@ class _ChildrenManageScreenState extends State<ChildrenManageScreen>
     required String kind,
     required String tag,
   }) {
+    final l10n = AppLocalizations.of(context);
     final name = (c['name'] as String?)?.trim().isNotEmpty == true
         ? (c['name'] as String).trim()
-        : '未命名';
+        : l10n.commonUnnamed;
     final note = (c['note'] as String?)?.trim() ?? '';
     final relation = (c['relation'] as String?)?.trim() ?? '';
-    final related = _childName(c['related_child_id'] as int?);
+    final related = _childName(l10n, c['related_child_id'] as int?);
     final initial = name.isEmpty ? '?' : String.fromCharCode(name.runes.first);
     final subtitle = kind == 'person'
         ? [
             if (relation.isNotEmpty) relation,
-            '属于 $related',
+            l10n.childrenBelongsToName(related),
           ].join(' · ')
-        : '床头伙伴 · 属于 $related';
+        : l10n.childrenToySubtitle(related);
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -966,12 +1011,12 @@ class _ChildrenManageScreenState extends State<ChildrenManageScreen>
                 ),
               ),
               IconButton(
-                tooltip: '删除',
+                tooltip: l10n.commonDelete,
                 onPressed: () => _confirmDeleteCharacter(c),
                 icon: const Icon(Icons.delete_outline, size: 20, color: AppColors.onSurfaceDim),
               ),
               IconButton(
-                tooltip: '编辑',
+                tooltip: l10n.commonEdit,
                 onPressed: () => _editRoster(kind: kind, existing: c),
                 icon: const Icon(Icons.tune, size: 20, color: AppColors.onSurfaceMuted),
               ),
@@ -979,7 +1024,7 @@ class _ChildrenManageScreenState extends State<ChildrenManageScreen>
           ),
           if (note.isNotEmpty) ...[
             const SizedBox(height: 12),
-            _infoChip(Icons.psychology_outlined, '性格：$note'),
+            _infoChip(Icons.psychology_outlined, l10n.childrenPersonalityPrefix(note)),
           ],
         ],
       ),
@@ -1063,12 +1108,12 @@ class _ChildrenManageScreenState extends State<ChildrenManageScreen>
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '角色定制魔力',
+                  AppLocalizations.of(context).childrenMagicTitle,
                   style: Theme.of(context).textTheme.labelLarge,
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  '织梦引擎根据主角年龄与偏好，在每晚的声景中植入专属温润台词与助眠呼吸节律。',
+                  AppLocalizations.of(context).childrenMagicBody,
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
               ],

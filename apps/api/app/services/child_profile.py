@@ -11,6 +11,22 @@ GENDER_LABELS_ZH = {
     "other": "其他",
     "unspecified": "不指定",
 }
+GENDER_LABELS_EN = {
+    "girl": "girl",
+    "boy": "boy",
+    "other": "other",
+    "unspecified": "unspecified",
+}
+
+
+def gender_label_for_language(raw: str | None, language: str | None) -> str | None:
+    """Canonical token → human label for LLM prompts (by story language, not UI)."""
+    g = normalize_gender(raw)
+    if g == "unspecified":
+        return None
+    if (language or "zh").strip().lower().startswith("en"):
+        return GENDER_LABELS_EN.get(g, g)
+    return GENDER_LABELS_ZH.get(g, g)
 
 # Mid-band ages used only to backfill birth_date from legacy age_band.
 _LEGACY_BAND_AGES = {

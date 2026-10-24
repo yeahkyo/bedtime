@@ -1,9 +1,11 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-
 import '../api/auth_storage.dart';
 import '../api/client.dart';
+import '../constants/legal_urls.dart';
+import '../l10n/app_localizations.dart';
 import '../theme/app_theme.dart';
+import '../utils/legal_launcher.dart';
 
 /// Login / register (invite + phone + password).
 class AuthScreen extends StatefulWidget {
@@ -35,8 +37,8 @@ class _AuthScreenState extends State<AuthScreen> {
   void initState() {
     super.initState();
     _toggleModeTap = TapGestureRecognizer()..onTap = _toggleMode;
-    _termsTap = TapGestureRecognizer()..onTap = () => _comingSoon('用户协议');
-    _privacyTap = TapGestureRecognizer()..onTap = () => _comingSoon('隐私政策');
+    _termsTap = TapGestureRecognizer()..onTap = _openTerms;
+    _privacyTap = TapGestureRecognizer()..onTap = _openPrivacy;
   }
 
   @override
@@ -59,35 +61,45 @@ class _AuthScreenState extends State<AuthScreen> {
   }
 
   void _comingSoon(String feature) {
-    _toast('$feature暂未开放，敬请期待');
+    final l10n = AppLocalizations.of(context);
+    _toast(l10n.authComingSoon(feature));
+  }
+
+  void _openTerms() {
+    openLegalDocument(context, LegalDocument.terms);
+  }
+
+  void _openPrivacy() {
+    openLegalDocument(context, LegalDocument.privacy);
   }
 
   Future<void> _submit() async {
+    final l10n = AppLocalizations.of(context);
     final password = _password.text;
     if (_registerMode) {
       if (_invite.text.trim().isEmpty) {
-        setState(() => _error = '请填写邀请码');
+        setState(() => _error = l10n.authErrorInviteRequired);
         return;
       }
       if (_phone.text.trim().isEmpty) {
-        setState(() => _error = '请填写手机号');
+        setState(() => _error = l10n.authErrorPhoneRequired);
         return;
       }
       if (password.length < 8) {
-        setState(() => _error = '密码至少 8 位');
+        setState(() => _error = l10n.authErrorPasswordShort);
         return;
       }
       if (password != _passwordConfirm.text) {
-        setState(() => _error = '两次输入的密码不一致');
+        setState(() => _error = l10n.authErrorPasswordMismatch);
         return;
       }
     } else {
       if (_phone.text.trim().isEmpty) {
-        setState(() => _error = '请填写手机号');
+        setState(() => _error = l10n.authErrorPhoneRequired);
         return;
       }
       if (password.isEmpty) {
-        setState(() => _error = '请填写密码');
+        setState(() => _error = l10n.authErrorPasswordRequired);
         return;
       }
     }
@@ -114,7 +126,7 @@ class _AuthScreenState extends State<AuthScreen> {
       final access = tokens['access_token'] as String?;
       final refresh = tokens['refresh_token'] as String?;
       if (access == null || refresh == null) {
-        throw ApiException('登录响应无效');
+        throw ApiException(l10n.authErrorInvalidResponse);
       }
       await AuthStorage.save(access: access, refresh: refresh);
       widget.api.token = access;
@@ -144,6 +156,7 @@ class _AuthScreenState extends State<AuthScreen> {
   @override
   Widget build(BuildContext context) {
     final tt = Theme.of(context).textTheme;
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
       backgroundColor: AppColors.background,
       body: Stack(
@@ -156,12 +169,12 @@ class _AuthScreenState extends State<AuthScreen> {
                   child: ListView(
                     padding: const EdgeInsets.fromLTRB(24, 36, 24, 16),
                     children: [
-                      _buildHeader(tt),
+                      _buildHeader(tt, l10n),
                       const SizedBox(height: 32),
                       if (_registerMode) ...[
                         _authField(
                           controller: _invite,
-                          hint: '邀请码',
+                          hint: l10n.authInviteCode,
                           textCapitalization: TextCapitalization.characters,
                           suffix: const Icon(
                             Icons.vpn_key_outlined,
@@ -172,14 +185,14 @@ class _AuthScreenState extends State<AuthScreen> {
                         const SizedBox(height: 12),
                         _authField(
                           controller: _name,
-                          hint: '昵称（可选）',
+                          hint: l10n.authNicknameOptional,
                           textInputAction: TextInputAction.next,
                         ),
                         const SizedBox(height: 12),
                       ],
                       _authField(
                         controller: _phone,
-                        hint: '手机号',
+                        hint: l10n.authPhone,
                         keyboardType: TextInputType.phone,
                         prefix: const Icon(
                           Icons.phone_iphone,
@@ -191,7 +204,7 @@ class _AuthScreenState extends State<AuthScreen> {
                       const SizedBox(height: 12),
                       _authField(
                         controller: _password,
-                        hint: '密码',
+                        hint: l10n.authPassword,
                         obscure: _obscurePassword,
                         prefix: const Icon(
                           Icons.lock_outline,
@@ -199,7 +212,9 @@ class _AuthScreenState extends State<AuthScreen> {
                           color: AppColors.onSurfaceDim,
                         ),
                         suffix: IconButton(
-                          tooltip: _obscurePassword ? '显示密码' : '隐藏密码',
+                          tooltip: _obscurePassword
+                              ? l10n.authShowPassword
+                              : l10n.authHidePassword,
                           onPressed: () => setState(
                             () => _obscurePassword = !_obscurePassword,
                           ),
@@ -220,7 +235,7 @@ class _AuthScreenState extends State<AuthScreen> {
                         const SizedBox(height: 12),
                         _authField(
                           controller: _passwordConfirm,
-                          hint: '确认密码',
+                          hint: l10n.authConfirmPassword,
                           obscure: _obscureConfirm,
                           prefix: const Icon(
                             Icons.lock_outline,
@@ -228,7 +243,9 @@ class _AuthScreenState extends State<AuthScreen> {
                             color: AppColors.onSurfaceDim,
                           ),
                           suffix: IconButton(
-                            tooltip: _obscureConfirm ? '显示密码' : '隐藏密码',
+                            tooltip: _obscureConfirm
+                                ? l10n.authShowPassword
+                                : l10n.authHidePassword,
                             onPressed: () => setState(
                               () => _obscureConfirm = !_obscureConfirm,
                             ),
@@ -249,25 +266,27 @@ class _AuthScreenState extends State<AuthScreen> {
                         Row(
                           children: [
                             TextButton(
-                              onPressed: () => _comingSoon('验证码登录'),
+                              onPressed: () =>
+                                  _comingSoon(l10n.authFeatureSmsLogin),
                               style: TextButton.styleFrom(
                                 foregroundColor: AppColors.onSurfaceMuted,
                                 padding: EdgeInsets.zero,
                                 minimumSize: Size.zero,
                                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                               ),
-                              child: const Text('验证码登录'),
+                              child: Text(l10n.authLoginSms),
                             ),
                             const Spacer(),
                             TextButton(
-                              onPressed: () => _comingSoon('找回密码'),
+                              onPressed: () =>
+                                  _comingSoon(l10n.authFeatureRecoverPassword),
                               style: TextButton.styleFrom(
                                 foregroundColor: AppColors.onSurfaceMuted,
                                 padding: EdgeInsets.zero,
                                 minimumSize: Size.zero,
                                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                               ),
-                              child: const Text('忘记密码？'),
+                              child: Text(l10n.authForgotPassword),
                             ),
                           ],
                         ),
@@ -281,7 +300,9 @@ class _AuthScreenState extends State<AuthScreen> {
                       ],
                       const SizedBox(height: 28),
                       _AuthPrimaryButton(
-                        label: _registerMode ? '注册并登录' : '登录',
+                        label: _registerMode
+                            ? l10n.authSubmitRegister
+                            : l10n.authSubmitLogin,
                         busy: _busy,
                         onPressed: _busy ? null : _submit,
                       ),
@@ -294,10 +315,14 @@ class _AuthScreenState extends State<AuthScreen> {
                             ),
                             children: [
                               TextSpan(
-                                text: _registerMode ? '已有账号？ ' : '有邀请码？ ',
+                                text: _registerMode
+                                    ? l10n.authHaveAccount
+                                    : l10n.authHaveInvite,
                               ),
                               TextSpan(
-                                text: _registerMode ? '去登录' : '去注册',
+                                text: _registerMode
+                                    ? l10n.authGoLogin
+                                    : l10n.authGoRegister,
                                 style: const TextStyle(
                                   color: AppColors.primary,
                                   fontWeight: FontWeight.w600,
@@ -327,7 +352,7 @@ class _AuthScreenState extends State<AuthScreen> {
                           ),
                           const SizedBox(width: 6),
                           Text(
-                            '夜间低蓝光护眼设计 · 愿你今晚有好梦',
+                            l10n.authNightHint,
                             style: tt.labelSmall?.copyWith(
                               color: AppColors.onSurfaceDim,
                               fontWeight: FontWeight.w400,
@@ -346,20 +371,22 @@ class _AuthScreenState extends State<AuthScreen> {
                           children: [
                             TextSpan(
                               text: _registerMode
-                                  ? '注册即代表同意 '
-                                  : '登录即代表您已同意 ',
+                                  ? l10n.authAgreeRegisterPrefix
+                                  : l10n.authAgreeLoginPrefix,
                             ),
                             TextSpan(
-                              text: '用户协议',
+                              text: l10n.authTermsLink,
                               style: const TextStyle(
                                 color: AppColors.onSurfaceMuted,
                                 decoration: TextDecoration.underline,
                               ),
                               recognizer: _termsTap,
                             ),
-                            const TextSpan(text: ' 与 '),
+                            TextSpan(text: l10n.authAnd),
                             TextSpan(
-                              text: _registerMode ? '隐私保护政策' : '隐私政策',
+                              text: _registerMode
+                                  ? l10n.authPrivacyLinkRegister
+                                  : l10n.authPrivacyLink,
                               style: const TextStyle(
                                 color: AppColors.onSurfaceMuted,
                                 decoration: TextDecoration.underline,
@@ -381,7 +408,7 @@ class _AuthScreenState extends State<AuthScreen> {
     );
   }
 
-  Widget _buildHeader(TextTheme tt) {
+  Widget _buildHeader(TextTheme tt, AppLocalizations l10n) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -389,7 +416,7 @@ class _AuthScreenState extends State<AuthScreen> {
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             Text(
-              '呼呼',
+              l10n.authBrandName,
               style: tt.headlineMedium?.copyWith(
                 fontSize: 36,
                 fontWeight: FontWeight.w500,
@@ -405,9 +432,9 @@ class _AuthScreenState extends State<AuthScreen> {
                   color: AppColors.primary.withValues(alpha: 0.65),
                 ),
               ),
-              child: const Text(
-                '枕边故事',
-                style: TextStyle(
+              child: Text(
+                l10n.authBrandBadge,
+                style: const TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w600,
                   letterSpacing: 0.6,
@@ -419,7 +446,7 @@ class _AuthScreenState extends State<AuthScreen> {
         ),
         const SizedBox(height: 10),
         Text(
-          _registerMode ? '使用邀请码创建账号' : '登录后继续枕边故事',
+          _registerMode ? l10n.authSubtitleRegister : l10n.authSubtitleLogin,
           style: tt.bodyMedium?.copyWith(color: AppColors.onSurfaceMuted),
         ),
       ],

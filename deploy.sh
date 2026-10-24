@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
-# Deploy bedtime API staging to the VPS (Bandage-style: git on server + scp secrets).
+# Deploy bedtime staging to the VPS (Bandage-style: git on server + scp secrets).
 # Secrets stay local: apps/api/.env.staging (gitignored) → remote apps/api/.env
 #
 # Usage (from repo root):
 #   cp apps/api/.env.staging.example apps/api/.env.staging   # once; fill secrets
-#   ./deploy.sh              # git sync, scp .env, compose up
+#   ./deploy.sh              # git sync, scp .env, compose up (api+admin)
 #   ./deploy.sh env          # only scp .env.staging
 #   ./deploy.sh code         # only git pull + compose (reuse remote .env)
+#
+# Huhu legal / marketing sites: sibling ../Lullvale → cd ../Lullvale && ./deploy.sh
 #
 # Env overrides:
 #   DEPLOY_SSH=root@lullvale01
@@ -50,6 +52,8 @@ Usage: $(basename "$0") [all|env|code]
   all   (default) git sync, scp .env.staging, docker compose up --build
   env   only scp apps/api/.env.staging → ${REMOTE_REPO_ROOT}/apps/api/.env
   code  git sync + compose (does not overwrite remote .env)
+
+Huhu legal pages: cd ../Lullvale && ./deploy.sh
 
 Requires local file: apps/api/.env.staging (see .env.staging.example).
 SSH key: ${SSH_KEY}
@@ -118,7 +122,6 @@ TARGET="${1:-all}"
 case "$TARGET" in
 	-h|--help) usage ;;
 	all)
-		# Clone/pull first so scp lands inside the repo (never before first clone).
 		remote_git_sync
 		scp_env
 		remote_compose_up
@@ -129,6 +132,11 @@ case "$TARGET" in
 	code)
 		remote_git_sync
 		remote_compose_up
+		;;
+	web)
+		echo "❌ web 已迁到 sibling 仓库 Lullvale：" >&2
+		echo "   cd ../Lullvale && ./deploy.sh" >&2
+		exit 1
 		;;
 	*) usage ;;
 esac

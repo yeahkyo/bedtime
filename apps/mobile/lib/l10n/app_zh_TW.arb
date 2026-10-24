@@ -1,0 +1,638 @@
+{
+  "@@locale": "zh_TW",
+  "appTitle": "呼呼 · 枕邊故事",
+  "meTitle": "我的",
+  "tabStories": "故事",
+  "meSettings": "設定",
+  "meVoicesTitle": "音色管理",
+  "meVoicesSubtitleClone": "系統音色與家長聲音克隆",
+  "meVoicesSubtitle": "系統朗讀音色",
+  "meCharactersTitle": "角色管理",
+  "meCharactersSubtitle": "小聽眾檔案與故事角色",
+  "meLanguageTitle": "語言",
+  "meLanguageSubtitle": "{label}",
+  "@meLanguageSubtitle": {
+    "placeholders": {
+      "label": {
+        "type": "String"
+      }
+    }
+  },
+  "meAboutTitle": "關於",
+  "meAboutSubtitle": "產品與聯絡方式",
+  "meTermsTitle": "使用者協議",
+  "meTermsSubtitle": "使用條款",
+  "mePrivacyTitle": "隱私政策",
+  "mePrivacySubtitle": "我們如何處理你的資料",
+  "meVersion": "Version {version}",
+  "@meVersion": {
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  },
+  "meLogoutAccount": "退出目前帳號",
+  "meBrandFooter": "呼呼 · 枕邊故事  版本v{version}",
+  "@meBrandFooter": {
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  },
+  "languagePickerTitle": "語言",
+  "languageZhHans": "简体中文",
+  "languageZhHant": "繁體中文",
+  "languageEn": "English",
+  "profileGuest": "未登入",
+  "profileGuestHint": "登入後可同步故事與音色",
+  "profileConnected": "已連接枕邊故事服務",
+  "profileDefaultName": "枕邊家長",
+  "profileLogin": "登入",
+  "profileLogout": "登出",
+  "profileRefresh": "重新整理",
+  "quotaStories": "本月故事 {used}/{limit}",
+  "@quotaStories": {
+    "placeholders": {
+      "used": {
+        "type": "Object"
+      },
+      "limit": {
+        "type": "Object"
+      }
+    }
+  },
+  "quotaCloneSuffix": " · 克隆 {used}/{limit}",
+  "@quotaCloneSuffix": {
+    "placeholders": {
+      "used": {
+        "type": "Object"
+      },
+      "limit": {
+        "type": "Object"
+      }
+    }
+  },
+  "aboutTitle": "關於",
+  "aboutTagline": "為孩子編織溫柔的枕邊故事",
+  "aboutVersionLabel": "版本",
+  "aboutDeveloperLabel": "開發者",
+  "aboutDeveloperName": "風息谷工作室",
+  "aboutSupportLabel": "支援",
+  "aboutWebsiteLabel": "網站",
+  "aboutTermsLink": "使用者協議",
+  "aboutPrivacyLink": "隱私政策",
+  "aboutCopyright": "© {year} Lullvale",
+  "@aboutCopyright": {
+    "placeholders": {
+      "year": {
+        "type": "int"
+      }
+    }
+  },
+  "termsTitle": "使用者協議",
+  "privacyTitle": "隱私政策",
+  "legalOpenFailed": "無法開啟連結。",
+  "commonCancel": "取消",
+  "commonConfirm": "確定",
+  "commonDelete": "刪除",
+  "commonEdit": "編輯",
+  "commonCreate": "建立",
+  "commonSave": "儲存",
+  "commonClose": "關閉",
+  "commonUnnamed": "未命名",
+  "commonLoading": "載入中",
+  "genderUnspecified": "不指定",
+  "genderBoy": "男孩",
+  "genderGirl": "女孩",
+  "genderOther": "其他",
+  "homeOfflineSnackbar": "離線模式：顯示本機快取，連線後自動同步",
+  "authBrandName": "呼呼",
+  "authBrandBadge": "枕邊故事",
+  "authSubtitleLogin": "登入後繼續枕邊故事",
+  "authSubtitleRegister": "使用邀請碼建立帳號",
+  "authInviteCode": "邀請碼",
+  "authNicknameOptional": "暱稱（可選）",
+  "authPhone": "手機號碼",
+  "authPassword": "密碼",
+  "authConfirmPassword": "確認密碼",
+  "authShowPassword": "顯示密碼",
+  "authHidePassword": "隱藏密碼",
+  "authLoginSms": "驗證碼登入",
+  "authForgotPassword": "忘記密碼？",
+  "authSubmitLogin": "登入",
+  "authSubmitRegister": "註冊並登入",
+  "authHaveAccount": "已有帳號？ ",
+  "authHaveInvite": "有邀請碼？ ",
+  "authGoLogin": "去登入",
+  "authGoRegister": "去註冊",
+  "authNightHint": "夜間低藍光護眼設計 · 願你今晚有好夢",
+  "authAgreeRegisterPrefix": "註冊即代表同意 ",
+  "authAgreeLoginPrefix": "登入即代表您已同意 ",
+  "authTermsLink": "使用者協議",
+  "authAnd": " 與 ",
+  "authPrivacyLink": "隱私政策",
+  "authPrivacyLinkRegister": "隱私保護政策",
+  "authErrorInviteRequired": "請填寫邀請碼",
+  "authErrorPhoneRequired": "請填寫手機號碼",
+  "authErrorPasswordShort": "密碼至少 8 位",
+  "authErrorPasswordMismatch": "兩次輸入的密碼不一致",
+  "authErrorPasswordRequired": "請填寫密碼",
+  "authErrorInvalidResponse": "登入回應無效",
+  "authComingSoon": "{feature}暫未開放，敬請期待",
+  "@authComingSoon": {
+    "placeholders": {
+      "feature": {
+        "type": "String"
+      }
+    }
+  },
+  "authFeatureSmsLogin": "驗證碼登入",
+  "authFeatureRecoverPassword": "找回密碼",
+  "storyProgressQueued": "排隊中…",
+  "storyProgressSeriesOutline": "正在構思系列大綱…",
+  "storyProgressEpisodePlan": "正在構思今晚情節…",
+  "storyProgressDraft": "正在寫故事正文…",
+  "storyProgressTts": "正在產生朗讀音訊…",
+  "storyProgressReady": "完成",
+  "storyProgressReadyPlay": "完成，準備播放…",
+  "storyProgressFailed": "產生失敗",
+  "storyProgressGenerating": "產生中（{progress}）…",
+  "@storyProgressGenerating": {
+    "placeholders": {
+      "progress": {
+        "type": "String"
+      }
+    }
+  },
+  "storyGenerateFailed": "故事產生失敗",
+  "storyGenerateFailedRetry": "故事產生失敗，可點重試",
+  "storyStillGenerating": "故事還在產生中，請下拉重新整理後再聽",
+  "storyNoAudio": "暫無音訊，無法播放",
+  "storyNoAudioShort": "暫無音訊",
+  "storyCreateFailed": "故事建立失敗",
+  "storyRetrying": "正在重新產生…",
+  "storyResumeWaiting": "繼續等待產生…",
+  "storyContinueWaiting": "繼續等待",
+  "storyContinuingEpisode": "正在續寫下一集…",
+  "storySubmittedQueued": "已提交，排隊中…",
+  "storiesTitle": "故事",
+  "storiesStatusWaitingFirst": "等待第一篇",
+  "storiesStatusReady": "夜光模式已就緒",
+  "storiesCreateEyebrow": "織夢引擎 · 新章",
+  "storiesCreateTitle": "創作今晚的故事",
+  "storiesCreateSubtitle": "訂製專屬角色、故事情節與助眠音畫",
+  "storiesLibraryTitle": "枕邊故事寶盒",
+  "storiesLibraryEmpty": "暫無故事",
+  "storiesLibraryCount": "按時間倒序 · {count} 篇",
+  "@storiesLibraryCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "storiesEmptyShelfTitle": "空空的書架",
+  "storiesEmptyShelfBody": "今晚的第一本小書，還在等你點上方金色卡片。",
+  "storiesUntitled": "未完成的故事",
+  "storiesFailedRetry": "產生失敗 · 可重試",
+  "storiesFailedWithError": "失敗 · {error}",
+  "@storiesFailedWithError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "storiesSeriesContinueHint": "系列續寫請從「創作」頁重新開始",
+  "storiesMinutes": "{minutes} 分鐘",
+  "@storiesMinutes": {
+    "placeholders": {
+      "minutes": {
+        "type": "Object"
+      }
+    }
+  },
+  "storiesSeriesMeta": "系列 #{id}",
+  "@storiesSeriesMeta": {
+    "placeholders": {
+      "id": {
+        "type": "Object"
+      }
+    }
+  },
+  "storiesEpisodeMeta": " 第{ep}集",
+  "@storiesEpisodeMeta": {
+    "placeholders": {
+      "ep": {
+        "type": "Object"
+      }
+    }
+  },
+  "creatingTitle": "創作中",
+  "creatingBackTooltip": "返回故事列表",
+  "creatingHeadlineOk": "正在為今晚寫故事",
+  "creatingHeadlineFail": "這次沒能完成",
+  "creatingBodyOk": "雲端正在寫正文並錄製朗讀，通常需要一兩分鐘。",
+  "creatingBodyFail": "可以重試，或先回列表，稍後再打開這篇故事。",
+  "creatingHintsOkTitle": "產生時你可以",
+  "creatingHintsFailTitle": "接下來可以",
+  "creatingHintAutoPlay": "完成後會自動進入播放頁，開始朗讀。",
+  "creatingHintCloud": "創作在雲端繼續；關掉本頁也不影響。",
+  "creatingHintList": "返回「故事」列表可隨時查看進度，或稍後再聽。",
+  "creatingHintRetry": "點下方重試，會繼續這篇故事，不額外佔用額度。",
+  "creatingHintBackLater": "也可以先回列表，稍後再打開或重試。",
+  "creatingRetry": "重新產生",
+  "creatingRetrying": "重試中…",
+  "creatingBackFailed": "返回故事列表",
+  "creatingBackOk": "先回故事列表",
+  "voicesManageTitle": "音色管理",
+  "voicesManageEyebrow": "呼呼 · Voice",
+  "voicesManageHeaderTitle": "我的音色",
+  "voicesManageSubtitleClone": "管理朗讀音色，或克隆家長聲音給孩子講故事",
+  "voicesManageSubtitleSystem": "管理系統朗讀音色，試聽並選用",
+  "voicesManageCloneCta": "克隆新音色",
+  "voicesManageSectionTitle": "已有音色",
+  "voicesManageNone": "暫無音色",
+  "voicesManageCount": "共 {count} 個 · 可試聽",
+  "@voicesManageCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "voicesManageEmptyCloneHint": "可先點上方按鈕克隆家長聲音。",
+  "voicesManageEmptySystemHint": "暫無可用系統音色，請稍後再試或聯絡管理員。",
+  "voicesKindClone": "克隆音色",
+  "voicesKindSystem": "系統音色",
+  "voicesPreviewUnavailable": "暫無試聽",
+  "voicesPreviewUnavailableSnack": "該音色暫無試聽，請稍後再試",
+  "voicesPreviewUnavailableShort": "該音色暫無試聽",
+  "voicesPreviewFailed": "試聽播放失敗",
+  "voicesPreviewPlay": "試聽",
+  "voicesPreviewStop": "停止試聽",
+  "voicesPreviewStopShort": "停止",
+  "voicesNoPreviewSuffix": " · 暫無試聽",
+  "voiceCloneTitle": "克隆新音色",
+  "voiceCloneEyebrow": "呼呼 · Clone",
+  "voiceCloneHeaderTitle": "錄製家長聲音",
+  "voiceCloneHeaderSubtitle": "安靜環境朗讀約 10–15 秒，克隆後可用於睡前故事朗讀",
+  "voiceCloneNameSection": "音色名稱",
+  "voiceCloneNameHint": "例如：媽媽的聲音、爸爸哄睡",
+  "voiceCloneDefaultName": "家長聲音",
+  "voiceCloneUsageTitle": "使用說明",
+  "voiceCloneUsageBody": "原始錄音上傳後會盡快刪除。克隆成功後可在創作故事時選用該音色。",
+  "voiceCloneConsent": "我同意將我的聲音用於本 App 的睡前故事朗讀",
+  "voiceCloneScriptTitle": "請朗讀這段話",
+  "voiceCloneScriptSubtitle": "中英文各讀一遍亦可，語速自然即可",
+  "voiceCloneScriptZh": "今晚我用溫柔的聲音給孩子講故事。風很輕，月亮很亮，我們慢慢閉上眼睛。",
+  "voiceCloneStartRecord": "開始錄音",
+  "voiceCloneStopRecord": "停止錄音",
+  "voiceCloneRerecord": "重錄一段",
+  "voiceCloneRecordingHint": "正在錄音… 讀完後點停止",
+  "voiceCloneReadyHint": "已錄好樣本，確認名稱與同意後即可上傳克隆",
+  "voiceCloneUpload": "上傳並克隆",
+  "voiceCloneUploading": "上傳中…",
+  "voiceCloneNeedMic": "需要麥克風權限",
+  "voiceCloneNeedName": "請先填寫音色名稱",
+  "voiceCloneNeedConsent": "請先勾選同意條款",
+  "voiceCloneSuccess": "克隆成功，可在產生故事時選用",
+  "voicePickerTitle": "選擇音色",
+  "voicePickerHint": "試聽後點確定使用",
+  "voicePickerUse": "使用此音色",
+  "voicePickerEmpty": "暫無",
+  "voicePickerUnnamed": "未命名音色",
+  "childrenManageTitle": "角色管理",
+  "childrenManageTagline": "夢境主角簿 · 訂製專屬睡前入眠物語",
+  "childrenTabListeners": "小聽眾檔案",
+  "childrenTabPeople": "家人朋友",
+  "childrenTabToys": "玩具伙伴",
+  "childrenFabListener": "新增小聽眾",
+  "childrenFabPeople": "新增家人朋友",
+  "childrenFabToy": "新增玩具伙伴",
+  "childrenEmptyListenersTitle": "還沒有小聽眾",
+  "childrenEmptyListenersBody": "新增小聽眾檔案後，才能建立故事並掛上家人、玩具。",
+  "childrenEmptyListenersCta": "新增第一個小聽眾",
+  "childrenEmptyPeopleTitle": "還沒有家人 / 朋友",
+  "childrenEmptyPeopleBody": "把外公、同學等建檔後，創作故事時可勾選出場。",
+  "childrenEmptyToysTitle": "還沒有玩具伙伴",
+  "childrenEmptyToysBody": "把娃娃、玩偶建檔後，創作故事時可勾選出場。",
+  "childrenNeedListenerFirst": "請先新增小聽眾",
+  "childrenSheetTitle": "小聽眾檔案",
+  "childrenNickname": "暱稱",
+  "childrenGender": "性別",
+  "childrenBirthday": "生日",
+  "childrenPickBirthday": "選擇生日",
+  "childrenBirthdayHint": "年/月/日",
+  "childrenIntroOptional": "簡介（可選）",
+  "childrenIntroHint": "性格、近期心情…",
+  "childrenPreferLabel": "故事偏好（逗號分隔）",
+  "childrenPreferHint": "恐龍冒險, 溫柔童話, 一點點幽默",
+  "childrenAddToy": "新增玩具",
+  "childrenEditToy": "編輯玩具",
+  "childrenAddPerson": "新增家人 / 朋友",
+  "childrenEditPerson": "編輯家人 / 朋友",
+  "childrenToyName": "名字",
+  "childrenPersonName": "稱呼",
+  "childrenToyNameHint": "星星娃娃",
+  "childrenPersonNameHint": "外公",
+  "childrenBelongsTo": "屬於誰",
+  "childrenLinkedListener": "關聯小聽眾",
+  "childrenRelation": "關係",
+  "childrenRelationHint": "外公 / 同學 / 老師…",
+  "childrenToyNote": "外觀 / 脾氣（可選）",
+  "childrenPersonNote": "特徵（可選）",
+  "childrenToyNoteHint": "藍色耳朵、會唱歌",
+  "childrenPersonNoteHint": "愛講故事",
+  "childrenDeleteListenerTitle": "刪除小聽眾？",
+  "childrenDeleteListenerBody": "將一併刪除「{name}」名下的家人與玩具角色。",
+  "@childrenDeleteListenerBody": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "childrenDeleted": "已刪除「{name}」",
+  "@childrenDeleted": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "childrenDeleteCharacterTitle": "刪除角色？",
+  "childrenDeleteCharacterBody": "刪除「{name}」後，創作時將無法再勾選。",
+  "@childrenDeleteCharacterBody": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "childrenDefaultCharacter": "角色",
+  "childrenTagListener": "小聽眾",
+  "childrenTagToy": "安撫布偶",
+  "childrenTagPeople": "家人朋友",
+  "childrenPreferPrefix": "偏好：{prefs}",
+  "@childrenPreferPrefix": {
+    "placeholders": {
+      "prefs": {
+        "type": "String"
+      }
+    }
+  },
+  "childrenEditPrefs": "編輯檔案與睡前偏好",
+  "childrenSleepPreset": "入眠預設",
+  "childrenBelongsToName": "屬於 {name}",
+  "@childrenBelongsToName": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "childrenToySubtitle": "床頭伙伴 · 屬於 {name}",
+  "@childrenToySubtitle": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "childrenPersonalityPrefix": "性格：{note}",
+  "@childrenPersonalityPrefix": {
+    "placeholders": {
+      "note": {
+        "type": "String"
+      }
+    }
+  },
+  "childrenUnlinked": "未關聯",
+  "childrenChildFallback": "小孩 #{id}",
+  "@childrenChildFallback": {
+    "placeholders": {
+      "id": {
+        "type": "int"
+      }
+    }
+  },
+  "childrenMagicTitle": "角色訂製魔力",
+  "childrenMagicBody": "織夢引擎根據主角年齡與偏好，在每晚的聲景中植入專屬溫潤台詞與助眠呼吸節律。",
+  "createStoryTitle": "訂製今晚的故事",
+  "createStoryNeedListenerTitle": "先新增小聽眾",
+  "createStoryNeedListenerSubtitle": "有了孩子檔案，才能訂製今晚的故事",
+  "createStoryNoRolesTitle": "還沒有角色",
+  "createStoryNoRolesBody": "請先建立孩子檔案（暱稱、年齡等）。建立後即可回來產生故事。",
+  "createStoryGoAddChild": "去新增孩子檔案",
+  "createStoryGenerate": "產生今晚的故事",
+  "createStoryGenerating": "產生中…",
+  "createStoryQuotaPrefix": "本月故事 ",
+  "createStoryQuotaLine": "本月故事 {used}/{limit}",
+  "@createStoryQuotaLine": {
+    "placeholders": {
+      "used": {
+        "type": "Object"
+      },
+      "limit": {
+        "type": "Object"
+      }
+    }
+  },
+  "createStoryListenersTitle": "今晚，講給誰聽？",
+  "createStoryListenersSubMulti": "可多選；故事會以小聽眾的偏好來編織",
+  "createStoryListenersSubSingle": "故事會以小聽眾偏好來編織",
+  "createStoryManageListeners": "管理小聽眾檔案",
+  "createStoryPrimaryListener": "主聽眾",
+  "createStoryNoPrefer": "暫無故事偏好 · 偏愛睡前童話",
+  "createStoryOptionsTitle": "想聽什麼故事？",
+  "createStoryOptionsSubtitle": "故事將依據這些要素來創作",
+  "createStoryInspiration": "故事靈感",
+  "createStoryInspirationHint": "可選，不寫也可以",
+  "createStoryThemeHint": "今晚想講什麼（可選，例如：在雲朵上看星星的小貓咪…）",
+  "createStoryCastTitle": "今晚一起出場",
+  "createStoryAddCharacter": "新增角色",
+  "createStoryCastEmpty": "可在角色管理中新增小聽眾、家人或玩具。",
+  "createStoryCharacterFallback": "角色",
+  "createStoryType": "故事類型",
+  "createStoryVoice": "朗讀音色",
+  "createStoryVoiceSelected": "已選：{name}",
+  "@createStoryVoiceSelected": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "createStoryVoiceNone": "未選音色",
+  "createStoryVoicePick": "請選音色",
+  "createStoryVoiceChange": "更換",
+  "createStoryMoreOptions": "更多選項（語言與對話）",
+  "createStoryLanguage": "講述語言",
+  "createStoryLangZh": "中文",
+  "createStoryEnglishSoon": "英文故事暫未開放，敬請期待",
+  "createStoryDialogue": "對話多少",
+  "createStoryTypeEveryday": "日常生活",
+  "createStoryTypeSoft": "一點想像",
+  "createStoryTypeFantasy": "奇妙世界",
+  "createStoryDialogueLow": "很少對話",
+  "createStoryDialogueSome": "一點對話",
+  "createStoryDialogueMore": "對話多些",
+  "createStorySoftSeries": "軟系列（可續寫）",
+  "createStorySoftHook": "上一集輕鉤子（可選）",
+  "createStoryEpisodeNo": "系列集數",
+  "createStoryDreamRules": "織夢守則",
+  "createStoryDreamRulesBody": "故事將自動調節平靜舒緩的語言節奏，末尾緩緩淡入晚安白噪音。",
+  "createStoryDuration": "時長 (分鐘)",
+  "createStoryErrAddChild": "請先新增孩子檔案",
+  "createStoryErrNickname": "請先完善孩子暱稱（點檔案卡片編輯）",
+  "createStoryErrVoice": "請選擇音色（或先到「音色」頁建立系統音色）",
+  "createStoryErrListener": "請先選擇今晚的小聽眾",
+  "playerTitle": "伴讀",
+  "playerStatusLive": "床頭暖燈 · 伴睡夜播中",
+  "playerModePicture": "繪本伴讀",
+  "playerModeAudio": "純聽",
+  "playerWarmLight": "枕邊暖光",
+  "playerBrandLine": "呼呼 · 枕邊故事",
+  "playerCoRead": "親子同屏伴讀",
+  "playerFullText": "全文",
+  "playerFollowAlong": "字句平滑隨行",
+  "playerCollapse": "收起",
+  "playerExpand": "查看全文",
+  "playerSpeedTitle": "朗讀倍速",
+  "playerSpeedHint": "只改變故事朗讀速度，背景音樂不受影響。不會重新合成音訊。",
+  "playerSpeedCurrent": "目前 {speed}×",
+  "@playerSpeedCurrent": {
+    "placeholders": {
+      "speed": {
+        "type": "String"
+      }
+    }
+  },
+  "playerBedTrack": "搖籃背景音 · {label}",
+  "@playerBedTrack": {
+    "placeholders": {
+      "label": {
+        "type": "String"
+      }
+    }
+  },
+  "playerBedMusicBox": "八音盒",
+  "playerRemain": "剩餘 {time}",
+  "@playerRemain": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "playerBedFading": "背景音正慢慢停下",
+  "playerOutroOff": "結束後即關助眠音樂",
+  "playerOutroMinutes": "結束後再播{minutes}分鐘",
+  "@playerOutroMinutes": {
+    "placeholders": {
+      "minutes": {
+        "type": "int"
+      }
+    }
+  },
+  "playerOutroOffShort": "即關",
+  "playerOutroMinutesShort": "{minutes}分鐘",
+  "@playerOutroMinutesShort": {
+    "placeholders": {
+      "minutes": {
+        "type": "int"
+      }
+    }
+  },
+  "playerBedOff": "已關",
+  "playerScript": "文稿",
+  "playerTimerTitle": "定時關閉音樂",
+  "playerTimerSubtitle": "故事結束後延遲關閉助眠音樂",
+  "playerTimerFading": "助眠音樂正慢慢停下 · 剩餘 {time}",
+  "@playerTimerFading": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "playerTimerDelay": "延遲時長",
+  "createStoryDurationMood3": "3 分鐘 · 短篇微睡",
+  "createStoryDurationMood5": "5 分鐘 · 適合入睡",
+  "createStoryDurationMood8": "8 分鐘 · 沉浸暖夢",
+  "createStoryDurationMood10": "10 分鐘 · 悠長童話",
+  "createStoryDurationMood12": "12 分鐘 · 深度安歇",
+  "createStoryDurationMinutes": "{minutes} 分鐘",
+  "@createStoryDurationMinutes": {
+    "placeholders": {
+      "minutes": {
+        "type": "int"
+      }
+    }
+  },
+  "playerOutroMood0": "0 分鐘 · 故事結束即關",
+  "playerOutroMood1": "1 分鐘 · 餘韻輕停",
+  "playerOutroMood5": "5 分鐘 · 溫柔收束",
+  "playerOutroMood10": "10 分鐘 · 慢慢入靜",
+  "playerOutroMood15": "15 分鐘 · 安睡餘音",
+  "playerOutroMood30": "30 分鐘 · 整夜輕伴",
+  "playerOutroMoodMinutes": "{minutes} 分鐘",
+  "@playerOutroMoodMinutes": {
+    "placeholders": {
+      "minutes": {
+        "type": "int"
+      }
+    }
+  },
+  "ageYears": "{years}歲",
+  "@ageYears": {
+    "placeholders": {
+      "years": {
+        "type": "int"
+      }
+    }
+  },
+  "ageYearsMonths": "{years}歲 {months}個月",
+  "@ageYearsMonths": {
+    "placeholders": {
+      "years": {
+        "type": "int"
+      },
+      "months": {
+        "type": "int"
+      }
+    }
+  },
+  "commonPleaseSelect": "請選擇",
+  "storiesContinueEpisodeTooltip": "續寫下一集",
+  "netTimeout": "網路逾時，請稍後再試",
+  "netOfflineCached": "網路不可用，已顯示本地快取",
+  "apiSessionExpired": "登入已失效，請重新進入",
+  "apiRefreshFailed": "重新整理登入失敗",
+  "apiStoryGenerateFailed": "故事生成失敗",
+  "apiStoryCreateFailed": "故事建立失敗",
+  "apiStoryWaitNetworkUnstable": "網路不穩定，生成可能仍在進行。可稍後在「故事」重新整理，或點繼續等待",
+  "apiStoryWaitTimeout": "網路逾時，生成可能仍在進行。可稍後重新整理或點繼續等待",
+  "apiStoryWaitOffline": "網路不可用，生成可能仍在進行。恢復網路後可點繼續等待",
+  "apiStoryWaitDeadline": "等待故事生成逾時，可在「故事」裡查看是否已完成",
+  "apiNetworkUnstableRetry": "網路不穩定，請稍後再試",
+  "apiForbidden": "沒有權限執行該操作",
+  "apiNotFound": "找不到相關內容",
+  "apiTooManyRequests": "請求過於頻繁，請稍後再試",
+  "apiServerUnavailable": "服務暫時無法使用，請稍後再試",
+  "apiRequestFailed": "請求失敗 ({statusCode})",
+  "@apiRequestFailed": {
+    "placeholders": {
+      "statusCode": {
+        "type": "int"
+      }
+    }
+  },
+  "bootCannotConnect": "無法連線",
+  "bootRetry": "重試",
+  "bootHintRemote": "線上/內測請用 Cloudflare HTTPS 網域：\n--dart-define=API_BASE_URL=https://bedtime-api.<你的網域>\n並使用邀請碼註冊或手機號登入。",
+  "bootHintLocal": "若卡在白屏或連不上：系統設定 → 隱私與安全性 → 本機網路 → 打開本 App；\n並確認用 --dart-define=API_BASE_URL=http://<電腦區網IP>:8000 啟動。"
+}
