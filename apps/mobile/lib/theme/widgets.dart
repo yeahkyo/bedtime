@@ -2,10 +2,46 @@ import 'package:flutter/material.dart';
 
 import 'app_theme.dart';
 
+/// Shared brand mark (moon + label) for tab headers and page headers.
+/// Keep one style so IndexedStack tab switches do not jump.
+class BrandMark extends StatelessWidget {
+  const BrandMark({
+    super.key,
+    this.label = BrandMark.defaultLabel,
+  });
+
+  static const defaultLabel = '呼呼 · 枕边故事';
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          Icons.nightlight_round,
+          size: 16,
+          color: AppColors.primary.withValues(alpha: 0.95),
+        ),
+        const SizedBox(width: 6),
+        Text(
+          label,
+          style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                color: AppColors.primarySoft,
+                letterSpacing: 1.1,
+                fontSize: 11,
+              ),
+        ),
+      ],
+    );
+  }
+}
+
 class BrandHeader extends StatelessWidget {
   const BrandHeader({
     super.key,
-    required this.eyebrow,
+    this.eyebrow = BrandMark.defaultLabel,
     required this.title,
     this.subtitle,
   });
@@ -19,21 +55,8 @@ class BrandHeader extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            const Icon(Icons.nightlight_round, color: AppColors.primary, size: 20),
-            const SizedBox(width: 8),
-            Text(
-              eyebrow,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: AppColors.primarySoft,
-                    letterSpacing: 0.6,
-                    fontWeight: FontWeight.w600,
-                  ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 10),
+        BrandMark(label: eyebrow),
+        const SizedBox(height: 8),
         Text(title, style: Theme.of(context).textTheme.headlineMedium),
         if (subtitle != null) ...[
           const SizedBox(height: 6),
@@ -62,13 +85,24 @@ class SectionCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: AppColors.card,
-        borderRadius: BorderRadius.circular(AppRadii.lg),
-        border: Border.all(color: AppColors.outline),
+        borderRadius: BorderRadius.circular(AppRadii.xl),
+        border: Border.all(color: AppColors.outlineSubtle),
         boxShadow: const [
-          BoxShadow(color: Color(0x40000000), blurRadius: 0, offset: Offset(0, 1)),
+          BoxShadow(
+            color: AppColors.paperShadow,
+            blurRadius: 24,
+            offset: Offset(0, 8),
+            spreadRadius: -4,
+          ),
+          BoxShadow(
+            color: AppColors.lanternGlow,
+            blurRadius: 40,
+            offset: Offset(0, 16),
+            spreadRadius: -8,
+          ),
         ],
       ),
       child: Column(
@@ -81,7 +115,13 @@ class SectionCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(title, style: Theme.of(context).textTheme.titleMedium),
+                    Text(
+                      title,
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w600,
+                          ),
+                    ),
                     if (subtitle != null) ...[
                       const SizedBox(height: 4),
                       Text(subtitle!, style: Theme.of(context).textTheme.bodySmall),
@@ -115,20 +155,31 @@ class SoftChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ChoiceChip(
-      label: Text(
-        label,
-        style: TextStyle(
-          color: selected ? AppColors.onPrimary : const Color(0xFFE5DCBA),
-          fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-          fontSize: 13,
-        ),
+      label: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              color: selected ? AppColors.onPrimary : AppColors.onSurface,
+              fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+              fontSize: 13,
+            ),
+          ),
+          if (selected) ...[
+            const SizedBox(width: 4),
+            const Icon(Icons.check, size: 14, color: AppColors.onPrimary),
+          ],
+        ],
       ),
       selected: selected,
       onSelected: onSelected,
       selectedColor: AppColors.primary,
-      backgroundColor: const Color(0xFF1B2E33),
+      backgroundColor: AppColors.surfacePaperLayered,
       side: BorderSide(
-        color: selected ? AppColors.primary : const Color(0xFF3A5248),
+        color: selected
+            ? AppColors.primary
+            : const Color(0x40C38D9E),
       ),
       // Keep chip rows flush with section labels (default M3 padding indents).
       materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -139,13 +190,182 @@ class SoftChip extends StatelessWidget {
   }
 }
 
+/// Unfocus and wait until soft-keyboard insets settle (or timeout).
+///
+/// Use before anchored overlays / pickers so they measure the post-keyboard
+/// field position instead of the raised-sheet position.
+Future<void> waitForKeyboardDismissed(BuildContext context) async {
+  FocusScope.of(context).unfocus();
+  final started = DateTime.now();
+  while (context.mounted &&
+      MediaQuery.viewInsetsOf(context).bottom > 0 &&
+      DateTime.now().difference(started) < const Duration(milliseconds: 400)) {
+    await Future<void>.delayed(const Duration(milliseconds: 32));
+  }
+  if (!context.mounted) return;
+  await Future<void>.delayed(const Duration(milliseconds: 48));
+}
+
+/// Form-looking select that waits for the keyboard to dismiss before opening
+/// a menu, so the overlay anchors to the settled field position.
+class SoftSelectField<T> extends StatefulWidget {
+  const SoftSelectField({
+    super.key,
+    required this.label,
+    required this.value,
+    required this.options,
+    required this.onChanged,
+    this.placeholder = '请选择',
+  });
+
+  final String label;
+  final T value;
+  final List<(T, String)> options;
+  final ValueChanged<T> onChanged;
+  final String placeholder;
+
+  @override
+  State<SoftSelectField<T>> createState() => _SoftSelectFieldState<T>();
+}
+
+class _SoftSelectFieldState<T> extends State<SoftSelectField<T>> {
+  late final FocusNode _focusNode;
+  bool _opening = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _focusNode = FocusNode(debugLabel: 'SoftSelectField');
+    _focusNode.addListener(_onFocusChange);
+  }
+
+  @override
+  void dispose() {
+    _focusNode
+      ..removeListener(_onFocusChange)
+      ..dispose();
+    super.dispose();
+  }
+
+  void _onFocusChange() {
+    if (mounted) setState(() {});
+  }
+
+  /// Clear focus after the menu route restores it, so no TextField reclaims
+  /// focus (and the keyboard stays dismissed).
+  void _clearFocusAfterMenu() {
+    if (!mounted) return;
+    _focusNode.unfocus();
+    FocusManager.instance.primaryFocus?.unfocus();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      FocusScope.of(context).unfocus();
+    });
+  }
+
+  String? get _matchedLabel {
+    for (final (v, text) in widget.options) {
+      if (v == widget.value) return text;
+    }
+    return null;
+  }
+
+  Future<void> _open() async {
+    if (_opening || widget.options.isEmpty) return;
+    _opening = true;
+    try {
+      await waitForKeyboardDismissed(context);
+      if (!mounted) return;
+
+      // Own focus before the menu route pushes, so dismiss restores here
+      // instead of the previous TextField (which would reopen the keyboard).
+      _focusNode.requestFocus();
+
+      final box = context.findRenderObject() as RenderBox?;
+      final overlay =
+          Overlay.of(context).context.findRenderObject() as RenderBox?;
+      if (box == null || overlay == null || !box.hasSize) return;
+
+      final topLeft = box.localToGlobal(Offset.zero, ancestor: overlay);
+      final bottomRight = box.localToGlobal(
+        box.size.bottomRight(Offset.zero),
+        ancestor: overlay,
+      );
+      final position = RelativeRect.fromRect(
+        Rect.fromPoints(topLeft, bottomRight),
+        Offset.zero & overlay.size,
+      );
+
+      final picked = await showMenu<T>(
+        context: context,
+        position: position,
+        constraints: BoxConstraints(
+          minWidth: box.size.width,
+          maxWidth: box.size.width,
+        ),
+        items: [
+          for (final (v, text) in widget.options)
+            PopupMenuItem<T>(
+              value: v,
+              child: Text(
+                text,
+                style: TextStyle(
+                  fontWeight:
+                      v == widget.value ? FontWeight.w700 : FontWeight.w500,
+                  color: AppColors.onSurface,
+                ),
+              ),
+            ),
+        ],
+      );
+      if (!mounted) return;
+      if (picked != null) widget.onChanged(picked);
+      _clearFocusAfterMenu();
+    } finally {
+      _opening = false;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final matched = _matchedLabel;
+    final valid = matched != null;
+    return Focus(
+      focusNode: _focusNode,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(AppRadii.md),
+        onTap: _open,
+        child: InputDecorator(
+          isEmpty: !valid,
+          isFocused: _focusNode.hasFocus,
+          decoration: InputDecoration(
+            labelText: widget.label,
+            suffixIcon: const Icon(
+              Icons.arrow_drop_down,
+              color: AppColors.onSurfaceMuted,
+            ),
+          ),
+          child: Text(
+            matched ?? widget.placeholder,
+            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                  fontSize: 16,
+                  height: 1.25,
+                  color: valid ? AppColors.onSurface : AppColors.onSurfaceMuted,
+                ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class AmberCta extends StatelessWidget {
   const AmberCta({
     super.key,
     required this.label,
     required this.onPressed,
     this.busy = false,
-    this.icon = Icons.auto_stories,
+    this.icon = Icons.local_library_outlined,
   });
 
   final String label;
@@ -157,7 +377,18 @@ class AmberCta extends StatelessWidget {
   Widget build(BuildContext context) {
     return DecoratedBox(
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(AppRadii.lg),
+        borderRadius: BorderRadius.circular(999),
+        gradient: onPressed == null
+            ? null
+            : const LinearGradient(
+                begin: Alignment.centerLeft,
+                end: Alignment.centerRight,
+                colors: [
+                  Color(0xFFE8A87C),
+                  Color(0xFFF4B251),
+                ],
+              ),
+        color: onPressed == null ? AppColors.surfaceHighest : null,
         boxShadow: onPressed == null
             ? null
             : const [
@@ -168,10 +399,39 @@ class AmberCta extends StatelessWidget {
                 ),
               ],
       ),
-      child: FilledButton.icon(
-        onPressed: onPressed,
-        icon: Icon(busy ? Icons.hourglass_top : icon),
-        label: Text(label),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onPressed,
+          borderRadius: BorderRadius.circular(999),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 16),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  busy ? Icons.hourglass_top : icon,
+                  color: onPressed == null
+                      ? AppColors.onSurfaceDim
+                      : AppColors.onPrimary,
+                  size: 22,
+                ),
+                const SizedBox(width: 10),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontFamily: 'Georgia',
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: onPressed == null
+                        ? AppColors.onSurfaceDim
+                        : AppColors.onPrimary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -222,7 +482,7 @@ class LibraryStoryTile extends StatelessWidget {
                   gradient: const LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
-                    colors: [Color(0xFF2A3A4F), Color(0xFF164F4A)],
+                    colors: [Color(0xFF2A3A4F), Color(0xFF3A2A22)],
                   ),
                 ),
                 child: Icon(

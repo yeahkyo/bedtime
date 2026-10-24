@@ -13,12 +13,17 @@ class ApiException implements Exception {
     this.statusCode,
     this.unauthorized = false,
     this.storyId,
+    this.storyFailed = false,
   });
 
   final String message;
   final int? statusCode;
   final bool unauthorized;
   final int? storyId;
+
+  /// True when the story job itself failed (status=failed), as opposed to a
+  /// transient network error while polling.
+  final bool storyFailed;
 
   @override
   String toString() => message;
@@ -537,10 +542,11 @@ class ApiClient {
       throw ApiException(
         created['error_message'] as String? ?? '故事生成失败',
         storyId: id,
+        storyFailed: true,
       );
     }
     if (id == null) {
-      throw ApiException('故事创建失败');
+      throw ApiException('故事创建失败', storyFailed: true);
     }
     return waitForStory(id, onProgress: onProgress);
   }
@@ -566,6 +572,7 @@ class ApiClient {
       throw ApiException(
         created['error_message'] as String? ?? '故事生成失败',
         storyId: id,
+        storyFailed: true,
       );
     }
     return waitForStory(id, onProgress: onProgress);
@@ -591,11 +598,11 @@ class ApiClient {
           throw ApiException(
             story['error_message'] as String? ?? '故事生成失败',
             storyId: id,
+            storyFailed: true,
           );
         }
       } on ApiException catch (e) {
-        if (e.unauthorized) rethrow;
-        if (e.storyId != null && e.message.contains('生成失败')) rethrow;
+        if (e.unauthorized || e.storyFailed) rethrow;
         consecutiveNetworkErrors++;
         if (consecutiveNetworkErrors >= 5) {
           throw ApiException(

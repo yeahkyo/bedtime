@@ -17,3 +17,21 @@ int ageYearsFromBirthDate(String? raw, {DateTime? on}) {
 String formatAgeYearsLabel(String? birthDate, {DateTime? on}) {
   return '${ageYearsFromBirthDate(birthDate, on: on)}岁';
 }
+
+/// e.g. `4岁 3个月` — for character cards matching design copy.
+String formatAgeDetailedLabel(String? birthDate, {DateTime? on}) {
+  final today = on ?? DateTime.now();
+  if (birthDate == null || birthDate.trim().isEmpty) return '4岁';
+  final birth = DateTime.tryParse(birthDate.trim());
+  if (birth == null || birth.isAfter(today)) return '0岁';
+  var years = today.year - birth.year;
+  var months = today.month - birth.month;
+  if (today.day < birth.day) months -= 1;
+  if (months < 0) {
+    years -= 1;
+    months += 12;
+  }
+  if (years < 0) return '0岁';
+  if (months <= 0) return '$years岁';
+  return '$years岁 $months个月';
+}

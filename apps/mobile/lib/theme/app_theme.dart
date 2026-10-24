@@ -1,40 +1,49 @@
 import 'package:flutter/material.dart';
 
-/// Bedtime Storybook Gouache tokens (from design system).
+/// Warm Dial tokens — from `design/all/bedtime_storycraft_warm_dial/DESIGN.md`.
 abstract final class AppColors {
-  static const background = Color(0xFF0B1322);
-  static const surface = Color(0xFF0B1322);
-  static const surfaceLow = Color(0xFF141C2B);
-  static const surfaceContainer = Color(0xFF18202F);
-  static const surfaceHigh = Color(0xFF222A3A);
-  static const surfaceHighest = Color(0xFF2D3545);
-  static const card = Color(0xFF1A2536);
-  static const inputWell = Color(0xFF0E1521);
+  static const background = Color(0xFF0E1322);
+  static const surface = Color(0xFF0E1322);
+  static const surfaceLow = Color(0xFF161B2A);
+  static const surfaceContainer = Color(0xFF1A1F2F);
+  static const surfaceHigh = Color(0xFF252939);
+  static const surfaceHighest = Color(0xFF2F3445);
+  /// Paper card substrate (`surface-paper`).
+  static const card = Color(0xFF1C2333);
+  static const surfacePaperLayered = Color(0xFF242C3F);
+  static const inputWell = Color(0xFF161B2A);
 
-  static const onSurface = Color(0xFFF5EEDB);
-  static const onSurfaceMuted = Color(0xFFBFB49E);
-  static const onSurfaceDim = Color(0xFF9D8E7D);
+  /// Oat text — never pure white.
+  static const onSurface = Color(0xFFEAE6DF);
+  static const onSurfaceMuted = Color(0xFF9FA7B8);
+  static const onSurfaceDim = Color(0xFF8A93A6);
 
-  static const primary = Color(0xFFF4B251);
-  static const primarySoft = Color(0xFFFFD39A);
-  static const onPrimary = Color(0xFF141A24);
+  /// Incandescent amber lamp.
+  static const primary = Color(0xFFE8A87C);
+  static const primaryContainer = Color(0xFFE8A87C);
+  static const primarySoft = Color(0xFFFFC69F);
+  static const onPrimary = Color(0xFF4E2604);
+  static const onPrimaryContainer = Color(0xFF693C19);
 
-  static const secondary = Color(0xFF9BD1CA);
-  static const secondaryContainer = Color(0xFF164F4A);
-  static const secondaryEdge = Color(0xFF2E5651);
+  /// Dusty mauve accents.
+  static const secondary = Color(0xFFF1B7C9);
+  static const secondaryContainer = Color(0xFF653A49);
+  static const secondaryEdge = Color(0xFF8A5A6A);
 
-  static const tertiary = Color(0xFFD96C43);
-  static const outline = Color(0xFF2A384F);
-  static const outlineWarm = Color(0xFF514536);
+  static const tertiary = Color(0xFFD4A373);
+  static const outline = Color(0xFF51443C);
+  static const outlineSubtle = Color(0x12EAE6DF);
+  static const outlineWarm = Color(0xFF51443C);
 
-  static const lanternGlow = Color(0x2EF4B251);
+  static const lanternGlow = Color(0x38E8A87C);
+  static const paperShadow = Color(0xA6070A12);
 }
 
 abstract final class AppRadii {
   static const sm = 8.0;
   static const md = 12.0;
   static const lg = 16.0;
-  static const xl = 20.0;
+  static const xl = 24.0;
 }
 
 ThemeData buildBedtimeTheme() {
@@ -62,16 +71,17 @@ ThemeData buildBedtimeTheme() {
       displaySmall: const TextStyle(
         fontFamily: serif,
         fontSize: 30,
-        fontWeight: FontWeight.w700,
+        fontWeight: FontWeight.w500,
         height: 1.25,
         letterSpacing: -0.3,
         color: AppColors.onSurface,
       ),
       headlineMedium: const TextStyle(
         fontFamily: serif,
-        fontSize: 24,
-        fontWeight: FontWeight.w600,
+        fontSize: 26,
+        fontWeight: FontWeight.w500,
         height: 1.3,
+        letterSpacing: -0.1,
         color: AppColors.onSurface,
       ),
       titleLarge: const TextStyle(
@@ -104,12 +114,24 @@ ThemeData buildBedtimeTheme() {
         fontSize: 12,
         height: 1.4,
         letterSpacing: 0.2,
-        color: AppColors.onSurfaceDim,
+        color: AppColors.onSurfaceMuted,
       ),
       labelLarge: const TextStyle(
         fontSize: 13,
         fontWeight: FontWeight.w600,
         letterSpacing: 0.3,
+        color: AppColors.onSurface,
+      ),
+      labelMedium: const TextStyle(
+        fontSize: 12,
+        fontWeight: FontWeight.w500,
+        letterSpacing: 0.4,
+        color: AppColors.onSurfaceMuted,
+      ),
+      labelSmall: const TextStyle(
+        fontSize: 10,
+        fontWeight: FontWeight.w600,
+        letterSpacing: 0.6,
         color: AppColors.onSurfaceMuted,
       ),
     ),
@@ -130,7 +152,7 @@ ThemeData buildBedtimeTheme() {
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(AppRadii.lg),
-        side: const BorderSide(color: AppColors.outline),
+        side: const BorderSide(color: AppColors.outlineSubtle),
       ),
       margin: EdgeInsets.zero,
     ),
@@ -143,11 +165,11 @@ ThemeData buildBedtimeTheme() {
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(AppRadii.md),
-        borderSide: const BorderSide(color: Color(0xFF323D4E)),
+        borderSide: const BorderSide(color: AppColors.outlineSubtle),
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(AppRadii.md),
-        borderSide: const BorderSide(color: Color(0xFF323D4E)),
+        borderSide: const BorderSide(color: AppColors.outlineSubtle),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(AppRadii.md),
@@ -155,12 +177,12 @@ ThemeData buildBedtimeTheme() {
       ),
     ),
     chipTheme: base.chipTheme.copyWith(
-      backgroundColor: const Color(0xFF1B2E33),
+      backgroundColor: AppColors.surfacePaperLayered,
       selectedColor: AppColors.primary,
       disabledColor: AppColors.surfaceHigh,
-      labelStyle: const TextStyle(color: Color(0xFFE5DCBA), fontSize: 13),
+      labelStyle: const TextStyle(color: AppColors.onSurface, fontSize: 13),
       secondaryLabelStyle: const TextStyle(color: AppColors.onPrimary, fontSize: 13),
-      side: const BorderSide(color: Color(0xFF3A5248)),
+      side: const BorderSide(color: Color(0x40C38D9E)),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       showCheckmark: false,
@@ -171,21 +193,21 @@ ThemeData buildBedtimeTheme() {
         return AppColors.onSurfaceMuted;
       }),
       trackColor: WidgetStateProperty.resolveWith((s) {
-        if (s.contains(WidgetState.selected)) return AppColors.secondaryContainer;
+        if (s.contains(WidgetState.selected)) return AppColors.primary;
         return AppColors.surfaceHighest;
       }),
     ),
     segmentedButtonTheme: SegmentedButtonThemeData(
       style: ButtonStyle(
         backgroundColor: WidgetStateProperty.resolveWith((s) {
-          if (s.contains(WidgetState.selected)) return AppColors.primary;
-          return AppColors.surfaceHigh;
+          if (s.contains(WidgetState.selected)) return AppColors.primaryContainer;
+          return Colors.transparent;
         }),
         foregroundColor: WidgetStateProperty.resolveWith((s) {
-          if (s.contains(WidgetState.selected)) return AppColors.onPrimary;
+          if (s.contains(WidgetState.selected)) return AppColors.onPrimaryContainer;
           return AppColors.onSurfaceMuted;
         }),
-        side: const WidgetStatePropertyAll(BorderSide(color: AppColors.outline)),
+        side: const WidgetStatePropertyAll(BorderSide.none),
         shape: WidgetStatePropertyAll(
           RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadii.md)),
         ),
@@ -200,7 +222,7 @@ ThemeData buildBedtimeTheme() {
         elevation: 0,
         shadowColor: AppColors.lanternGlow,
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadii.lg)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
         textStyle: const TextStyle(
           fontFamily: serif,
           fontSize: 16,
@@ -209,7 +231,7 @@ ThemeData buildBedtimeTheme() {
       ),
     ),
     navigationBarTheme: NavigationBarThemeData(
-      backgroundColor: AppColors.surfaceLow,
+      backgroundColor: AppColors.card,
       indicatorColor: AppColors.primary.withValues(alpha: 0.22),
       elevation: 0,
       height: 68,
@@ -243,6 +265,6 @@ ThemeData buildBedtimeTheme() {
       thumbColor: AppColors.primarySoft,
       overlayColor: AppColors.lanternGlow,
     ),
-    dividerTheme: const DividerThemeData(color: AppColors.outline, thickness: 1),
+    dividerTheme: const DividerThemeData(color: AppColors.outlineSubtle, thickness: 1),
   );
 }
