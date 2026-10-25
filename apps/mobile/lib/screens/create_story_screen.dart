@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import '../api/client.dart';
 import '../l10n/app_localizations.dart';
 import '../config.dart';
-import '../local/create_draft.dart';
+import '../local/create_prefs.dart';
 import '../local/local_store.dart';
 import '../local/network_errors.dart';
 import '../theme/app_theme.dart';
@@ -51,8 +51,6 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
   bool busy = false;
   bool preparing = true;
   bool moreOptionsOpen = false;
-  /// After a successful create, skip re-persisting the form (esp. inspiration).
-  bool _skipDraftSave = false;
   /// AppBar title fades in after the page hero title scrolls away.
   double _appBarTitleOpacity = 0;
   String? quotaText;
@@ -240,7 +238,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
       _syncChildCastWithListeners();
     });
     await _syncPrimaryFromSelection();
-    unawaited(_saveDraft());
+    unawaited(_savePrefs());
   }
 
   /// Keep kind=child cast chips in sync with selected little listeners only.
@@ -287,48 +285,46 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
     }
   }
 
-  Future<void> _restoreDraft() async {
+  /// Defaults only — not inspiration or cast (those reset each visit).
+  Future<void> _loadPrefs() async {
     final store = widget.localStore;
     if (store == null) return;
-    final draft = await CreateDraft.load(store.userId);
-    if (draft == null || !mounted) return;
+    final prefs = await CreatePrefs.load(store.userId);
+    if (prefs == null || !mounted) return;
     setState(() {
-      final draftChild = _asId(draft['child_id']);
+      final draftChild = _asId(prefs['child_id']);
       if (draftChild != null) {
         childId = draftChild;
         selectedChildIds
           ..clear()
           ..add(draftChild);
       }
-      final ids = draft['child_ids'];
+      final ids = prefs['child_ids'];
       if (ids is List) {
         selectedChildIds
           ..clear()
           ..addAll(ids.map(_asId).whereType<int>());
       }
-      final t = draft['theme'] as String?;
-      if (t != null) themeCtrl.text = t;
-      final d = draft['duration'] as int?;
+      final d = prefs['duration'] as int?;
       if (d != null) duration = d;
-      final w = draft['wonder'] as String?;
+      final w = prefs['wonder'] as String?;
       if (w != null) wonder = w;
-      final dlg = draft['dialogue'] as String?;
+      final dlg = prefs['dialogue'] as String?;
       if (dlg != null) dialogue = dlg;
       // English stories are not ready on the backend yet — keep UI entry, force zh.
       language = 'zh';
       softSeries = kFeatureSoftSeries
-          ? (draft['soft_series'] as bool? ?? softSeries)
+          ? (prefs['soft_series'] as bool? ?? softSeries)
           : false;
     });
   }
 
-  Future<void> _saveDraft() async {
+  Future<void> _savePrefs() async {
     final store = widget.localStore;
     if (store == null) return;
-    await CreateDraft.save(store.userId, {
+    await CreatePrefs.save(store.userId, {
       'child_id': childId,
       'child_ids': selectedChildIds.toList(),
-      'theme': themeCtrl.text,
       'duration': duration,
       'wonder': wonder,
       'dialogue': dialogue,
@@ -385,7 +381,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
     setState(() => preparing = true);
     final store = widget.localStore;
     try {
-      await _restoreDraft();
+      await _loadPrefs();
 
       List<Map<String, dynamic>> listed;
       if (store != null) {
@@ -477,7 +473,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
         chosen = _asId(clone?['id']) ?? _asId(system?['id']);
       }
       voiceId = chosen;
-      await _saveDraft();
+      await _savePrefs();
     } catch (e) {
       // Keep cached child selection if we already applied one.
       if (!mounted) return;
@@ -566,13 +562,8 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
         );
       }
 
-      // Drop inspiration so the next visit starts blank; skip dispose save
-      // so it cannot race and rewrite the cleared draft.
-      themeCtrl.clear();
-      _skipDraftSave = true;
-      if (widget.localStore != null) {
-        await CreateDraft.clear(widget.localStore!.userId);
-      }
+      // Remember tonight's option defaults; inspiration stays session-only.
+      await _savePrefs();
       if (!mounted) return;
 
       await Navigator.of(context).pushReplacement(
@@ -597,9 +588,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
 
   @override
   void dispose() {
-    if (!_skipDraftSave) {
-      unawaited(_saveDraft());
-    }
+    unawaited(_savePrefs());
     themeCtrl.dispose();
     recapCtrl.dispose();
     super.dispose();
@@ -1029,7 +1018,6 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
             ),
             minLines: 2,
             maxLines: 4,
-            onChanged: (_) => unawaited(_saveDraft()),
           ),
           const SizedBox(height: 22),
           _sectionLabel(
@@ -1190,7 +1178,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
                     borderRadius: BorderRadius.circular(AppRadii.md),
                     onTap: () {
                       setState(() => wonder = id);
-                      unawaited(_saveDraft());
+                      unawaited(_savePrefs());
                     },
                     child: Padding(
                       padding: const EdgeInsets.symmetric(vertical: 10),
@@ -1295,7 +1283,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
                       },
                       onSelect: (v) {
                         language = v;
-                        unawaited(_saveDraft());
+                        unawaited(_savePrefs());
                       },
                     ),
                     const SizedBox(height: 22),
@@ -1306,7 +1294,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
                       selected: dialogue,
                       onSelect: (v) {
                         dialogue = v;
-                        unawaited(_saveDraft());
+                        unawaited(_savePrefs());
                       },
                     ),
                     if (kFeatureSoftSeries) ...[
@@ -1317,7 +1305,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
                         onChanged: (v) => setState(() {
                           softSeries = v;
                           if (!v) continueSeriesId = null;
-                          unawaited(_saveDraft());
+                          unawaited(_savePrefs());
                         }),
                       ),
                       if (softSeries) ...[
@@ -1529,7 +1517,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
             divisions: ticks.length - 1,
             onChanged: (v) {
               setState(() => duration = ticks[v.round()]);
-              unawaited(_saveDraft());
+              unawaited(_savePrefs());
             },
           ),
         ),

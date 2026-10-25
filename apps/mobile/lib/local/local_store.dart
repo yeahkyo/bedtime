@@ -1,5 +1,5 @@
 import '../api/client.dart';
-import 'create_draft.dart';
+import 'create_prefs.dart';
 import 'db/app_database.dart';
 import 'repositories/account_repository.dart';
 import 'repositories/character_repository.dart';
@@ -61,7 +61,7 @@ class LocalStore {
   Future<void> clearForLogout() async {
     await media.clearAllFiles();
     await db.clearUserData(userId);
-    await CreateDraft.clear(userId);
+    await CreatePrefs.clear(userId);
     await UserScope.clear();
   }
 

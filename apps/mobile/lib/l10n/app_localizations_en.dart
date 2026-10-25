@@ -24,7 +24,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get meVoicesTitle => 'Voices';
 
   @override
-  String get meVoicesSubtitleClone => 'System voices and parent voice clone';
+  String get meVoicesSubtitleClone => 'System voices and parent voice clones';
 
   @override
   String get meVoicesSubtitle => 'System reading voices';
@@ -53,13 +53,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get meTermsTitle => 'Terms of Service';
 
   @override
-  String get meTermsSubtitle => 'User agreement';
+  String get meTermsSubtitle => 'Legal terms';
 
   @override
   String get mePrivacyTitle => 'Privacy Policy';
 
   @override
-  String get mePrivacySubtitle => 'How we handle your data';
+  String get mePrivacySubtitle => 'How we use your data';
 
   @override
   String meVersion(String version) {
@@ -71,7 +71,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String meBrandFooter(String version) {
-    return 'Huhu · Pillow Tales  Version v$version';
+    return 'Huhu · Pillow Tales · v$version';
   }
 
   @override
@@ -93,10 +93,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get profileGuestHint => 'Sign in to sync stories and voices';
 
   @override
-  String get profileConnected => 'Connected to bedtime service';
+  String get profileConnected => 'Connected';
 
   @override
-  String get profileDefaultName => 'Bedtime parent';
+  String get profileDefaultName => 'Parent';
 
   @override
   String get profileLogin => 'Sign in';
@@ -156,7 +156,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get privacyTitle => 'Privacy Policy';
 
   @override
-  String get legalOpenFailed => 'Could not open the link.';
+  String get legalOpenFailed => 'Couldn\'t open the link.';
 
   @override
   String get commonCancel => 'Cancel';
@@ -186,7 +186,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get commonLoading => 'Loading';
 
   @override
-  String get genderUnspecified => 'Not specified';
+  String get genderUnspecified => 'Prefer not to say';
 
   @override
   String get genderBoy => 'Boy';
@@ -199,7 +199,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get homeOfflineSnackbar =>
-      'Offline mode: showing cached content. It will sync when you\'re back online.';
+      'You\'re offline. Showing saved stories — they\'ll sync when you\'re back online.';
 
   @override
   String get authBrandName => 'Huhu';
@@ -259,7 +259,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get authGoRegister => 'Register';
 
   @override
-  String get authNightHint => 'Low blue light for night · Sweet dreams';
+  String get authNightHint => 'Designed for night · Sweet dreams';
 
   @override
   String get authAgreeRegisterPrefix => 'By registering, you agree to the ';
@@ -295,11 +295,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get authErrorPasswordRequired => 'Please enter a password';
 
   @override
-  String get authErrorInvalidResponse => 'Invalid sign-in response';
+  String get authErrorInvalidResponse =>
+      'Something went wrong signing in. Please try again.';
 
   @override
   String authComingSoon(String feature) {
-    return '$feature is not available yet. Stay tuned.';
+    return '$feature isn\'t available yet. Stay tuned.';
   }
 
   @override
@@ -315,13 +316,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get storyProgressSeriesOutline => 'Outlining the series…';
 
   @override
-  String get storyProgressEpisodePlan => 'Planning tonight\'s plot…';
+  String get storyProgressEpisodePlan => 'Planning tonight\'s story…';
 
   @override
   String get storyProgressDraft => 'Writing the story…';
 
   @override
-  String get storyProgressTts => 'Generating narration audio…';
+  String get storyProgressTts => 'Recording the narration…';
 
   @override
   String get storyProgressReady => 'Done';
@@ -330,38 +331,38 @@ class AppLocalizationsEn extends AppLocalizations {
   String get storyProgressReadyPlay => 'Done — ready to play…';
 
   @override
-  String get storyProgressFailed => 'Generation failed';
+  String get storyProgressFailed => 'Couldn\'t finish';
 
   @override
   String storyProgressGenerating(String progress) {
-    return 'Generating ($progress)…';
+    return 'Creating ($progress)…';
   }
 
   @override
-  String get storyGenerateFailed => 'Story generation failed';
+  String get storyGenerateFailed => 'Couldn\'t create this story';
 
   @override
   String get storyGenerateFailedRetry =>
-      'Story generation failed. You can retry.';
+      'Couldn\'t create this story. You can try again.';
 
   @override
   String get storyStillGenerating =>
-      'Still generating — pull to refresh, then listen';
+      'Still creating — pull to refresh, then listen';
 
   @override
-  String get storyNoAudio => 'No audio available to play';
+  String get storyNoAudio => 'No audio to play yet';
 
   @override
   String get storyNoAudioShort => 'No audio yet';
 
   @override
-  String get storyCreateFailed => 'Could not create story';
+  String get storyCreateFailed => 'Couldn\'t start this story';
 
   @override
-  String get storyRetrying => 'Regenerating…';
+  String get storyRetrying => 'Trying again…';
 
   @override
-  String get storyResumeWaiting => 'Still waiting for generation…';
+  String get storyResumeWaiting => 'Still creating…';
 
   @override
   String get storyContinueWaiting => 'Keep waiting';
@@ -376,22 +377,22 @@ class AppLocalizationsEn extends AppLocalizations {
   String get storiesTitle => 'Stories';
 
   @override
-  String get storiesStatusWaitingFirst => 'Waiting for the first one';
+  String get storiesStatusWaitingFirst => 'Waiting for the first story';
 
   @override
-  String get storiesStatusReady => 'Night light ready';
+  String get storiesStatusReady => 'Ready for bedtime';
 
   @override
-  String get storiesCreateEyebrow => 'Dream engine · New chapter';
+  String get storiesCreateEyebrow => 'Tonight';
 
   @override
   String get storiesCreateTitle => 'Create tonight\'s story';
 
   @override
-  String get storiesCreateSubtitle => 'Custom cast, plot, and soothing audio';
+  String get storiesCreateSubtitle => 'Your cast, plot, and bedtime audio';
 
   @override
-  String get storiesLibraryTitle => 'Pillow tale bookshelf';
+  String get storiesLibraryTitle => 'Your stories';
 
   @override
   String get storiesLibraryEmpty => 'No stories yet';
@@ -402,17 +403,17 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get storiesEmptyShelfTitle => 'An empty shelf';
+  String get storiesEmptyShelfTitle => 'Your shelf is empty';
 
   @override
   String get storiesEmptyShelfBody =>
-      'Tonight\'s first little book is waiting — tap the golden card above.';
+      'Tap the card above to make tonight\'s first story.';
 
   @override
-  String get storiesUntitled => 'Unfinished story';
+  String get storiesUntitled => 'Untitled story';
 
   @override
-  String get storiesFailedRetry => 'Generation failed · Retry available';
+  String get storiesFailedRetry => 'Failed · Tap to retry';
 
   @override
   String storiesFailedWithError(String error) {
@@ -430,12 +431,12 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String storiesSeriesMeta(Object id) {
-    return 'Series #$id';
+    return 'Series $id';
   }
 
   @override
   String storiesEpisodeMeta(Object ep) {
-    return ' Ep. $ep';
+    return ' · Ep. $ep';
   }
 
   @override
@@ -452,40 +453,40 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get creatingBodyOk =>
-      'The cloud is writing the text and recording narration — usually a minute or two.';
+      'We\'re writing the story and recording the narration — usually a minute or two.';
 
   @override
   String get creatingBodyFail =>
-      'You can retry, or go back to the list and open this story later.';
+      'You can try again, or go back and open this story later.';
 
   @override
-  String get creatingHintsOkTitle => 'While it generates';
+  String get creatingHintsOkTitle => 'While you wait';
 
   @override
-  String get creatingHintsFailTitle => 'What you can do next';
+  String get creatingHintsFailTitle => 'What you can do';
 
   @override
   String get creatingHintAutoPlay =>
-      'When it\'s done, you\'ll open the player and start listening automatically.';
+      'When it\'s ready, you\'ll open the player and start listening.';
 
   @override
   String get creatingHintCloud =>
-      'Creation continues in the cloud — closing this page is fine.';
+      'It keeps going in the cloud — you can leave this page.';
 
   @override
   String get creatingHintList =>
-      'Return to Stories anytime to check progress or listen later.';
+      'Check Stories anytime for progress, or listen later.';
 
   @override
   String get creatingHintRetry =>
-      'Tap retry below to continue this story without using extra quota.';
+      'Retry below to continue this story — it won\'t use extra quota.';
 
   @override
   String get creatingHintBackLater =>
       'Or go back to the list and open or retry later.';
 
   @override
-  String get creatingRetry => 'Regenerate';
+  String get creatingRetry => 'Try again';
 
   @override
   String get creatingRetrying => 'Retrying…';
@@ -494,7 +495,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get creatingBackFailed => 'Back to stories';
 
   @override
-  String get creatingBackOk => 'Back to stories for now';
+  String get creatingBackOk => 'Back to stories';
 
   @override
   String get voicesManageTitle => 'Voices';
@@ -507,14 +508,13 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get voicesManageSubtitleClone =>
-      'Manage narration voices, or clone a parent\'s voice for bedtime stories';
+      'Preview voices, or clone a parent\'s voice';
 
   @override
-  String get voicesManageSubtitleSystem =>
-      'Manage system narration voices — preview and pick one';
+  String get voicesManageSubtitleSystem => 'Preview and pick a system voice';
 
   @override
-  String get voicesManageCloneCta => 'Clone a new voice';
+  String get voicesManageCloneCta => 'Clone a voice';
 
   @override
   String get voicesManageSectionTitle => 'Saved voices';
@@ -529,11 +529,11 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get voicesManageEmptyCloneHint =>
-      'Tap the button above to clone a parent\'s voice.';
+      'Tap above to clone a parent\'s voice.';
 
   @override
   String get voicesManageEmptySystemHint =>
-      'No system voices available. Try again later or contact support.';
+      'No system voices right now. Try again later.';
 
   @override
   String get voicesKindClone => 'Cloned voice';
@@ -546,10 +546,10 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get voicesPreviewUnavailableSnack =>
-      'Preview isn\'t available for this voice yet. Try again later.';
+      'Preview isn\'t ready for this voice yet.';
 
   @override
-  String get voicesPreviewUnavailableShort => 'No preview for this voice';
+  String get voicesPreviewUnavailableShort => 'No preview';
 
   @override
   String get voicesPreviewFailed => 'Couldn\'t play preview';
@@ -558,7 +558,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get voicesPreviewPlay => 'Preview';
 
   @override
-  String get voicesPreviewStop => 'Stop preview';
+  String get voicesPreviewStop => 'Stop';
 
   @override
   String get voicesPreviewStopShort => 'Stop';
@@ -567,7 +567,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get voicesNoPreviewSuffix => ' · No preview';
 
   @override
-  String get voiceCloneTitle => 'Clone a new voice';
+  String get voiceCloneTitle => 'Clone a voice';
 
   @override
   String get voiceCloneEyebrow => 'Huhu · Clone';
@@ -577,7 +577,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get voiceCloneHeaderSubtitle =>
-      'In a quiet place, read for about 10–15 seconds. The clone can narrate bedtime stories.';
+      'In a quiet spot, read for about 10–15 seconds.';
 
   @override
   String get voiceCloneNameSection => 'Voice name';
@@ -593,18 +593,18 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get voiceCloneUsageBody =>
-      'Original recordings are deleted soon after upload. Once cloned, you can pick this voice when creating stories.';
+      'We delete the original recording soon after upload. Then you can use this voice for bedtime stories.';
 
   @override
   String get voiceCloneConsent =>
-      'I agree to use my voice for bedtime story narration in this app';
+      'I agree to use my voice for bedtime stories in this app';
 
   @override
   String get voiceCloneScriptTitle => 'Please read this aloud';
 
   @override
   String get voiceCloneScriptSubtitle =>
-      'You may read both Chinese and English once; a natural pace is fine';
+      'A natural pace is fine — Chinese or English is OK';
 
   @override
   String get voiceCloneScriptZh =>
@@ -624,7 +624,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get voiceCloneReadyHint =>
-      'Sample ready — confirm the name and consent, then upload to clone';
+      'Sample ready — name it, agree, then upload';
 
   @override
   String get voiceCloneUpload => 'Upload & clone';
@@ -633,23 +633,23 @@ class AppLocalizationsEn extends AppLocalizations {
   String get voiceCloneUploading => 'Uploading…';
 
   @override
-  String get voiceCloneNeedMic => 'Microphone permission is required';
+  String get voiceCloneNeedMic => 'Microphone access is required';
 
   @override
   String get voiceCloneNeedName => 'Please enter a voice name';
 
   @override
-  String get voiceCloneNeedConsent => 'Please accept the consent checkbox';
+  String get voiceCloneNeedConsent => 'Please check the consent box';
 
   @override
   String get voiceCloneSuccess =>
-      'Clone ready — you can use it when creating stories';
+      'Voice ready — you can use it when creating stories';
 
   @override
   String get voicePickerTitle => 'Choose a voice';
 
   @override
-  String get voicePickerHint => 'Preview, then confirm to use';
+  String get voicePickerHint => 'Preview, then confirm';
 
   @override
   String get voicePickerUse => 'Use this voice';
@@ -664,8 +664,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get childrenManageTitle => 'Characters';
 
   @override
-  String get childrenManageTagline =>
-      'Dream cast book · Tailored bedtime tales';
+  String get childrenManageTagline => 'Listeners and cast for bedtime stories';
 
   @override
   String get childrenTabListeners => 'Listeners';
@@ -674,7 +673,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get childrenTabPeople => 'Family & friends';
 
   @override
-  String get childrenTabToys => 'Toy pals';
+  String get childrenTabToys => 'Toys';
 
   @override
   String get childrenFabListener => 'Add a listener';
@@ -683,14 +682,14 @@ class AppLocalizationsEn extends AppLocalizations {
   String get childrenFabPeople => 'Add family or friend';
 
   @override
-  String get childrenFabToy => 'Add a toy pal';
+  String get childrenFabToy => 'Add a toy';
 
   @override
   String get childrenEmptyListenersTitle => 'No listeners yet';
 
   @override
   String get childrenEmptyListenersBody =>
-      'Add a listener profile first to create stories and attach family or toys.';
+      'Add a listener first so you can create stories and link family or toys.';
 
   @override
   String get childrenEmptyListenersCta => 'Add your first listener';
@@ -700,10 +699,10 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get childrenEmptyPeopleBody =>
-      'Add grandparents, classmates, and more so they can appear in stories.';
+      'Add grandparents, classmates, and others so they can appear in stories.';
 
   @override
-  String get childrenEmptyToysTitle => 'No toy pals yet';
+  String get childrenEmptyToysTitle => 'No toys yet';
 
   @override
   String get childrenEmptyToysBody =>
@@ -737,11 +736,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get childrenIntroHint => 'Personality, recent mood…';
 
   @override
-  String get childrenPreferLabel => 'Story preferences (comma-separated)';
+  String get childrenPreferLabel => 'Story preferences';
 
   @override
   String get childrenPreferHint =>
-      'Dinosaur adventures, gentle fairy tales, a touch of humor';
+      'Dinosaur adventures, gentle fairy tales, a bit of humor';
 
   @override
   String get childrenAddToy => 'Add toy';
@@ -780,10 +779,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get childrenRelationHint => 'Grandpa / classmate / teacher…';
 
   @override
-  String get childrenToyNote => 'Look / temperament (optional)';
+  String get childrenToyNote => 'Look / personality (optional)';
 
   @override
-  String get childrenPersonNote => 'Traits (optional)';
+  String get childrenPersonNote => 'Notes (optional)';
 
   @override
   String get childrenToyNoteHint => 'Blue ears, loves to sing';
@@ -796,7 +795,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String childrenDeleteListenerBody(String name) {
-    return 'This will also delete family and toy characters under “$name”.';
+    return 'This also deletes family and toy characters under “$name”.';
   }
 
   @override
@@ -809,7 +808,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String childrenDeleteCharacterBody(String name) {
-    return 'After deleting “$name”, you won\'t be able to select them when creating stories.';
+    return 'After deleting “$name”, you won\'t be able to pick them in new stories.';
   }
 
   @override
@@ -819,7 +818,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get childrenTagListener => 'Listener';
 
   @override
-  String get childrenTagToy => 'Comfort plush';
+  String get childrenTagToy => 'Toy';
 
   @override
   String get childrenTagPeople => 'Family & friends';
@@ -830,7 +829,7 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get childrenEditPrefs => 'Edit profile & bedtime prefs';
+  String get childrenEditPrefs => 'Edit profile';
 
   @override
   String get childrenSleepPreset => 'Sleep preset';
@@ -842,12 +841,12 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String childrenToySubtitle(String name) {
-    return 'Bedside pal · Belongs to $name';
+    return 'Bedside pal · $name';
   }
 
   @override
   String childrenPersonalityPrefix(String note) {
-    return 'Personality: $note';
+    return 'Notes: $note';
   }
 
   @override
@@ -859,37 +858,37 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get childrenMagicTitle => 'Character magic';
+  String get childrenMagicTitle => 'Why profiles help';
 
   @override
   String get childrenMagicBody =>
-      'The dream engine uses the lead\'s age and preferences to weave gentle lines and a soothing bedtime rhythm into each night\'s soundscape.';
+      'We use age and preferences to keep each story gentle, familiar, and ready for bedtime.';
 
   @override
-  String get createStoryTitle => 'Customize tonight\'s story';
+  String get createStoryTitle => 'Tonight\'s story';
 
   @override
   String get createStoryNeedListenerTitle => 'Add a listener first';
 
   @override
   String get createStoryNeedListenerSubtitle =>
-      'With a child profile, you can customize tonight\'s story';
+      'A listener profile lets you customize tonight\'s story';
 
   @override
   String get createStoryNoRolesTitle => 'No characters yet';
 
   @override
   String get createStoryNoRolesBody =>
-      'Create a child profile (nickname, age, and more). Then come back to generate a story.';
+      'Add a listener (nickname, age, and more), then come back to create a story.';
 
   @override
-  String get createStoryGoAddChild => 'Add a child profile';
+  String get createStoryGoAddChild => 'Add a listener';
 
   @override
-  String get createStoryGenerate => 'Generate tonight\'s story';
+  String get createStoryGenerate => 'Create tonight\'s story';
 
   @override
-  String get createStoryGenerating => 'Generating…';
+  String get createStoryGenerating => 'Creating…';
 
   @override
   String get createStoryQuotaPrefix => 'Stories this month ';
@@ -900,49 +899,47 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get createStoryListenersTitle => 'Who is listening tonight?';
+  String get createStoryListenersTitle => 'Who\'s listening tonight?';
 
   @override
   String get createStoryListenersSubMulti =>
-      'Multi-select allowed; the story weaves from listeners\' preferences';
+      'You can pick more than one; we\'ll use their preferences';
 
   @override
   String get createStoryListenersSubSingle =>
-      'The story weaves from the listener\'s preferences';
+      'We\'ll use this listener\'s preferences';
 
   @override
-  String get createStoryManageListeners => 'Manage listener profiles';
+  String get createStoryManageListeners => 'Manage listeners';
 
   @override
   String get createStoryPrimaryListener => 'Primary listener';
 
   @override
-  String get createStoryNoPrefer =>
-      'No preferences yet · Soft bedtime fairy tales';
+  String get createStoryNoPrefer => 'No preferences yet · Soft bedtime tales';
 
   @override
-  String get createStoryOptionsTitle => 'What story tonight?';
+  String get createStoryOptionsTitle => 'What kind of story?';
 
   @override
   String get createStoryOptionsSubtitle =>
-      'We\'ll create from these ingredients';
+      'We\'ll build tonight\'s story from these choices';
 
   @override
-  String get createStoryInspiration => 'Story spark';
+  String get createStoryInspiration => 'Idea';
 
   @override
-  String get createStoryInspirationHint =>
-      'Optional — you can leave this blank';
+  String get createStoryInspirationHint => 'Optional';
 
   @override
   String get createStoryThemeHint =>
-      'What to tell tonight (optional), e.g. a kitten watching stars on a cloud…';
+      'e.g. a kitten watching stars on a cloud…';
 
   @override
-  String get createStoryCastTitle => 'Appearing tonight';
+  String get createStoryCastTitle => 'Tonight\'s cast';
 
   @override
-  String get createStoryAddCharacter => 'Add character';
+  String get createStoryAddCharacter => 'Add';
 
   @override
   String get createStoryCastEmpty =>
@@ -955,7 +952,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get createStoryType => 'Story type';
 
   @override
-  String get createStoryVoice => 'Narration voice';
+  String get createStoryVoice => 'Voice';
 
   @override
   String createStoryVoiceSelected(String name) {
@@ -972,10 +969,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get createStoryVoiceChange => 'Change';
 
   @override
-  String get createStoryMoreOptions => 'More options (language & dialogue)';
+  String get createStoryMoreOptions => 'More options';
 
   @override
-  String get createStoryLanguage => 'Narration language';
+  String get createStoryLanguage => 'Language';
 
   @override
   String get createStoryLangZh => 'Chinese';
@@ -985,25 +982,25 @@ class AppLocalizationsEn extends AppLocalizations {
       'English stories aren\'t available yet. Stay tuned.';
 
   @override
-  String get createStoryDialogue => 'How much dialogue';
+  String get createStoryDialogue => 'Dialogue';
 
   @override
-  String get createStoryTypeEveryday => 'Everyday life';
+  String get createStoryTypeEveryday => 'Everyday';
 
   @override
-  String get createStoryTypeSoft => 'A touch of imagination';
+  String get createStoryTypeSoft => 'Gentle wonder';
 
   @override
-  String get createStoryTypeFantasy => 'Wonderful worlds';
+  String get createStoryTypeFantasy => 'Fantasy';
 
   @override
-  String get createStoryDialogueLow => 'Very little dialogue';
+  String get createStoryDialogueLow => 'Very little';
 
   @override
-  String get createStoryDialogueSome => 'A little dialogue';
+  String get createStoryDialogueSome => 'A little';
 
   @override
-  String get createStoryDialogueMore => 'More dialogue';
+  String get createStoryDialogueMore => 'More';
 
   @override
   String get createStorySoftSeries => 'Soft series (continuable)';
@@ -1015,69 +1012,67 @@ class AppLocalizationsEn extends AppLocalizations {
   String get createStoryEpisodeNo => 'Episode number';
 
   @override
-  String get createStoryDreamRules => 'Dream rules';
+  String get createStoryDreamRules => 'Bedtime pace';
 
   @override
   String get createStoryDreamRulesBody =>
-      'The story gently settles into a calm rhythm, then fades into goodnight white noise.';
+      'The story eases into a calm rhythm, then fades into soft goodnight sounds.';
 
   @override
-  String get createStoryDuration => 'Length (minutes)';
+  String get createStoryDuration => 'Length';
 
   @override
-  String get createStoryErrAddChild => 'Please add a child profile first';
+  String get createStoryErrAddChild => 'Please add a listener first';
 
   @override
   String get createStoryErrNickname =>
-      'Please finish the child\'s nickname (tap the profile card to edit)';
+      'Please add a nickname (tap the profile to edit)';
 
   @override
-  String get createStoryErrVoice =>
-      'Please choose a voice (or create a system voice on the Voices page)';
+  String get createStoryErrVoice => 'Please choose a voice';
 
   @override
-  String get createStoryErrListener =>
-      'Please choose tonight\'s listener first';
+  String get createStoryErrListener => 'Please choose tonight\'s listener';
 
   @override
-  String get playerTitle => 'Co-read';
+  String get playerTitle => 'Story';
 
   @override
-  String get playerStatusLive => 'Bedside lamp · Night play on';
+  String get playerStatusLive => 'Playing';
 
   @override
   String get playerModePicture => 'Picture book';
 
   @override
-  String get playerModeAudio => 'Listen only';
+  String get playerModeAudio => 'Audio only';
 
   @override
-  String get playerWarmLight => 'Pillow glow';
+  String get playerWarmLight => 'Warm light';
 
   @override
   String get playerBrandLine => 'Huhu · Pillow Tales';
 
   @override
-  String get playerCoRead => 'Parent–child co-reading';
+  String get playerCoRead => 'Read along';
 
   @override
   String get playerFullText => 'Full text';
 
   @override
-  String get playerFollowAlong => 'Words glide along';
+  String get playerFollowAlong => 'Follow the words';
 
   @override
   String get playerCollapse => 'Collapse';
 
   @override
-  String get playerExpand => 'View full text';
+  String get playerExpand => 'Full text';
 
   @override
   String get playerSpeedTitle => 'Narration speed';
 
   @override
   String get playerSpeedHint =>
-      'Changes story narration only. Background music is unchanged. Audio is not re-synthesized.';
+      'Changes story speed only. Background music stays the same — no re-recording.';
 
   @override
   String playerSpeedCurrent(String speed) {
@@ -1086,7 +1081,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String playerBedTrack(String label) {
-    return 'Cradle bed sound · $label';
+    return 'Sleep sounds · $label';
   }
 
   @override
@@ -1094,18 +1089,18 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String playerRemain(String time) {
-    return 'Left $time';
+    return '$time left';
   }
 
   @override
-  String get playerBedFading => 'Bed sound is fading out';
+  String get playerBedFading => 'Sleep sounds fading out';
 
   @override
-  String get playerOutroOff => 'Turn off sleep music when the story ends';
+  String get playerOutroOff => 'Stop sleep music when the story ends';
 
   @override
   String playerOutroMinutes(int minutes) {
-    return 'Play $minutes more minutes after the story';
+    return 'Play $minutes more min after the story';
   }
 
   @override
@@ -1123,31 +1118,31 @@ class AppLocalizationsEn extends AppLocalizations {
   String get playerScript => 'Script';
 
   @override
-  String get playerTimerTitle => 'Timer for music';
+  String get playerTimerTitle => 'Sleep music timer';
 
   @override
   String get playerTimerSubtitle =>
-      'Delay turning off sleep music after the story ends';
+      'How long music keeps playing after the story';
 
   @override
   String playerTimerFading(String time) {
-    return 'Sleep music fading · $time left';
+    return 'Fading out · $time left';
   }
 
   @override
   String get playerTimerDelay => 'Delay';
 
   @override
-  String get createStoryDurationMood3 => '3 min · short nap';
+  String get createStoryDurationMood3 => '3 min · short';
 
   @override
-  String get createStoryDurationMood5 => '5 min · ready for sleep';
+  String get createStoryDurationMood5 => '5 min · bedtime';
 
   @override
-  String get createStoryDurationMood8 => '8 min · warm immersion';
+  String get createStoryDurationMood8 => '8 min · cozy';
 
   @override
-  String get createStoryDurationMood10 => '10 min · long fairy tale';
+  String get createStoryDurationMood10 => '10 min · longer';
 
   @override
   String get createStoryDurationMood12 => '12 min · deep rest';
@@ -1158,22 +1153,22 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get playerOutroMood0 => '0 min · stop when story ends';
+  String get playerOutroMood0 => '0 min · stop with story';
 
   @override
-  String get playerOutroMood1 => '1 min · soft afterglow';
+  String get playerOutroMood1 => '1 min · soft fade';
 
   @override
-  String get playerOutroMood5 => '5 min · gentle wind-down';
+  String get playerOutroMood5 => '5 min · wind-down';
 
   @override
-  String get playerOutroMood10 => '10 min · slowly quiet';
+  String get playerOutroMood10 => '10 min · settle';
 
   @override
-  String get playerOutroMood15 => '15 min · sleep echoes';
+  String get playerOutroMood15 => '15 min · linger';
 
   @override
-  String get playerOutroMood30 => '30 min · all-night companion';
+  String get playerOutroMood30 => '30 min · stay on';
 
   @override
   String playerOutroMoodMinutes(int minutes) {
@@ -1187,7 +1182,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String ageYearsMonths(int years, int months) {
-    return '$years years $months months';
+    return '$years yr $months mo';
   }
 
   @override
@@ -1197,55 +1192,55 @@ class AppLocalizationsEn extends AppLocalizations {
   String get storiesContinueEpisodeTooltip => 'Continue next episode';
 
   @override
-  String get netTimeout => 'Network timed out. Please try again later.';
+  String get netTimeout => 'Network timed out. Please try again.';
 
   @override
-  String get netOfflineCached => 'Network unavailable. Showing local cache.';
+  String get netOfflineCached => 'You\'re offline. Showing saved content.';
 
   @override
   String get apiSessionExpired => 'Session expired. Please sign in again.';
 
   @override
-  String get apiRefreshFailed => 'Could not refresh sign-in.';
+  String get apiRefreshFailed => 'Couldn\'t refresh sign-in.';
 
   @override
-  String get apiStoryGenerateFailed => 'Story generation failed';
+  String get apiStoryGenerateFailed => 'Couldn\'t create this story';
 
   @override
-  String get apiStoryCreateFailed => 'Could not create the story';
+  String get apiStoryCreateFailed => 'Couldn\'t start this story';
 
   @override
   String get apiStoryWaitNetworkUnstable =>
-      'Network is unstable; generation may still be running. Refresh Stories later, or tap Continue waiting.';
+      'Connection is unstable — creation may still be running. Refresh Stories later, or keep waiting.';
 
   @override
   String get apiStoryWaitTimeout =>
-      'Network timed out; generation may still be running. Refresh later or tap Continue waiting.';
+      'Timed out — creation may still be running. Refresh later or keep waiting.';
 
   @override
   String get apiStoryWaitOffline =>
-      'Network unavailable; generation may still be running. When back online, tap Continue waiting.';
+      'You\'re offline — creation may still be running. When back online, tap Keep waiting.';
 
   @override
   String get apiStoryWaitDeadline =>
-      'Timed out waiting for the story. Check Stories to see if it finished.';
+      'Timed out waiting. Check Stories to see if it finished.';
 
   @override
   String get apiNetworkUnstableRetry =>
-      'Network is unstable. Please try again later.';
+      'Connection is unstable. Please try again.';
 
   @override
-  String get apiForbidden => 'You don’t have permission for this action';
+  String get apiForbidden => 'You don\'t have permission for this';
 
   @override
-  String get apiNotFound => 'Content not found';
+  String get apiNotFound => 'Not found';
 
   @override
   String get apiTooManyRequests => 'Too many requests. Please try again later.';
 
   @override
   String get apiServerUnavailable =>
-      'Service temporarily unavailable. Please try again later.';
+      'Service is temporarily unavailable. Please try again later.';
 
   @override
   String apiRequestFailed(int statusCode) {

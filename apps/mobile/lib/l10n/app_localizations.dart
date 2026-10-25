@@ -132,7 +132,7 @@ abstract class AppLocalizations {
   /// No description provided for @meVoicesSubtitleClone.
   ///
   /// In en, this message translates to:
-  /// **'System voices and parent voice clone'**
+  /// **'System voices and parent voice clones'**
   String get meVoicesSubtitleClone;
 
   /// No description provided for @meVoicesSubtitle.
@@ -186,7 +186,7 @@ abstract class AppLocalizations {
   /// No description provided for @meTermsSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'User agreement'**
+  /// **'Legal terms'**
   String get meTermsSubtitle;
 
   /// No description provided for @mePrivacyTitle.
@@ -198,7 +198,7 @@ abstract class AppLocalizations {
   /// No description provided for @mePrivacySubtitle.
   ///
   /// In en, this message translates to:
-  /// **'How we handle your data'**
+  /// **'How we use your data'**
   String get mePrivacySubtitle;
 
   /// No description provided for @meVersion.
@@ -216,7 +216,7 @@ abstract class AppLocalizations {
   /// No description provided for @meBrandFooter.
   ///
   /// In en, this message translates to:
-  /// **'Huhu · Pillow Tales  Version v{version}'**
+  /// **'Huhu · Pillow Tales · v{version}'**
   String meBrandFooter(String version);
 
   /// No description provided for @languagePickerTitle.
@@ -258,13 +258,13 @@ abstract class AppLocalizations {
   /// No description provided for @profileConnected.
   ///
   /// In en, this message translates to:
-  /// **'Connected to bedtime service'**
+  /// **'Connected'**
   String get profileConnected;
 
   /// No description provided for @profileDefaultName.
   ///
   /// In en, this message translates to:
-  /// **'Bedtime parent'**
+  /// **'Parent'**
   String get profileDefaultName;
 
   /// No description provided for @profileLogin.
@@ -372,7 +372,7 @@ abstract class AppLocalizations {
   /// No description provided for @legalOpenFailed.
   ///
   /// In en, this message translates to:
-  /// **'Could not open the link.'**
+  /// **'Couldn\'t open the link.'**
   String get legalOpenFailed;
 
   /// No description provided for @commonCancel.
@@ -432,7 +432,7 @@ abstract class AppLocalizations {
   /// No description provided for @genderUnspecified.
   ///
   /// In en, this message translates to:
-  /// **'Not specified'**
+  /// **'Prefer not to say'**
   String get genderUnspecified;
 
   /// No description provided for @genderBoy.
@@ -456,7 +456,7 @@ abstract class AppLocalizations {
   /// No description provided for @homeOfflineSnackbar.
   ///
   /// In en, this message translates to:
-  /// **'Offline mode: showing cached content. It will sync when you\'re back online.'**
+  /// **'You\'re offline. Showing saved stories — they\'ll sync when you\'re back online.'**
   String get homeOfflineSnackbar;
 
   /// No description provided for @authBrandName.
@@ -576,7 +576,7 @@ abstract class AppLocalizations {
   /// No description provided for @authNightHint.
   ///
   /// In en, this message translates to:
-  /// **'Low blue light for night · Sweet dreams'**
+  /// **'Designed for night · Sweet dreams'**
   String get authNightHint;
 
   /// No description provided for @authAgreeRegisterPrefix.
@@ -648,13 +648,13 @@ abstract class AppLocalizations {
   /// No description provided for @authErrorInvalidResponse.
   ///
   /// In en, this message translates to:
-  /// **'Invalid sign-in response'**
+  /// **'Something went wrong signing in. Please try again.'**
   String get authErrorInvalidResponse;
 
   /// No description provided for @authComingSoon.
   ///
   /// In en, this message translates to:
-  /// **'{feature} is not available yet. Stay tuned.'**
+  /// **'{feature} isn\'t available yet. Stay tuned.'**
   String authComingSoon(String feature);
 
   /// No description provided for @authFeatureSmsLogin.
@@ -684,7 +684,7 @@ abstract class AppLocalizations {
   /// No description provided for @storyProgressEpisodePlan.
   ///
   /// In en, this message translates to:
-  /// **'Planning tonight\'s plot…'**
+  /// **'Planning tonight\'s story…'**
   String get storyProgressEpisodePlan;
 
   /// No description provided for @storyProgressDraft.
@@ -696,7 +696,7 @@ abstract class AppLocalizations {
   /// No description provided for @storyProgressTts.
   ///
   /// In en, this message translates to:
-  /// **'Generating narration audio…'**
+  /// **'Recording the narration…'**
   String get storyProgressTts;
 
   /// No description provided for @storyProgressReady.
@@ -714,37 +714,37 @@ abstract class AppLocalizations {
   /// No description provided for @storyProgressFailed.
   ///
   /// In en, this message translates to:
-  /// **'Generation failed'**
+  /// **'Couldn\'t finish'**
   String get storyProgressFailed;
 
   /// No description provided for @storyProgressGenerating.
   ///
   /// In en, this message translates to:
-  /// **'Generating ({progress})…'**
+  /// **'Creating ({progress})…'**
   String storyProgressGenerating(String progress);
 
   /// No description provided for @storyGenerateFailed.
   ///
   /// In en, this message translates to:
-  /// **'Story generation failed'**
+  /// **'Couldn\'t create this story'**
   String get storyGenerateFailed;
 
   /// No description provided for @storyGenerateFailedRetry.
   ///
   /// In en, this message translates to:
-  /// **'Story generation failed. You can retry.'**
+  /// **'Couldn\'t create this story. You can try again.'**
   String get storyGenerateFailedRetry;
 
   /// No description provided for @storyStillGenerating.
   ///
   /// In en, this message translates to:
-  /// **'Still generating — pull to refresh, then listen'**
+  /// **'Still creating — pull to refresh, then listen'**
   String get storyStillGenerating;
 
   /// No description provided for @storyNoAudio.
   ///
   /// In en, this message translates to:
-  /// **'No audio available to play'**
+  /// **'No audio to play yet'**
   String get storyNoAudio;
 
   /// No description provided for @storyNoAudioShort.
@@ -756,19 +756,19 @@ abstract class AppLocalizations {
   /// No description provided for @storyCreateFailed.
   ///
   /// In en, this message translates to:
-  /// **'Could not create story'**
+  /// **'Couldn\'t start this story'**
   String get storyCreateFailed;
 
   /// No description provided for @storyRetrying.
   ///
   /// In en, this message translates to:
-  /// **'Regenerating…'**
+  /// **'Trying again…'**
   String get storyRetrying;
 
   /// No description provided for @storyResumeWaiting.
   ///
   /// In en, this message translates to:
-  /// **'Still waiting for generation…'**
+  /// **'Still creating…'**
   String get storyResumeWaiting;
 
   /// No description provided for @storyContinueWaiting.
@@ -798,19 +798,19 @@ abstract class AppLocalizations {
   /// No description provided for @storiesStatusWaitingFirst.
   ///
   /// In en, this message translates to:
-  /// **'Waiting for the first one'**
+  /// **'Waiting for the first story'**
   String get storiesStatusWaitingFirst;
 
   /// No description provided for @storiesStatusReady.
   ///
   /// In en, this message translates to:
-  /// **'Night light ready'**
+  /// **'Ready for bedtime'**
   String get storiesStatusReady;
 
   /// No description provided for @storiesCreateEyebrow.
   ///
   /// In en, this message translates to:
-  /// **'Dream engine · New chapter'**
+  /// **'Tonight'**
   String get storiesCreateEyebrow;
 
   /// No description provided for @storiesCreateTitle.
@@ -822,13 +822,13 @@ abstract class AppLocalizations {
   /// No description provided for @storiesCreateSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'Custom cast, plot, and soothing audio'**
+  /// **'Your cast, plot, and bedtime audio'**
   String get storiesCreateSubtitle;
 
   /// No description provided for @storiesLibraryTitle.
   ///
   /// In en, this message translates to:
-  /// **'Pillow tale bookshelf'**
+  /// **'Your stories'**
   String get storiesLibraryTitle;
 
   /// No description provided for @storiesLibraryEmpty.
@@ -846,25 +846,25 @@ abstract class AppLocalizations {
   /// No description provided for @storiesEmptyShelfTitle.
   ///
   /// In en, this message translates to:
-  /// **'An empty shelf'**
+  /// **'Your shelf is empty'**
   String get storiesEmptyShelfTitle;
 
   /// No description provided for @storiesEmptyShelfBody.
   ///
   /// In en, this message translates to:
-  /// **'Tonight\'s first little book is waiting — tap the golden card above.'**
+  /// **'Tap the card above to make tonight\'s first story.'**
   String get storiesEmptyShelfBody;
 
   /// No description provided for @storiesUntitled.
   ///
   /// In en, this message translates to:
-  /// **'Unfinished story'**
+  /// **'Untitled story'**
   String get storiesUntitled;
 
   /// No description provided for @storiesFailedRetry.
   ///
   /// In en, this message translates to:
-  /// **'Generation failed · Retry available'**
+  /// **'Failed · Tap to retry'**
   String get storiesFailedRetry;
 
   /// No description provided for @storiesFailedWithError.
@@ -888,13 +888,13 @@ abstract class AppLocalizations {
   /// No description provided for @storiesSeriesMeta.
   ///
   /// In en, this message translates to:
-  /// **'Series #{id}'**
+  /// **'Series {id}'**
   String storiesSeriesMeta(Object id);
 
   /// No description provided for @storiesEpisodeMeta.
   ///
   /// In en, this message translates to:
-  /// **' Ep. {ep}'**
+  /// **' · Ep. {ep}'**
   String storiesEpisodeMeta(Object ep);
 
   /// No description provided for @creatingTitle.
@@ -924,49 +924,49 @@ abstract class AppLocalizations {
   /// No description provided for @creatingBodyOk.
   ///
   /// In en, this message translates to:
-  /// **'The cloud is writing the text and recording narration — usually a minute or two.'**
+  /// **'We\'re writing the story and recording the narration — usually a minute or two.'**
   String get creatingBodyOk;
 
   /// No description provided for @creatingBodyFail.
   ///
   /// In en, this message translates to:
-  /// **'You can retry, or go back to the list and open this story later.'**
+  /// **'You can try again, or go back and open this story later.'**
   String get creatingBodyFail;
 
   /// No description provided for @creatingHintsOkTitle.
   ///
   /// In en, this message translates to:
-  /// **'While it generates'**
+  /// **'While you wait'**
   String get creatingHintsOkTitle;
 
   /// No description provided for @creatingHintsFailTitle.
   ///
   /// In en, this message translates to:
-  /// **'What you can do next'**
+  /// **'What you can do'**
   String get creatingHintsFailTitle;
 
   /// No description provided for @creatingHintAutoPlay.
   ///
   /// In en, this message translates to:
-  /// **'When it\'s done, you\'ll open the player and start listening automatically.'**
+  /// **'When it\'s ready, you\'ll open the player and start listening.'**
   String get creatingHintAutoPlay;
 
   /// No description provided for @creatingHintCloud.
   ///
   /// In en, this message translates to:
-  /// **'Creation continues in the cloud — closing this page is fine.'**
+  /// **'It keeps going in the cloud — you can leave this page.'**
   String get creatingHintCloud;
 
   /// No description provided for @creatingHintList.
   ///
   /// In en, this message translates to:
-  /// **'Return to Stories anytime to check progress or listen later.'**
+  /// **'Check Stories anytime for progress, or listen later.'**
   String get creatingHintList;
 
   /// No description provided for @creatingHintRetry.
   ///
   /// In en, this message translates to:
-  /// **'Tap retry below to continue this story without using extra quota.'**
+  /// **'Retry below to continue this story — it won\'t use extra quota.'**
   String get creatingHintRetry;
 
   /// No description provided for @creatingHintBackLater.
@@ -978,7 +978,7 @@ abstract class AppLocalizations {
   /// No description provided for @creatingRetry.
   ///
   /// In en, this message translates to:
-  /// **'Regenerate'**
+  /// **'Try again'**
   String get creatingRetry;
 
   /// No description provided for @creatingRetrying.
@@ -996,7 +996,7 @@ abstract class AppLocalizations {
   /// No description provided for @creatingBackOk.
   ///
   /// In en, this message translates to:
-  /// **'Back to stories for now'**
+  /// **'Back to stories'**
   String get creatingBackOk;
 
   /// No description provided for @voicesManageTitle.
@@ -1020,19 +1020,19 @@ abstract class AppLocalizations {
   /// No description provided for @voicesManageSubtitleClone.
   ///
   /// In en, this message translates to:
-  /// **'Manage narration voices, or clone a parent\'s voice for bedtime stories'**
+  /// **'Preview voices, or clone a parent\'s voice'**
   String get voicesManageSubtitleClone;
 
   /// No description provided for @voicesManageSubtitleSystem.
   ///
   /// In en, this message translates to:
-  /// **'Manage system narration voices — preview and pick one'**
+  /// **'Preview and pick a system voice'**
   String get voicesManageSubtitleSystem;
 
   /// No description provided for @voicesManageCloneCta.
   ///
   /// In en, this message translates to:
-  /// **'Clone a new voice'**
+  /// **'Clone a voice'**
   String get voicesManageCloneCta;
 
   /// No description provided for @voicesManageSectionTitle.
@@ -1056,13 +1056,13 @@ abstract class AppLocalizations {
   /// No description provided for @voicesManageEmptyCloneHint.
   ///
   /// In en, this message translates to:
-  /// **'Tap the button above to clone a parent\'s voice.'**
+  /// **'Tap above to clone a parent\'s voice.'**
   String get voicesManageEmptyCloneHint;
 
   /// No description provided for @voicesManageEmptySystemHint.
   ///
   /// In en, this message translates to:
-  /// **'No system voices available. Try again later or contact support.'**
+  /// **'No system voices right now. Try again later.'**
   String get voicesManageEmptySystemHint;
 
   /// No description provided for @voicesKindClone.
@@ -1086,13 +1086,13 @@ abstract class AppLocalizations {
   /// No description provided for @voicesPreviewUnavailableSnack.
   ///
   /// In en, this message translates to:
-  /// **'Preview isn\'t available for this voice yet. Try again later.'**
+  /// **'Preview isn\'t ready for this voice yet.'**
   String get voicesPreviewUnavailableSnack;
 
   /// No description provided for @voicesPreviewUnavailableShort.
   ///
   /// In en, this message translates to:
-  /// **'No preview for this voice'**
+  /// **'No preview'**
   String get voicesPreviewUnavailableShort;
 
   /// No description provided for @voicesPreviewFailed.
@@ -1110,7 +1110,7 @@ abstract class AppLocalizations {
   /// No description provided for @voicesPreviewStop.
   ///
   /// In en, this message translates to:
-  /// **'Stop preview'**
+  /// **'Stop'**
   String get voicesPreviewStop;
 
   /// No description provided for @voicesPreviewStopShort.
@@ -1128,7 +1128,7 @@ abstract class AppLocalizations {
   /// No description provided for @voiceCloneTitle.
   ///
   /// In en, this message translates to:
-  /// **'Clone a new voice'**
+  /// **'Clone a voice'**
   String get voiceCloneTitle;
 
   /// No description provided for @voiceCloneEyebrow.
@@ -1146,7 +1146,7 @@ abstract class AppLocalizations {
   /// No description provided for @voiceCloneHeaderSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'In a quiet place, read for about 10–15 seconds. The clone can narrate bedtime stories.'**
+  /// **'In a quiet spot, read for about 10–15 seconds.'**
   String get voiceCloneHeaderSubtitle;
 
   /// No description provided for @voiceCloneNameSection.
@@ -1176,13 +1176,13 @@ abstract class AppLocalizations {
   /// No description provided for @voiceCloneUsageBody.
   ///
   /// In en, this message translates to:
-  /// **'Original recordings are deleted soon after upload. Once cloned, you can pick this voice when creating stories.'**
+  /// **'We delete the original recording soon after upload. Then you can use this voice for bedtime stories.'**
   String get voiceCloneUsageBody;
 
   /// No description provided for @voiceCloneConsent.
   ///
   /// In en, this message translates to:
-  /// **'I agree to use my voice for bedtime story narration in this app'**
+  /// **'I agree to use my voice for bedtime stories in this app'**
   String get voiceCloneConsent;
 
   /// No description provided for @voiceCloneScriptTitle.
@@ -1194,7 +1194,7 @@ abstract class AppLocalizations {
   /// No description provided for @voiceCloneScriptSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'You may read both Chinese and English once; a natural pace is fine'**
+  /// **'A natural pace is fine — Chinese or English is OK'**
   String get voiceCloneScriptSubtitle;
 
   /// No description provided for @voiceCloneScriptZh.
@@ -1230,7 +1230,7 @@ abstract class AppLocalizations {
   /// No description provided for @voiceCloneReadyHint.
   ///
   /// In en, this message translates to:
-  /// **'Sample ready — confirm the name and consent, then upload to clone'**
+  /// **'Sample ready — name it, agree, then upload'**
   String get voiceCloneReadyHint;
 
   /// No description provided for @voiceCloneUpload.
@@ -1248,7 +1248,7 @@ abstract class AppLocalizations {
   /// No description provided for @voiceCloneNeedMic.
   ///
   /// In en, this message translates to:
-  /// **'Microphone permission is required'**
+  /// **'Microphone access is required'**
   String get voiceCloneNeedMic;
 
   /// No description provided for @voiceCloneNeedName.
@@ -1260,13 +1260,13 @@ abstract class AppLocalizations {
   /// No description provided for @voiceCloneNeedConsent.
   ///
   /// In en, this message translates to:
-  /// **'Please accept the consent checkbox'**
+  /// **'Please check the consent box'**
   String get voiceCloneNeedConsent;
 
   /// No description provided for @voiceCloneSuccess.
   ///
   /// In en, this message translates to:
-  /// **'Clone ready — you can use it when creating stories'**
+  /// **'Voice ready — you can use it when creating stories'**
   String get voiceCloneSuccess;
 
   /// No description provided for @voicePickerTitle.
@@ -1278,7 +1278,7 @@ abstract class AppLocalizations {
   /// No description provided for @voicePickerHint.
   ///
   /// In en, this message translates to:
-  /// **'Preview, then confirm to use'**
+  /// **'Preview, then confirm'**
   String get voicePickerHint;
 
   /// No description provided for @voicePickerUse.
@@ -1308,7 +1308,7 @@ abstract class AppLocalizations {
   /// No description provided for @childrenManageTagline.
   ///
   /// In en, this message translates to:
-  /// **'Dream cast book · Tailored bedtime tales'**
+  /// **'Listeners and cast for bedtime stories'**
   String get childrenManageTagline;
 
   /// No description provided for @childrenTabListeners.
@@ -1326,7 +1326,7 @@ abstract class AppLocalizations {
   /// No description provided for @childrenTabToys.
   ///
   /// In en, this message translates to:
-  /// **'Toy pals'**
+  /// **'Toys'**
   String get childrenTabToys;
 
   /// No description provided for @childrenFabListener.
@@ -1344,7 +1344,7 @@ abstract class AppLocalizations {
   /// No description provided for @childrenFabToy.
   ///
   /// In en, this message translates to:
-  /// **'Add a toy pal'**
+  /// **'Add a toy'**
   String get childrenFabToy;
 
   /// No description provided for @childrenEmptyListenersTitle.
@@ -1356,7 +1356,7 @@ abstract class AppLocalizations {
   /// No description provided for @childrenEmptyListenersBody.
   ///
   /// In en, this message translates to:
-  /// **'Add a listener profile first to create stories and attach family or toys.'**
+  /// **'Add a listener first so you can create stories and link family or toys.'**
   String get childrenEmptyListenersBody;
 
   /// No description provided for @childrenEmptyListenersCta.
@@ -1374,13 +1374,13 @@ abstract class AppLocalizations {
   /// No description provided for @childrenEmptyPeopleBody.
   ///
   /// In en, this message translates to:
-  /// **'Add grandparents, classmates, and more so they can appear in stories.'**
+  /// **'Add grandparents, classmates, and others so they can appear in stories.'**
   String get childrenEmptyPeopleBody;
 
   /// No description provided for @childrenEmptyToysTitle.
   ///
   /// In en, this message translates to:
-  /// **'No toy pals yet'**
+  /// **'No toys yet'**
   String get childrenEmptyToysTitle;
 
   /// No description provided for @childrenEmptyToysBody.
@@ -1446,13 +1446,13 @@ abstract class AppLocalizations {
   /// No description provided for @childrenPreferLabel.
   ///
   /// In en, this message translates to:
-  /// **'Story preferences (comma-separated)'**
+  /// **'Story preferences'**
   String get childrenPreferLabel;
 
   /// No description provided for @childrenPreferHint.
   ///
   /// In en, this message translates to:
-  /// **'Dinosaur adventures, gentle fairy tales, a touch of humor'**
+  /// **'Dinosaur adventures, gentle fairy tales, a bit of humor'**
   String get childrenPreferHint;
 
   /// No description provided for @childrenAddToy.
@@ -1530,13 +1530,13 @@ abstract class AppLocalizations {
   /// No description provided for @childrenToyNote.
   ///
   /// In en, this message translates to:
-  /// **'Look / temperament (optional)'**
+  /// **'Look / personality (optional)'**
   String get childrenToyNote;
 
   /// No description provided for @childrenPersonNote.
   ///
   /// In en, this message translates to:
-  /// **'Traits (optional)'**
+  /// **'Notes (optional)'**
   String get childrenPersonNote;
 
   /// No description provided for @childrenToyNoteHint.
@@ -1560,7 +1560,7 @@ abstract class AppLocalizations {
   /// No description provided for @childrenDeleteListenerBody.
   ///
   /// In en, this message translates to:
-  /// **'This will also delete family and toy characters under “{name}”.'**
+  /// **'This also deletes family and toy characters under “{name}”.'**
   String childrenDeleteListenerBody(String name);
 
   /// No description provided for @childrenDeleted.
@@ -1578,7 +1578,7 @@ abstract class AppLocalizations {
   /// No description provided for @childrenDeleteCharacterBody.
   ///
   /// In en, this message translates to:
-  /// **'After deleting “{name}”, you won\'t be able to select them when creating stories.'**
+  /// **'After deleting “{name}”, you won\'t be able to pick them in new stories.'**
   String childrenDeleteCharacterBody(String name);
 
   /// No description provided for @childrenDefaultCharacter.
@@ -1596,7 +1596,7 @@ abstract class AppLocalizations {
   /// No description provided for @childrenTagToy.
   ///
   /// In en, this message translates to:
-  /// **'Comfort plush'**
+  /// **'Toy'**
   String get childrenTagToy;
 
   /// No description provided for @childrenTagPeople.
@@ -1614,7 +1614,7 @@ abstract class AppLocalizations {
   /// No description provided for @childrenEditPrefs.
   ///
   /// In en, this message translates to:
-  /// **'Edit profile & bedtime prefs'**
+  /// **'Edit profile'**
   String get childrenEditPrefs;
 
   /// No description provided for @childrenSleepPreset.
@@ -1632,13 +1632,13 @@ abstract class AppLocalizations {
   /// No description provided for @childrenToySubtitle.
   ///
   /// In en, this message translates to:
-  /// **'Bedside pal · Belongs to {name}'**
+  /// **'Bedside pal · {name}'**
   String childrenToySubtitle(String name);
 
   /// No description provided for @childrenPersonalityPrefix.
   ///
   /// In en, this message translates to:
-  /// **'Personality: {note}'**
+  /// **'Notes: {note}'**
   String childrenPersonalityPrefix(String note);
 
   /// No description provided for @childrenUnlinked.
@@ -1656,19 +1656,19 @@ abstract class AppLocalizations {
   /// No description provided for @childrenMagicTitle.
   ///
   /// In en, this message translates to:
-  /// **'Character magic'**
+  /// **'Why profiles help'**
   String get childrenMagicTitle;
 
   /// No description provided for @childrenMagicBody.
   ///
   /// In en, this message translates to:
-  /// **'The dream engine uses the lead\'s age and preferences to weave gentle lines and a soothing bedtime rhythm into each night\'s soundscape.'**
+  /// **'We use age and preferences to keep each story gentle, familiar, and ready for bedtime.'**
   String get childrenMagicBody;
 
   /// No description provided for @createStoryTitle.
   ///
   /// In en, this message translates to:
-  /// **'Customize tonight\'s story'**
+  /// **'Tonight\'s story'**
   String get createStoryTitle;
 
   /// No description provided for @createStoryNeedListenerTitle.
@@ -1680,7 +1680,7 @@ abstract class AppLocalizations {
   /// No description provided for @createStoryNeedListenerSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'With a child profile, you can customize tonight\'s story'**
+  /// **'A listener profile lets you customize tonight\'s story'**
   String get createStoryNeedListenerSubtitle;
 
   /// No description provided for @createStoryNoRolesTitle.
@@ -1692,25 +1692,25 @@ abstract class AppLocalizations {
   /// No description provided for @createStoryNoRolesBody.
   ///
   /// In en, this message translates to:
-  /// **'Create a child profile (nickname, age, and more). Then come back to generate a story.'**
+  /// **'Add a listener (nickname, age, and more), then come back to create a story.'**
   String get createStoryNoRolesBody;
 
   /// No description provided for @createStoryGoAddChild.
   ///
   /// In en, this message translates to:
-  /// **'Add a child profile'**
+  /// **'Add a listener'**
   String get createStoryGoAddChild;
 
   /// No description provided for @createStoryGenerate.
   ///
   /// In en, this message translates to:
-  /// **'Generate tonight\'s story'**
+  /// **'Create tonight\'s story'**
   String get createStoryGenerate;
 
   /// No description provided for @createStoryGenerating.
   ///
   /// In en, this message translates to:
-  /// **'Generating…'**
+  /// **'Creating…'**
   String get createStoryGenerating;
 
   /// No description provided for @createStoryQuotaPrefix.
@@ -1728,25 +1728,25 @@ abstract class AppLocalizations {
   /// No description provided for @createStoryListenersTitle.
   ///
   /// In en, this message translates to:
-  /// **'Who is listening tonight?'**
+  /// **'Who\'s listening tonight?'**
   String get createStoryListenersTitle;
 
   /// No description provided for @createStoryListenersSubMulti.
   ///
   /// In en, this message translates to:
-  /// **'Multi-select allowed; the story weaves from listeners\' preferences'**
+  /// **'You can pick more than one; we\'ll use their preferences'**
   String get createStoryListenersSubMulti;
 
   /// No description provided for @createStoryListenersSubSingle.
   ///
   /// In en, this message translates to:
-  /// **'The story weaves from the listener\'s preferences'**
+  /// **'We\'ll use this listener\'s preferences'**
   String get createStoryListenersSubSingle;
 
   /// No description provided for @createStoryManageListeners.
   ///
   /// In en, this message translates to:
-  /// **'Manage listener profiles'**
+  /// **'Manage listeners'**
   String get createStoryManageListeners;
 
   /// No description provided for @createStoryPrimaryListener.
@@ -1758,49 +1758,49 @@ abstract class AppLocalizations {
   /// No description provided for @createStoryNoPrefer.
   ///
   /// In en, this message translates to:
-  /// **'No preferences yet · Soft bedtime fairy tales'**
+  /// **'No preferences yet · Soft bedtime tales'**
   String get createStoryNoPrefer;
 
   /// No description provided for @createStoryOptionsTitle.
   ///
   /// In en, this message translates to:
-  /// **'What story tonight?'**
+  /// **'What kind of story?'**
   String get createStoryOptionsTitle;
 
   /// No description provided for @createStoryOptionsSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'We\'ll create from these ingredients'**
+  /// **'We\'ll build tonight\'s story from these choices'**
   String get createStoryOptionsSubtitle;
 
   /// No description provided for @createStoryInspiration.
   ///
   /// In en, this message translates to:
-  /// **'Story spark'**
+  /// **'Idea'**
   String get createStoryInspiration;
 
   /// No description provided for @createStoryInspirationHint.
   ///
   /// In en, this message translates to:
-  /// **'Optional — you can leave this blank'**
+  /// **'Optional'**
   String get createStoryInspirationHint;
 
   /// No description provided for @createStoryThemeHint.
   ///
   /// In en, this message translates to:
-  /// **'What to tell tonight (optional), e.g. a kitten watching stars on a cloud…'**
+  /// **'Optional — e.g. a kitten watching stars on a cloud…'**
   String get createStoryThemeHint;
 
   /// No description provided for @createStoryCastTitle.
   ///
   /// In en, this message translates to:
-  /// **'Appearing tonight'**
+  /// **'Tonight\'s cast'**
   String get createStoryCastTitle;
 
   /// No description provided for @createStoryAddCharacter.
   ///
   /// In en, this message translates to:
-  /// **'Add character'**
+  /// **'Add'**
   String get createStoryAddCharacter;
 
   /// No description provided for @createStoryCastEmpty.
@@ -1824,7 +1824,7 @@ abstract class AppLocalizations {
   /// No description provided for @createStoryVoice.
   ///
   /// In en, this message translates to:
-  /// **'Narration voice'**
+  /// **'Voice'**
   String get createStoryVoice;
 
   /// No description provided for @createStoryVoiceSelected.
@@ -1854,13 +1854,13 @@ abstract class AppLocalizations {
   /// No description provided for @createStoryMoreOptions.
   ///
   /// In en, this message translates to:
-  /// **'More options (language & dialogue)'**
+  /// **'More options'**
   String get createStoryMoreOptions;
 
   /// No description provided for @createStoryLanguage.
   ///
   /// In en, this message translates to:
-  /// **'Narration language'**
+  /// **'Language'**
   String get createStoryLanguage;
 
   /// No description provided for @createStoryLangZh.
@@ -1878,43 +1878,43 @@ abstract class AppLocalizations {
   /// No description provided for @createStoryDialogue.
   ///
   /// In en, this message translates to:
-  /// **'How much dialogue'**
+  /// **'Dialogue'**
   String get createStoryDialogue;
 
   /// No description provided for @createStoryTypeEveryday.
   ///
   /// In en, this message translates to:
-  /// **'Everyday life'**
+  /// **'Everyday'**
   String get createStoryTypeEveryday;
 
   /// No description provided for @createStoryTypeSoft.
   ///
   /// In en, this message translates to:
-  /// **'A touch of imagination'**
+  /// **'Gentle wonder'**
   String get createStoryTypeSoft;
 
   /// No description provided for @createStoryTypeFantasy.
   ///
   /// In en, this message translates to:
-  /// **'Wonderful worlds'**
+  /// **'Fantasy'**
   String get createStoryTypeFantasy;
 
   /// No description provided for @createStoryDialogueLow.
   ///
   /// In en, this message translates to:
-  /// **'Very little dialogue'**
+  /// **'Very little'**
   String get createStoryDialogueLow;
 
   /// No description provided for @createStoryDialogueSome.
   ///
   /// In en, this message translates to:
-  /// **'A little dialogue'**
+  /// **'A little'**
   String get createStoryDialogueSome;
 
   /// No description provided for @createStoryDialogueMore.
   ///
   /// In en, this message translates to:
-  /// **'More dialogue'**
+  /// **'More'**
   String get createStoryDialogueMore;
 
   /// No description provided for @createStorySoftSeries.
@@ -1938,55 +1938,55 @@ abstract class AppLocalizations {
   /// No description provided for @createStoryDreamRules.
   ///
   /// In en, this message translates to:
-  /// **'Dream rules'**
+  /// **'Bedtime pace'**
   String get createStoryDreamRules;
 
   /// No description provided for @createStoryDreamRulesBody.
   ///
   /// In en, this message translates to:
-  /// **'The story gently settles into a calm rhythm, then fades into goodnight white noise.'**
+  /// **'The story eases into a calm rhythm, then fades into soft goodnight sounds.'**
   String get createStoryDreamRulesBody;
 
   /// No description provided for @createStoryDuration.
   ///
   /// In en, this message translates to:
-  /// **'Length (minutes)'**
+  /// **'Length'**
   String get createStoryDuration;
 
   /// No description provided for @createStoryErrAddChild.
   ///
   /// In en, this message translates to:
-  /// **'Please add a child profile first'**
+  /// **'Please add a listener first'**
   String get createStoryErrAddChild;
 
   /// No description provided for @createStoryErrNickname.
   ///
   /// In en, this message translates to:
-  /// **'Please finish the child\'s nickname (tap the profile card to edit)'**
+  /// **'Please add a nickname (tap the profile to edit)'**
   String get createStoryErrNickname;
 
   /// No description provided for @createStoryErrVoice.
   ///
   /// In en, this message translates to:
-  /// **'Please choose a voice (or create a system voice on the Voices page)'**
+  /// **'Please choose a voice'**
   String get createStoryErrVoice;
 
   /// No description provided for @createStoryErrListener.
   ///
   /// In en, this message translates to:
-  /// **'Please choose tonight\'s listener first'**
+  /// **'Please choose tonight\'s listener'**
   String get createStoryErrListener;
 
   /// No description provided for @playerTitle.
   ///
   /// In en, this message translates to:
-  /// **'Co-read'**
+  /// **'Story'**
   String get playerTitle;
 
   /// No description provided for @playerStatusLive.
   ///
   /// In en, this message translates to:
-  /// **'Bedside lamp · Night play on'**
+  /// **'Playing'**
   String get playerStatusLive;
 
   /// No description provided for @playerModePicture.
@@ -1998,13 +1998,13 @@ abstract class AppLocalizations {
   /// No description provided for @playerModeAudio.
   ///
   /// In en, this message translates to:
-  /// **'Listen only'**
+  /// **'Audio only'**
   String get playerModeAudio;
 
   /// No description provided for @playerWarmLight.
   ///
   /// In en, this message translates to:
-  /// **'Pillow glow'**
+  /// **'Warm light'**
   String get playerWarmLight;
 
   /// No description provided for @playerBrandLine.
@@ -2016,7 +2016,7 @@ abstract class AppLocalizations {
   /// No description provided for @playerCoRead.
   ///
   /// In en, this message translates to:
-  /// **'Parent–child co-reading'**
+  /// **'Read along'**
   String get playerCoRead;
 
   /// No description provided for @playerFullText.
@@ -2028,7 +2028,7 @@ abstract class AppLocalizations {
   /// No description provided for @playerFollowAlong.
   ///
   /// In en, this message translates to:
-  /// **'Words glide along'**
+  /// **'Follow the words'**
   String get playerFollowAlong;
 
   /// No description provided for @playerCollapse.
@@ -2040,7 +2040,7 @@ abstract class AppLocalizations {
   /// No description provided for @playerExpand.
   ///
   /// In en, this message translates to:
-  /// **'View full text'**
+  /// **'Full text'**
   String get playerExpand;
 
   /// No description provided for @playerSpeedTitle.
@@ -2052,7 +2052,7 @@ abstract class AppLocalizations {
   /// No description provided for @playerSpeedHint.
   ///
   /// In en, this message translates to:
-  /// **'Changes story narration only. Background music is unchanged. Audio is not re-synthesized.'**
+  /// **'Changes story speed only. Background music stays the same — no re-recording.'**
   String get playerSpeedHint;
 
   /// No description provided for @playerSpeedCurrent.
@@ -2064,7 +2064,7 @@ abstract class AppLocalizations {
   /// No description provided for @playerBedTrack.
   ///
   /// In en, this message translates to:
-  /// **'Cradle bed sound · {label}'**
+  /// **'Sleep sounds · {label}'**
   String playerBedTrack(String label);
 
   /// No description provided for @playerBedMusicBox.
@@ -2076,25 +2076,25 @@ abstract class AppLocalizations {
   /// No description provided for @playerRemain.
   ///
   /// In en, this message translates to:
-  /// **'Left {time}'**
+  /// **'{time} left'**
   String playerRemain(String time);
 
   /// No description provided for @playerBedFading.
   ///
   /// In en, this message translates to:
-  /// **'Bed sound is fading out'**
+  /// **'Sleep sounds fading out'**
   String get playerBedFading;
 
   /// No description provided for @playerOutroOff.
   ///
   /// In en, this message translates to:
-  /// **'Turn off sleep music when the story ends'**
+  /// **'Stop sleep music when the story ends'**
   String get playerOutroOff;
 
   /// No description provided for @playerOutroMinutes.
   ///
   /// In en, this message translates to:
-  /// **'Play {minutes} more minutes after the story'**
+  /// **'Play {minutes} more min after the story'**
   String playerOutroMinutes(int minutes);
 
   /// No description provided for @playerOutroOffShort.
@@ -2124,19 +2124,19 @@ abstract class AppLocalizations {
   /// No description provided for @playerTimerTitle.
   ///
   /// In en, this message translates to:
-  /// **'Timer for music'**
+  /// **'Sleep music timer'**
   String get playerTimerTitle;
 
   /// No description provided for @playerTimerSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'Delay turning off sleep music after the story ends'**
+  /// **'How long music keeps playing after the story'**
   String get playerTimerSubtitle;
 
   /// No description provided for @playerTimerFading.
   ///
   /// In en, this message translates to:
-  /// **'Sleep music fading · {time} left'**
+  /// **'Fading out · {time} left'**
   String playerTimerFading(String time);
 
   /// No description provided for @playerTimerDelay.
@@ -2148,25 +2148,25 @@ abstract class AppLocalizations {
   /// No description provided for @createStoryDurationMood3.
   ///
   /// In en, this message translates to:
-  /// **'3 min · short nap'**
+  /// **'3 min · short'**
   String get createStoryDurationMood3;
 
   /// No description provided for @createStoryDurationMood5.
   ///
   /// In en, this message translates to:
-  /// **'5 min · ready for sleep'**
+  /// **'5 min · bedtime'**
   String get createStoryDurationMood5;
 
   /// No description provided for @createStoryDurationMood8.
   ///
   /// In en, this message translates to:
-  /// **'8 min · warm immersion'**
+  /// **'8 min · cozy'**
   String get createStoryDurationMood8;
 
   /// No description provided for @createStoryDurationMood10.
   ///
   /// In en, this message translates to:
-  /// **'10 min · long fairy tale'**
+  /// **'10 min · longer'**
   String get createStoryDurationMood10;
 
   /// No description provided for @createStoryDurationMood12.
@@ -2184,37 +2184,37 @@ abstract class AppLocalizations {
   /// No description provided for @playerOutroMood0.
   ///
   /// In en, this message translates to:
-  /// **'0 min · stop when story ends'**
+  /// **'0 min · stop with story'**
   String get playerOutroMood0;
 
   /// No description provided for @playerOutroMood1.
   ///
   /// In en, this message translates to:
-  /// **'1 min · soft afterglow'**
+  /// **'1 min · soft fade'**
   String get playerOutroMood1;
 
   /// No description provided for @playerOutroMood5.
   ///
   /// In en, this message translates to:
-  /// **'5 min · gentle wind-down'**
+  /// **'5 min · wind-down'**
   String get playerOutroMood5;
 
   /// No description provided for @playerOutroMood10.
   ///
   /// In en, this message translates to:
-  /// **'10 min · slowly quiet'**
+  /// **'10 min · settle'**
   String get playerOutroMood10;
 
   /// No description provided for @playerOutroMood15.
   ///
   /// In en, this message translates to:
-  /// **'15 min · sleep echoes'**
+  /// **'15 min · linger'**
   String get playerOutroMood15;
 
   /// No description provided for @playerOutroMood30.
   ///
   /// In en, this message translates to:
-  /// **'30 min · all-night companion'**
+  /// **'30 min · stay on'**
   String get playerOutroMood30;
 
   /// No description provided for @playerOutroMoodMinutes.
@@ -2232,7 +2232,7 @@ abstract class AppLocalizations {
   /// No description provided for @ageYearsMonths.
   ///
   /// In en, this message translates to:
-  /// **'{years} years {months} months'**
+  /// **'{years} yr {months} mo'**
   String ageYearsMonths(int years, int months);
 
   /// No description provided for @commonPleaseSelect.
@@ -2250,13 +2250,13 @@ abstract class AppLocalizations {
   /// No description provided for @netTimeout.
   ///
   /// In en, this message translates to:
-  /// **'Network timed out. Please try again later.'**
+  /// **'Network timed out. Please try again.'**
   String get netTimeout;
 
   /// No description provided for @netOfflineCached.
   ///
   /// In en, this message translates to:
-  /// **'Network unavailable. Showing local cache.'**
+  /// **'You\'re offline. Showing saved content.'**
   String get netOfflineCached;
 
   /// No description provided for @apiSessionExpired.
@@ -2268,61 +2268,61 @@ abstract class AppLocalizations {
   /// No description provided for @apiRefreshFailed.
   ///
   /// In en, this message translates to:
-  /// **'Could not refresh sign-in.'**
+  /// **'Couldn\'t refresh sign-in.'**
   String get apiRefreshFailed;
 
   /// No description provided for @apiStoryGenerateFailed.
   ///
   /// In en, this message translates to:
-  /// **'Story generation failed'**
+  /// **'Couldn\'t create this story'**
   String get apiStoryGenerateFailed;
 
   /// No description provided for @apiStoryCreateFailed.
   ///
   /// In en, this message translates to:
-  /// **'Could not create the story'**
+  /// **'Couldn\'t start this story'**
   String get apiStoryCreateFailed;
 
   /// No description provided for @apiStoryWaitNetworkUnstable.
   ///
   /// In en, this message translates to:
-  /// **'Network is unstable; generation may still be running. Refresh Stories later, or tap Continue waiting.'**
+  /// **'Connection is unstable — creation may still be running. Refresh Stories later, or keep waiting.'**
   String get apiStoryWaitNetworkUnstable;
 
   /// No description provided for @apiStoryWaitTimeout.
   ///
   /// In en, this message translates to:
-  /// **'Network timed out; generation may still be running. Refresh later or tap Continue waiting.'**
+  /// **'Timed out — creation may still be running. Refresh later or keep waiting.'**
   String get apiStoryWaitTimeout;
 
   /// No description provided for @apiStoryWaitOffline.
   ///
   /// In en, this message translates to:
-  /// **'Network unavailable; generation may still be running. When back online, tap Continue waiting.'**
+  /// **'You\'re offline — creation may still be running. When back online, tap Keep waiting.'**
   String get apiStoryWaitOffline;
 
   /// No description provided for @apiStoryWaitDeadline.
   ///
   /// In en, this message translates to:
-  /// **'Timed out waiting for the story. Check Stories to see if it finished.'**
+  /// **'Timed out waiting. Check Stories to see if it finished.'**
   String get apiStoryWaitDeadline;
 
   /// No description provided for @apiNetworkUnstableRetry.
   ///
   /// In en, this message translates to:
-  /// **'Network is unstable. Please try again later.'**
+  /// **'Connection is unstable. Please try again.'**
   String get apiNetworkUnstableRetry;
 
   /// No description provided for @apiForbidden.
   ///
   /// In en, this message translates to:
-  /// **'You don’t have permission for this action'**
+  /// **'You don\'t have permission for this'**
   String get apiForbidden;
 
   /// No description provided for @apiNotFound.
   ///
   /// In en, this message translates to:
-  /// **'Content not found'**
+  /// **'Not found'**
   String get apiNotFound;
 
   /// No description provided for @apiTooManyRequests.
@@ -2334,7 +2334,7 @@ abstract class AppLocalizations {
   /// No description provided for @apiServerUnavailable.
   ///
   /// In en, this message translates to:
-  /// **'Service temporarily unavailable. Please try again later.'**
+  /// **'Service is temporarily unavailable. Please try again later.'**
   String get apiServerUnavailable;
 
   /// No description provided for @apiRequestFailed.

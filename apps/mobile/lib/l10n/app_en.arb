@@ -5,7 +5,7 @@
   "tabStories": "Stories",
   "meSettings": "Settings",
   "meVoicesTitle": "Voices",
-  "meVoicesSubtitleClone": "System voices and parent voice clone",
+  "meVoicesSubtitleClone": "System voices and parent voice clones",
   "meVoicesSubtitle": "System reading voices",
   "meCharactersTitle": "Characters",
   "meCharactersSubtitle": "Listeners and story cast",
@@ -21,9 +21,9 @@
   "meAboutTitle": "About",
   "meAboutSubtitle": "Product and contact",
   "meTermsTitle": "Terms of Service",
-  "meTermsSubtitle": "User agreement",
+  "meTermsSubtitle": "Legal terms",
   "mePrivacyTitle": "Privacy Policy",
-  "mePrivacySubtitle": "How we handle your data",
+  "mePrivacySubtitle": "How we use your data",
   "meVersion": "Version {version}",
   "@meVersion": {
     "placeholders": {
@@ -33,7 +33,7 @@
     }
   },
   "meLogoutAccount": "Log out of this account",
-  "meBrandFooter": "Huhu · Pillow Tales  Version v{version}",
+  "meBrandFooter": "Huhu · Pillow Tales · v{version}",
   "@meBrandFooter": {
     "placeholders": {
       "version": {
@@ -47,8 +47,8 @@
   "languageEn": "English",
   "profileGuest": "Not signed in",
   "profileGuestHint": "Sign in to sync stories and voices",
-  "profileConnected": "Connected to bedtime service",
-  "profileDefaultName": "Bedtime parent",
+  "profileConnected": "Connected",
+  "profileDefaultName": "Parent",
   "profileLogin": "Sign in",
   "profileLogout": "Sign out",
   "profileRefresh": "Refresh",
@@ -93,7 +93,7 @@
   },
   "termsTitle": "Terms of Service",
   "privacyTitle": "Privacy Policy",
-  "legalOpenFailed": "Could not open the link.",
+  "legalOpenFailed": "Couldn't open the link.",
   "commonCancel": "Cancel",
   "commonConfirm": "OK",
   "commonDelete": "Delete",
@@ -103,11 +103,11 @@
   "commonClose": "Close",
   "commonUnnamed": "Unnamed",
   "commonLoading": "Loading",
-  "genderUnspecified": "Not specified",
+  "genderUnspecified": "Prefer not to say",
   "genderBoy": "Boy",
   "genderGirl": "Girl",
   "genderOther": "Other",
-  "homeOfflineSnackbar": "Offline mode: showing cached content. It will sync when you're back online.",
+  "homeOfflineSnackbar": "You're offline. Showing saved stories — they'll sync when you're back online.",
   "authBrandName": "Huhu",
   "authBrandBadge": "Pillow Tales",
   "authSubtitleLogin": "Sign in to continue your bedtime stories",
@@ -127,7 +127,7 @@
   "authHaveInvite": "Have an invite code? ",
   "authGoLogin": "Sign in",
   "authGoRegister": "Register",
-  "authNightHint": "Low blue light for night · Sweet dreams",
+  "authNightHint": "Designed for night · Sweet dreams",
   "authAgreeRegisterPrefix": "By registering, you agree to the ",
   "authAgreeLoginPrefix": "By signing in, you agree to the ",
   "authTermsLink": "Terms of Service",
@@ -139,8 +139,8 @@
   "authErrorPasswordShort": "Password must be at least 8 characters",
   "authErrorPasswordMismatch": "Passwords do not match",
   "authErrorPasswordRequired": "Please enter a password",
-  "authErrorInvalidResponse": "Invalid sign-in response",
-  "authComingSoon": "{feature} is not available yet. Stay tuned.",
+  "authErrorInvalidResponse": "Something went wrong signing in. Please try again.",
+  "authComingSoon": "{feature} isn't available yet. Stay tuned.",
   "@authComingSoon": {
     "placeholders": {
       "feature": {
@@ -152,13 +152,13 @@
   "authFeatureRecoverPassword": "Password recovery",
   "storyProgressQueued": "In queue…",
   "storyProgressSeriesOutline": "Outlining the series…",
-  "storyProgressEpisodePlan": "Planning tonight's plot…",
+  "storyProgressEpisodePlan": "Planning tonight's story…",
   "storyProgressDraft": "Writing the story…",
-  "storyProgressTts": "Generating narration audio…",
+  "storyProgressTts": "Recording the narration…",
   "storyProgressReady": "Done",
   "storyProgressReadyPlay": "Done — ready to play…",
-  "storyProgressFailed": "Generation failed",
-  "storyProgressGenerating": "Generating ({progress})…",
+  "storyProgressFailed": "Couldn't finish",
+  "storyProgressGenerating": "Creating ({progress})…",
   "@storyProgressGenerating": {
     "placeholders": {
       "progress": {
@@ -166,24 +166,24 @@
       }
     }
   },
-  "storyGenerateFailed": "Story generation failed",
-  "storyGenerateFailedRetry": "Story generation failed. You can retry.",
-  "storyStillGenerating": "Still generating — pull to refresh, then listen",
-  "storyNoAudio": "No audio available to play",
+  "storyGenerateFailed": "Couldn't create this story",
+  "storyGenerateFailedRetry": "Couldn't create this story. You can try again.",
+  "storyStillGenerating": "Still creating — pull to refresh, then listen",
+  "storyNoAudio": "No audio to play yet",
   "storyNoAudioShort": "No audio yet",
-  "storyCreateFailed": "Could not create story",
-  "storyRetrying": "Regenerating…",
-  "storyResumeWaiting": "Still waiting for generation…",
+  "storyCreateFailed": "Couldn't start this story",
+  "storyRetrying": "Trying again…",
+  "storyResumeWaiting": "Still creating…",
   "storyContinueWaiting": "Keep waiting",
   "storyContinuingEpisode": "Writing the next episode…",
   "storySubmittedQueued": "Submitted — in queue…",
   "storiesTitle": "Stories",
-  "storiesStatusWaitingFirst": "Waiting for the first one",
-  "storiesStatusReady": "Night light ready",
-  "storiesCreateEyebrow": "Dream engine · New chapter",
+  "storiesStatusWaitingFirst": "Waiting for the first story",
+  "storiesStatusReady": "Ready for bedtime",
+  "storiesCreateEyebrow": "Tonight",
   "storiesCreateTitle": "Create tonight's story",
-  "storiesCreateSubtitle": "Custom cast, plot, and soothing audio",
-  "storiesLibraryTitle": "Pillow tale bookshelf",
+  "storiesCreateSubtitle": "Your cast, plot, and bedtime audio",
+  "storiesLibraryTitle": "Your stories",
   "storiesLibraryEmpty": "No stories yet",
   "storiesLibraryCount": "Newest first · {count} stories",
   "@storiesLibraryCount": {
@@ -193,10 +193,10 @@
       }
     }
   },
-  "storiesEmptyShelfTitle": "An empty shelf",
-  "storiesEmptyShelfBody": "Tonight's first little book is waiting — tap the golden card above.",
-  "storiesUntitled": "Unfinished story",
-  "storiesFailedRetry": "Generation failed · Retry available",
+  "storiesEmptyShelfTitle": "Your shelf is empty",
+  "storiesEmptyShelfBody": "Tap the card above to make tonight's first story.",
+  "storiesUntitled": "Untitled story",
+  "storiesFailedRetry": "Failed · Tap to retry",
   "storiesFailedWithError": "Failed · {error}",
   "@storiesFailedWithError": {
     "placeholders": {
@@ -214,7 +214,7 @@
       }
     }
   },
-  "storiesSeriesMeta": "Series #{id}",
+  "storiesSeriesMeta": "Series {id}",
   "@storiesSeriesMeta": {
     "placeholders": {
       "id": {
@@ -222,7 +222,7 @@
       }
     }
   },
-  "storiesEpisodeMeta": " Ep. {ep}",
+  "storiesEpisodeMeta": " · Ep. {ep}",
   "@storiesEpisodeMeta": {
     "placeholders": {
       "ep": {
@@ -234,25 +234,25 @@
   "creatingBackTooltip": "Back to stories",
   "creatingHeadlineOk": "Writing tonight's story",
   "creatingHeadlineFail": "This one didn't finish",
-  "creatingBodyOk": "The cloud is writing the text and recording narration — usually a minute or two.",
-  "creatingBodyFail": "You can retry, or go back to the list and open this story later.",
-  "creatingHintsOkTitle": "While it generates",
-  "creatingHintsFailTitle": "What you can do next",
-  "creatingHintAutoPlay": "When it's done, you'll open the player and start listening automatically.",
-  "creatingHintCloud": "Creation continues in the cloud — closing this page is fine.",
-  "creatingHintList": "Return to Stories anytime to check progress or listen later.",
-  "creatingHintRetry": "Tap retry below to continue this story without using extra quota.",
+  "creatingBodyOk": "We're writing the story and recording the narration — usually a minute or two.",
+  "creatingBodyFail": "You can try again, or go back and open this story later.",
+  "creatingHintsOkTitle": "While you wait",
+  "creatingHintsFailTitle": "What you can do",
+  "creatingHintAutoPlay": "When it's ready, you'll open the player and start listening.",
+  "creatingHintCloud": "It keeps going in the cloud — you can leave this page.",
+  "creatingHintList": "Check Stories anytime for progress, or listen later.",
+  "creatingHintRetry": "Retry below to continue this story — it won't use extra quota.",
   "creatingHintBackLater": "Or go back to the list and open or retry later.",
-  "creatingRetry": "Regenerate",
+  "creatingRetry": "Try again",
   "creatingRetrying": "Retrying…",
   "creatingBackFailed": "Back to stories",
-  "creatingBackOk": "Back to stories for now",
+  "creatingBackOk": "Back to stories",
   "voicesManageTitle": "Voices",
   "voicesManageEyebrow": "Huhu · Voice",
   "voicesManageHeaderTitle": "My voices",
-  "voicesManageSubtitleClone": "Manage narration voices, or clone a parent's voice for bedtime stories",
-  "voicesManageSubtitleSystem": "Manage system narration voices — preview and pick one",
-  "voicesManageCloneCta": "Clone a new voice",
+  "voicesManageSubtitleClone": "Preview voices, or clone a parent's voice",
+  "voicesManageSubtitleSystem": "Preview and pick a system voice",
+  "voicesManageCloneCta": "Clone a voice",
   "voicesManageSectionTitle": "Saved voices",
   "voicesManageNone": "No voices yet",
   "voicesManageCount": "{count} voices · Preview available",
@@ -263,61 +263,61 @@
       }
     }
   },
-  "voicesManageEmptyCloneHint": "Tap the button above to clone a parent's voice.",
-  "voicesManageEmptySystemHint": "No system voices available. Try again later or contact support.",
+  "voicesManageEmptyCloneHint": "Tap above to clone a parent's voice.",
+  "voicesManageEmptySystemHint": "No system voices right now. Try again later.",
   "voicesKindClone": "Cloned voice",
   "voicesKindSystem": "System voice",
   "voicesPreviewUnavailable": "No preview",
-  "voicesPreviewUnavailableSnack": "Preview isn't available for this voice yet. Try again later.",
-  "voicesPreviewUnavailableShort": "No preview for this voice",
+  "voicesPreviewUnavailableSnack": "Preview isn't ready for this voice yet.",
+  "voicesPreviewUnavailableShort": "No preview",
   "voicesPreviewFailed": "Couldn't play preview",
   "voicesPreviewPlay": "Preview",
-  "voicesPreviewStop": "Stop preview",
+  "voicesPreviewStop": "Stop",
   "voicesPreviewStopShort": "Stop",
   "voicesNoPreviewSuffix": " · No preview",
-  "voiceCloneTitle": "Clone a new voice",
+  "voiceCloneTitle": "Clone a voice",
   "voiceCloneEyebrow": "Huhu · Clone",
   "voiceCloneHeaderTitle": "Record a parent's voice",
-  "voiceCloneHeaderSubtitle": "In a quiet place, read for about 10–15 seconds. The clone can narrate bedtime stories.",
+  "voiceCloneHeaderSubtitle": "In a quiet spot, read for about 10–15 seconds.",
   "voiceCloneNameSection": "Voice name",
   "voiceCloneNameHint": "e.g. Mom's voice, Dad's bedtime voice",
   "voiceCloneDefaultName": "Parent voice",
   "voiceCloneUsageTitle": "How it works",
-  "voiceCloneUsageBody": "Original recordings are deleted soon after upload. Once cloned, you can pick this voice when creating stories.",
-  "voiceCloneConsent": "I agree to use my voice for bedtime story narration in this app",
+  "voiceCloneUsageBody": "We delete the original recording soon after upload. Then you can use this voice for bedtime stories.",
+  "voiceCloneConsent": "I agree to use my voice for bedtime stories in this app",
   "voiceCloneScriptTitle": "Please read this aloud",
-  "voiceCloneScriptSubtitle": "You may read both Chinese and English once; a natural pace is fine",
+  "voiceCloneScriptSubtitle": "A natural pace is fine — Chinese or English is OK",
   "voiceCloneScriptZh": "Tonight I'll tell a gentle bedtime story in a soft voice. The wind is light, the moon is bright, and we slowly close our eyes.",
   "voiceCloneStartRecord": "Start recording",
   "voiceCloneStopRecord": "Stop recording",
   "voiceCloneRerecord": "Record again",
   "voiceCloneRecordingHint": "Recording… tap stop when you're done",
-  "voiceCloneReadyHint": "Sample ready — confirm the name and consent, then upload to clone",
+  "voiceCloneReadyHint": "Sample ready — name it, agree, then upload",
   "voiceCloneUpload": "Upload & clone",
   "voiceCloneUploading": "Uploading…",
-  "voiceCloneNeedMic": "Microphone permission is required",
+  "voiceCloneNeedMic": "Microphone access is required",
   "voiceCloneNeedName": "Please enter a voice name",
-  "voiceCloneNeedConsent": "Please accept the consent checkbox",
-  "voiceCloneSuccess": "Clone ready — you can use it when creating stories",
+  "voiceCloneNeedConsent": "Please check the consent box",
+  "voiceCloneSuccess": "Voice ready — you can use it when creating stories",
   "voicePickerTitle": "Choose a voice",
-  "voicePickerHint": "Preview, then confirm to use",
+  "voicePickerHint": "Preview, then confirm",
   "voicePickerUse": "Use this voice",
   "voicePickerEmpty": "None",
   "voicePickerUnnamed": "Unnamed voice",
   "childrenManageTitle": "Characters",
-  "childrenManageTagline": "Dream cast book · Tailored bedtime tales",
+  "childrenManageTagline": "Listeners and cast for bedtime stories",
   "childrenTabListeners": "Listeners",
   "childrenTabPeople": "Family & friends",
-  "childrenTabToys": "Toy pals",
+  "childrenTabToys": "Toys",
   "childrenFabListener": "Add a listener",
   "childrenFabPeople": "Add family or friend",
-  "childrenFabToy": "Add a toy pal",
+  "childrenFabToy": "Add a toy",
   "childrenEmptyListenersTitle": "No listeners yet",
-  "childrenEmptyListenersBody": "Add a listener profile first to create stories and attach family or toys.",
+  "childrenEmptyListenersBody": "Add a listener first so you can create stories and link family or toys.",
   "childrenEmptyListenersCta": "Add your first listener",
   "childrenEmptyPeopleTitle": "No family or friends yet",
-  "childrenEmptyPeopleBody": "Add grandparents, classmates, and more so they can appear in stories.",
-  "childrenEmptyToysTitle": "No toy pals yet",
+  "childrenEmptyPeopleBody": "Add grandparents, classmates, and others so they can appear in stories.",
+  "childrenEmptyToysTitle": "No toys yet",
   "childrenEmptyToysBody": "Add dolls and plush friends so they can appear in stories.",
   "childrenNeedListenerFirst": "Please add a listener first",
   "childrenSheetTitle": "Listener profile",
@@ -328,8 +328,8 @@
   "childrenBirthdayHint": "YYYY/MM/DD",
   "childrenIntroOptional": "Bio (optional)",
   "childrenIntroHint": "Personality, recent mood…",
-  "childrenPreferLabel": "Story preferences (comma-separated)",
-  "childrenPreferHint": "Dinosaur adventures, gentle fairy tales, a touch of humor",
+  "childrenPreferLabel": "Story preferences",
+  "childrenPreferHint": "Dinosaur adventures, gentle fairy tales, a bit of humor",
   "childrenAddToy": "Add toy",
   "childrenEditToy": "Edit toy",
   "childrenAddPerson": "Add family / friend",
@@ -342,12 +342,12 @@
   "childrenLinkedListener": "Linked listener",
   "childrenRelation": "Relation",
   "childrenRelationHint": "Grandpa / classmate / teacher…",
-  "childrenToyNote": "Look / temperament (optional)",
-  "childrenPersonNote": "Traits (optional)",
+  "childrenToyNote": "Look / personality (optional)",
+  "childrenPersonNote": "Notes (optional)",
   "childrenToyNoteHint": "Blue ears, loves to sing",
   "childrenPersonNoteHint": "Loves telling stories",
   "childrenDeleteListenerTitle": "Delete this listener?",
-  "childrenDeleteListenerBody": "This will also delete family and toy characters under “{name}”.",
+  "childrenDeleteListenerBody": "This also deletes family and toy characters under “{name}”.",
   "@childrenDeleteListenerBody": {
     "placeholders": {
       "name": {
@@ -364,7 +364,7 @@
     }
   },
   "childrenDeleteCharacterTitle": "Delete this character?",
-  "childrenDeleteCharacterBody": "After deleting “{name}”, you won't be able to select them when creating stories.",
+  "childrenDeleteCharacterBody": "After deleting “{name}”, you won't be able to pick them in new stories.",
   "@childrenDeleteCharacterBody": {
     "placeholders": {
       "name": {
@@ -374,7 +374,7 @@
   },
   "childrenDefaultCharacter": "Character",
   "childrenTagListener": "Listener",
-  "childrenTagToy": "Comfort plush",
+  "childrenTagToy": "Toy",
   "childrenTagPeople": "Family & friends",
   "childrenPreferPrefix": "Likes: {prefs}",
   "@childrenPreferPrefix": {
@@ -384,7 +384,7 @@
       }
     }
   },
-  "childrenEditPrefs": "Edit profile & bedtime prefs",
+  "childrenEditPrefs": "Edit profile",
   "childrenSleepPreset": "Sleep preset",
   "childrenBelongsToName": "Belongs to {name}",
   "@childrenBelongsToName": {
@@ -394,7 +394,7 @@
       }
     }
   },
-  "childrenToySubtitle": "Bedside pal · Belongs to {name}",
+  "childrenToySubtitle": "Bedside pal · {name}",
   "@childrenToySubtitle": {
     "placeholders": {
       "name": {
@@ -402,7 +402,7 @@
       }
     }
   },
-  "childrenPersonalityPrefix": "Personality: {note}",
+  "childrenPersonalityPrefix": "Notes: {note}",
   "@childrenPersonalityPrefix": {
     "placeholders": {
       "note": {
@@ -419,16 +419,16 @@
       }
     }
   },
-  "childrenMagicTitle": "Character magic",
-  "childrenMagicBody": "The dream engine uses the lead's age and preferences to weave gentle lines and a soothing bedtime rhythm into each night's soundscape.",
-  "createStoryTitle": "Customize tonight's story",
+  "childrenMagicTitle": "Why profiles help",
+  "childrenMagicBody": "We use age and preferences to keep each story gentle, familiar, and ready for bedtime.",
+  "createStoryTitle": "Tonight's story",
   "createStoryNeedListenerTitle": "Add a listener first",
-  "createStoryNeedListenerSubtitle": "With a child profile, you can customize tonight's story",
+  "createStoryNeedListenerSubtitle": "A listener profile lets you customize tonight's story",
   "createStoryNoRolesTitle": "No characters yet",
-  "createStoryNoRolesBody": "Create a child profile (nickname, age, and more). Then come back to generate a story.",
-  "createStoryGoAddChild": "Add a child profile",
-  "createStoryGenerate": "Generate tonight's story",
-  "createStoryGenerating": "Generating…",
+  "createStoryNoRolesBody": "Add a listener (nickname, age, and more), then come back to create a story.",
+  "createStoryGoAddChild": "Add a listener",
+  "createStoryGenerate": "Create tonight's story",
+  "createStoryGenerating": "Creating…",
   "createStoryQuotaPrefix": "Stories this month ",
   "createStoryQuotaLine": "Stories this month {used}/{limit}",
   "@createStoryQuotaLine": {
@@ -441,23 +441,23 @@
       }
     }
   },
-  "createStoryListenersTitle": "Who is listening tonight?",
-  "createStoryListenersSubMulti": "Multi-select allowed; the story weaves from listeners' preferences",
-  "createStoryListenersSubSingle": "The story weaves from the listener's preferences",
-  "createStoryManageListeners": "Manage listener profiles",
+  "createStoryListenersTitle": "Who's listening tonight?",
+  "createStoryListenersSubMulti": "You can pick more than one; we'll use their preferences",
+  "createStoryListenersSubSingle": "We'll use this listener's preferences",
+  "createStoryManageListeners": "Manage listeners",
   "createStoryPrimaryListener": "Primary listener",
-  "createStoryNoPrefer": "No preferences yet · Soft bedtime fairy tales",
-  "createStoryOptionsTitle": "What story tonight?",
-  "createStoryOptionsSubtitle": "We'll create from these ingredients",
-  "createStoryInspiration": "Story spark",
-  "createStoryInspirationHint": "Optional — you can leave this blank",
-  "createStoryThemeHint": "What to tell tonight (optional), e.g. a kitten watching stars on a cloud…",
-  "createStoryCastTitle": "Appearing tonight",
-  "createStoryAddCharacter": "Add character",
+  "createStoryNoPrefer": "No preferences yet · Soft bedtime tales",
+  "createStoryOptionsTitle": "What kind of story?",
+  "createStoryOptionsSubtitle": "We'll build tonight's story from these choices",
+  "createStoryInspiration": "Idea",
+  "createStoryInspirationHint": "Optional",
+  "createStoryThemeHint": "Optional — e.g. a kitten watching stars on a cloud…",
+  "createStoryCastTitle": "Tonight's cast",
+  "createStoryAddCharacter": "Add",
   "createStoryCastEmpty": "Add listeners, family, or toys in Characters.",
   "createStoryCharacterFallback": "Character",
   "createStoryType": "Story type",
-  "createStoryVoice": "Narration voice",
+  "createStoryVoice": "Voice",
   "createStoryVoiceSelected": "Selected: {name}",
   "@createStoryVoiceSelected": {
     "placeholders": {
@@ -469,40 +469,40 @@
   "createStoryVoiceNone": "No voice selected",
   "createStoryVoicePick": "Choose a voice",
   "createStoryVoiceChange": "Change",
-  "createStoryMoreOptions": "More options (language & dialogue)",
-  "createStoryLanguage": "Narration language",
+  "createStoryMoreOptions": "More options",
+  "createStoryLanguage": "Language",
   "createStoryLangZh": "Chinese",
   "createStoryEnglishSoon": "English stories aren't available yet. Stay tuned.",
-  "createStoryDialogue": "How much dialogue",
-  "createStoryTypeEveryday": "Everyday life",
-  "createStoryTypeSoft": "A touch of imagination",
-  "createStoryTypeFantasy": "Wonderful worlds",
-  "createStoryDialogueLow": "Very little dialogue",
-  "createStoryDialogueSome": "A little dialogue",
-  "createStoryDialogueMore": "More dialogue",
+  "createStoryDialogue": "Dialogue",
+  "createStoryTypeEveryday": "Everyday",
+  "createStoryTypeSoft": "Gentle wonder",
+  "createStoryTypeFantasy": "Fantasy",
+  "createStoryDialogueLow": "Very little",
+  "createStoryDialogueSome": "A little",
+  "createStoryDialogueMore": "More",
   "createStorySoftSeries": "Soft series (continuable)",
   "createStorySoftHook": "Previous soft hook (optional)",
   "createStoryEpisodeNo": "Episode number",
-  "createStoryDreamRules": "Dream rules",
-  "createStoryDreamRulesBody": "The story gently settles into a calm rhythm, then fades into goodnight white noise.",
-  "createStoryDuration": "Length (minutes)",
-  "createStoryErrAddChild": "Please add a child profile first",
-  "createStoryErrNickname": "Please finish the child's nickname (tap the profile card to edit)",
-  "createStoryErrVoice": "Please choose a voice (or create a system voice on the Voices page)",
-  "createStoryErrListener": "Please choose tonight's listener first",
-  "playerTitle": "Co-read",
-  "playerStatusLive": "Bedside lamp · Night play on",
+  "createStoryDreamRules": "Bedtime pace",
+  "createStoryDreamRulesBody": "The story eases into a calm rhythm, then fades into soft goodnight sounds.",
+  "createStoryDuration": "Length",
+  "createStoryErrAddChild": "Please add a listener first",
+  "createStoryErrNickname": "Please add a nickname (tap the profile to edit)",
+  "createStoryErrVoice": "Please choose a voice",
+  "createStoryErrListener": "Please choose tonight's listener",
+  "playerTitle": "Story",
+  "playerStatusLive": "Playing",
   "playerModePicture": "Picture book",
-  "playerModeAudio": "Listen only",
-  "playerWarmLight": "Pillow glow",
+  "playerModeAudio": "Audio only",
+  "playerWarmLight": "Warm light",
   "playerBrandLine": "Huhu · Pillow Tales",
-  "playerCoRead": "Parent–child co-reading",
+  "playerCoRead": "Read along",
   "playerFullText": "Full text",
-  "playerFollowAlong": "Words glide along",
+  "playerFollowAlong": "Follow the words",
   "playerCollapse": "Collapse",
-  "playerExpand": "View full text",
+  "playerExpand": "Full text",
   "playerSpeedTitle": "Narration speed",
-  "playerSpeedHint": "Changes story narration only. Background music is unchanged. Audio is not re-synthesized.",
+  "playerSpeedHint": "Changes story speed only. Background music stays the same — no re-recording.",
   "playerSpeedCurrent": "Current {speed}×",
   "@playerSpeedCurrent": {
     "placeholders": {
@@ -511,7 +511,7 @@
       }
     }
   },
-  "playerBedTrack": "Cradle bed sound · {label}",
+  "playerBedTrack": "Sleep sounds · {label}",
   "@playerBedTrack": {
     "placeholders": {
       "label": {
@@ -520,7 +520,7 @@
     }
   },
   "playerBedMusicBox": "Music box",
-  "playerRemain": "Left {time}",
+  "playerRemain": "{time} left",
   "@playerRemain": {
     "placeholders": {
       "time": {
@@ -528,9 +528,9 @@
       }
     }
   },
-  "playerBedFading": "Bed sound is fading out",
-  "playerOutroOff": "Turn off sleep music when the story ends",
-  "playerOutroMinutes": "Play {minutes} more minutes after the story",
+  "playerBedFading": "Sleep sounds fading out",
+  "playerOutroOff": "Stop sleep music when the story ends",
+  "playerOutroMinutes": "Play {minutes} more min after the story",
   "@playerOutroMinutes": {
     "placeholders": {
       "minutes": {
@@ -549,9 +549,9 @@
   },
   "playerBedOff": "Off",
   "playerScript": "Script",
-  "playerTimerTitle": "Timer for music",
-  "playerTimerSubtitle": "Delay turning off sleep music after the story ends",
-  "playerTimerFading": "Sleep music fading · {time} left",
+  "playerTimerTitle": "Sleep music timer",
+  "playerTimerSubtitle": "How long music keeps playing after the story",
+  "playerTimerFading": "Fading out · {time} left",
   "@playerTimerFading": {
     "placeholders": {
       "time": {
@@ -560,10 +560,10 @@
     }
   },
   "playerTimerDelay": "Delay",
-  "createStoryDurationMood3": "3 min · short nap",
-  "createStoryDurationMood5": "5 min · ready for sleep",
-  "createStoryDurationMood8": "8 min · warm immersion",
-  "createStoryDurationMood10": "10 min · long fairy tale",
+  "createStoryDurationMood3": "3 min · short",
+  "createStoryDurationMood5": "5 min · bedtime",
+  "createStoryDurationMood8": "8 min · cozy",
+  "createStoryDurationMood10": "10 min · longer",
   "createStoryDurationMood12": "12 min · deep rest",
   "createStoryDurationMinutes": "{minutes} min",
   "@createStoryDurationMinutes": {
@@ -573,12 +573,12 @@
       }
     }
   },
-  "playerOutroMood0": "0 min · stop when story ends",
-  "playerOutroMood1": "1 min · soft afterglow",
-  "playerOutroMood5": "5 min · gentle wind-down",
-  "playerOutroMood10": "10 min · slowly quiet",
-  "playerOutroMood15": "15 min · sleep echoes",
-  "playerOutroMood30": "30 min · all-night companion",
+  "playerOutroMood0": "0 min · stop with story",
+  "playerOutroMood1": "1 min · soft fade",
+  "playerOutroMood5": "5 min · wind-down",
+  "playerOutroMood10": "10 min · settle",
+  "playerOutroMood15": "15 min · linger",
+  "playerOutroMood30": "30 min · stay on",
   "playerOutroMoodMinutes": "{minutes} min",
   "@playerOutroMoodMinutes": {
     "placeholders": {
@@ -595,7 +595,7 @@
       }
     }
   },
-  "ageYearsMonths": "{years} years {months} months",
+  "ageYearsMonths": "{years} yr {months} mo",
   "@ageYearsMonths": {
     "placeholders": {
       "years": {
@@ -608,21 +608,21 @@
   },
   "commonPleaseSelect": "Please select",
   "storiesContinueEpisodeTooltip": "Continue next episode",
-  "netTimeout": "Network timed out. Please try again later.",
-  "netOfflineCached": "Network unavailable. Showing local cache.",
+  "netTimeout": "Network timed out. Please try again.",
+  "netOfflineCached": "You're offline. Showing saved content.",
   "apiSessionExpired": "Session expired. Please sign in again.",
-  "apiRefreshFailed": "Could not refresh sign-in.",
-  "apiStoryGenerateFailed": "Story generation failed",
-  "apiStoryCreateFailed": "Could not create the story",
-  "apiStoryWaitNetworkUnstable": "Network is unstable; generation may still be running. Refresh Stories later, or tap Continue waiting.",
-  "apiStoryWaitTimeout": "Network timed out; generation may still be running. Refresh later or tap Continue waiting.",
-  "apiStoryWaitOffline": "Network unavailable; generation may still be running. When back online, tap Continue waiting.",
-  "apiStoryWaitDeadline": "Timed out waiting for the story. Check Stories to see if it finished.",
-  "apiNetworkUnstableRetry": "Network is unstable. Please try again later.",
-  "apiForbidden": "You don’t have permission for this action",
-  "apiNotFound": "Content not found",
+  "apiRefreshFailed": "Couldn't refresh sign-in.",
+  "apiStoryGenerateFailed": "Couldn't create this story",
+  "apiStoryCreateFailed": "Couldn't start this story",
+  "apiStoryWaitNetworkUnstable": "Connection is unstable — creation may still be running. Refresh Stories later, or keep waiting.",
+  "apiStoryWaitTimeout": "Timed out — creation may still be running. Refresh later or keep waiting.",
+  "apiStoryWaitOffline": "You're offline — creation may still be running. When back online, tap Keep waiting.",
+  "apiStoryWaitDeadline": "Timed out waiting. Check Stories to see if it finished.",
+  "apiNetworkUnstableRetry": "Connection is unstable. Please try again.",
+  "apiForbidden": "You don't have permission for this",
+  "apiNotFound": "Not found",
   "apiTooManyRequests": "Too many requests. Please try again later.",
-  "apiServerUnavailable": "Service temporarily unavailable. Please try again later.",
+  "apiServerUnavailable": "Service is temporarily unavailable. Please try again later.",
   "apiRequestFailed": "Request failed ({statusCode})",
   "@apiRequestFailed": {
     "placeholders": {
