@@ -51,6 +51,8 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
   bool busy = false;
   bool preparing = true;
   bool moreOptionsOpen = false;
+  /// After a successful create, skip re-persisting the form (esp. inspiration).
+  bool _skipDraftSave = false;
   /// AppBar title fades in after the page hero title scrolls away.
   double _appBarTitleOpacity = 0;
   String? quotaText;
@@ -547,9 +549,6 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
         dialogue: dialogue,
       );
       await widget.localStore?.stories.upsertOne(created);
-      if (widget.localStore != null) {
-        unawaited(CreateDraft.clear(widget.localStore!.userId));
-      }
       if (!mounted) return;
 
       final id = created['id'];
@@ -566,6 +565,15 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
           storyId: storyId,
         );
       }
+
+      // Drop inspiration so the next visit starts blank; skip dispose save
+      // so it cannot race and rewrite the cleared draft.
+      themeCtrl.clear();
+      _skipDraftSave = true;
+      if (widget.localStore != null) {
+        await CreateDraft.clear(widget.localStore!.userId);
+      }
+      if (!mounted) return;
 
       await Navigator.of(context).pushReplacement(
         MaterialPageRoute(
@@ -589,7 +597,9 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
 
   @override
   void dispose() {
-    unawaited(_saveDraft());
+    if (!_skipDraftSave) {
+      unawaited(_saveDraft());
+    }
     themeCtrl.dispose();
     recapCtrl.dispose();
     super.dispose();
