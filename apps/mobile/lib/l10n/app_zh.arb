@@ -150,6 +150,7 @@
   },
   "authFeatureSmsLogin": "验证码登录",
   "authFeatureRecoverPassword": "找回密码",
+  "authClose": "关闭",
   "storyProgressQueued": "排队中…",
   "storyProgressSeriesOutline": "正在构思系列大纲…",
   "storyProgressEpisodePlan": "正在构思今晚情节…",
@@ -633,6 +634,6 @@
   },
   "bootCannotConnect": "无法连接",
   "bootRetry": "重试",
-  "bootHintRemote": "线上/内测请用 Cloudflare HTTPS 域名：\n--dart-define=API_BASE_URL=https://bedtime-api.<你的域名>\n并使用邀请码注册或手机号登录。",
-  "bootHintLocal": "若卡在白屏或连不上：系统设置 → 隐私与安全性 → 本地网络 → 打开本 App；\n并确认用 --dart-define=API_BASE_URL=http://<电脑局域网IP>:8000 启动。"
+  "bootHintRemote": "线上/内测请用：flutter run --dart-define=APP_ENV=staging\n（见 assets/config/staging.json），并用邀请码注册或手机号登录。",
+  "bootHintLocal": "若卡在白屏或连不上：系统设置 → 隐私与安全性 → 本地网络 → 打开本 App；\n真机请在 assets/config/dev.local.json（从 *.example 复制）把 api_base_url 设为 http://<电脑局域网IP>:8000。"
 }

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
 
+import '../analytics/analytics_tracker.dart';
 import '../api/client.dart';
 import '../l10n/app_localizations.dart';
 import '../theme/app_theme.dart';
@@ -109,6 +110,13 @@ class _VoiceCloneScreenState extends State<VoiceCloneScreen> {
         SnackBar(content: Text(l10n.voiceCloneSuccess)),
       );
       Navigator.of(context).pop(true);
+    } on ApiException catch (e) {
+      if (e.statusCode == 429) {
+        AnalyticsTracker.instance.bind(widget.api);
+        AnalyticsTracker.instance.track('quota_hit', props: {'kind': 'clone'});
+      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));

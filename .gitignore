@@ -2,6 +2,7 @@
 .env
 .env.local
 .env.staging
+apps/mobile/assets/config/*.local.json
 
 # Local design references (not for source control)
 design/

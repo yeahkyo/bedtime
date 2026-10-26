@@ -1,10 +1,11 @@
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.config import get_settings
+from app.models.analytics import AnalyticsEvent
 from app.models.story import Story, StoryAudio
 from app.models.voice import Voice
 from app.providers.factory import get_clone_provider
@@ -44,6 +45,17 @@ async def purge_expired_stories(db: AsyncSession) -> int:
     return count
 
 
+async def purge_expired_analytics_events(db: AsyncSession) -> int:
+    settings = get_settings()
+    days = max(1, int(settings.analytics_retention_days))
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+    result = await db.execute(
+        delete(AnalyticsEvent).where(AnalyticsEvent.created_at < cutoff)
+    )
+    await db.commit()
+    return int(result.rowcount or 0)
+
+
 async def cascade_delete_user(db: AsyncSession, user_id: int) -> None:
     voices = (await db.execute(select(Voice).where(Voice.user_id == user_id))).scalars().all()
     for voice in voices:
@@ -62,6 +74,8 @@ async def cascade_delete_user(db: AsyncSession, user_id: int) -> None:
         ).scalar_one_or_none()
         if audio:
             await storage_service.delete(audio.object_key)
+
+    await db.execute(delete(AnalyticsEvent).where(AnalyticsEvent.user_id == user_id))
 
     from app.models.user import User
 

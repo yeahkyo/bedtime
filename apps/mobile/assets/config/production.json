@@ -1,0 +1,9 @@
+{
+  "api_base_url": "https://bedtime-api.lullvale.com",
+  "legal_host": "https://huhu.lullvale.com",
+  "feature_soft_series": false,
+  "feature_voice_clone": false,
+  "umeng_android_app_key": "",
+  "umeng_ios_app_key": "",
+  "umeng_channel": "production"
+}

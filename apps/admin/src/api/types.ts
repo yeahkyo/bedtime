@@ -226,3 +226,11 @@ export interface ProvidersSettingsOut {
     speech_providers: ProviderOption[]
   }
 }
+
+export interface AnalyticsSummaryOut {
+  from_date: string
+  to_date: string
+  event_counts: Record<string, number>
+  story_status_counts: Record<string, number>
+  listen_rate: number | null
+}

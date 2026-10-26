@@ -29,7 +29,7 @@ Flutter（连映射出来的 API 端口）：
 ```bash
 cd apps/mobile
 flutter pub get
-flutter run --dart-define=API_BASE_URL=http://127.0.0.1:8000
+flutter run   # APP_ENV=dev → assets/config/dev.json
 ```
 
 可选 MinIO（网络能拉镜像时）：
@@ -59,7 +59,7 @@ cp apps/api/.env.staging.example apps/api/.env.staging   # fill secrets locally 
 ./deploy.sh                                              # scp .env + git pull + compose
 
 cd apps/mobile
-flutter run --dart-define=API_BASE_URL=https://bedtime-api.lullvale.com
+flutter run --dart-define=APP_ENV=staging   # assets/config/staging.json
 ```
 
 Details: [docs/deploy-staging.md](docs/deploy-staging.md).

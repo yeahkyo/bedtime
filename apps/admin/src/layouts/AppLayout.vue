@@ -11,6 +11,7 @@ const active = computed(() => {
   if (route.path.startsWith('/stories')) return '/stories'
   if (route.path.startsWith('/series')) return '/series'
   if (route.path.startsWith('/users')) return '/users'
+  if (route.path.startsWith('/analytics')) return '/analytics'
   if (route.path.startsWith('/invites')) return '/invites'
   if (route.path.startsWith('/settings')) return '/settings'
   if (route.path.startsWith('/shapes') || route.path.startsWith('/beats')) return '/shapes'
@@ -35,6 +36,10 @@ function logout() {
         <el-menu-item index="/users">
           <el-icon><User /></el-icon>
           <span>用户</span>
+        </el-menu-item>
+        <el-menu-item index="/analytics">
+          <el-icon><DataAnalysis /></el-icon>
+          <span>试用分析</span>
         </el-menu-item>
         <el-menu-item index="/invites">
           <el-icon><Ticket /></el-icon>

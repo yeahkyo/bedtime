@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 
-from app.api import account, auth, characters, children, stories, voices
+from app.api import account, analytics, auth, characters, children, stories, voices
 from app.api.admin import router as admin_router
 from app.api.elements import router as elements_router
 from app.api.kernels import router as kernels_router
@@ -16,6 +16,7 @@ from app.core.config import get_settings, validate_settings_for_runtime
 from app.core.db import Base, SessionLocal, engine
 from app.core.redis_client import close_redis
 from app.models import (  # noqa: F401
+    AnalyticsEvent,
     Character,
     Child,
     InviteCode,
@@ -112,6 +113,7 @@ async def _ensure_story_async_columns(conn) -> None:
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash VARCHAR(128) NULL",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS token_version INT NOT NULL DEFAULT 0",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS disabled_at DATETIME NULL",
+        "ALTER TABLE analytics_events ADD COLUMN IF NOT EXISTS idempotency_key VARCHAR(64) NULL",
     ):
         try:
             await conn.execute(text(stmt))
@@ -120,6 +122,8 @@ async def _ensure_story_async_columns(conn) -> None:
             pass
     for stmt in (
         "CREATE UNIQUE INDEX IF NOT EXISTS ix_users_phone ON users (phone)",
+        "CREATE UNIQUE INDEX IF NOT EXISTS uq_analytics_events_user_idem "
+        "ON analytics_events (user_id, idempotency_key)",
     ):
         try:
             await conn.execute(text(stmt))
@@ -276,6 +280,7 @@ app.include_router(characters.router, prefix="/v1")
 app.include_router(stories.router, prefix="/v1")
 app.include_router(voices.router, prefix="/v1")
 app.include_router(account.router, prefix="/v1")
+app.include_router(analytics.router, prefix="/v1")
 app.include_router(kernels_router, prefix="/v1")
 app.include_router(elements_router, prefix="/v1")
 app.include_router(admin_router, prefix="/admin")

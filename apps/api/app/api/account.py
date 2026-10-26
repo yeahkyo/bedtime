@@ -8,7 +8,12 @@ from app.core.security import bearer, get_current_user
 from app.models.user import User
 from app.schemas.common import QuotaOut, UserOut
 from app.services.quota import usage_summary
-from app.services.retention import cascade_delete_user, purge_expired_raw_voices, purge_expired_stories
+from app.services.retention import (
+    cascade_delete_user,
+    purge_expired_analytics_events,
+    purge_expired_raw_voices,
+    purge_expired_stories,
+)
 
 
 router = APIRouter(prefix="/account", tags=["account"])
@@ -61,4 +66,10 @@ async def run_retention_jobs(
 
     raw = await purge_expired_raw_voices(db)
     stories = await purge_expired_stories(db)
-    return {"purged_raw_voices": raw, "purged_stories": stories, "requested_by": requested_by}
+    analytics = await purge_expired_analytics_events(db)
+    return {
+        "purged_raw_voices": raw,
+        "purged_stories": stories,
+        "purged_analytics_events": analytics,
+        "requested_by": requested_by,
+    }

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
@@ -12,6 +14,7 @@ import '../constants/legal_urls.dart';
 import '../theme/app_theme.dart';
 import '../theme/widgets.dart';
 import '../utils/legal_launcher.dart';
+import '../utils/require_login.dart';
 import 'about_screen.dart';
 import 'children_manage_screen.dart';
 import 'voices_manage_screen.dart';
@@ -23,12 +26,14 @@ class MeTab extends StatefulWidget {
     required this.api,
     this.localStore,
     this.onLocalStoreReady,
+    this.onRequestLogin,
     this.onLoggedOut,
   });
 
   final ApiClient api;
   final LocalStore? localStore;
   final void Function(LocalStore store)? onLocalStoreReady;
+  final Future<bool> Function()? onRequestLogin;
   final VoidCallback? onLoggedOut;
 
   @override
@@ -54,6 +59,30 @@ class _MeTabState extends State<MeTab> {
     _loadVersion();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _load();
+    });
+  }
+
+  @override
+  void didUpdateWidget(covariant MeTab oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.localStore != null && widget.localStore == null) {
+      _resetToGuest();
+    } else if (oldWidget.localStore == null && widget.localStore != null) {
+      unawaited(_load());
+    }
+  }
+
+  void _resetToGuest() {
+    if (!mounted) return;
+    setState(() {
+      loggedIn = false;
+      displayName = '';
+      _storyUsed = null;
+      _storyLimit = null;
+      _cloneUsed = null;
+      _cloneLimit = null;
+      error = null;
+      loading = false;
     });
   }
 
@@ -235,12 +264,46 @@ class _MeTabState extends State<MeTab> {
       /* ignore */
     }
     if (!mounted) return;
+    _resetToGuest();
     final leave = widget.onLoggedOut;
     if (leave != null) {
       leave();
       return;
     }
     await _load();
+  }
+
+  Future<bool> _ensureLogin() async {
+    if (apiHasAccessToken(widget.api)) return true;
+    final request = widget.onRequestLogin;
+    if (request != null) return request();
+    return requireLogin(context, widget.api);
+  }
+
+  Future<void> _openLogin() async {
+    final ok = await _ensureLogin();
+    if (!ok || !mounted) return;
+    await _load();
+  }
+
+  Future<void> _openVoices() async {
+    final ok = await _ensureLogin();
+    if (!ok || !mounted) return;
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => VoicesManageScreen(api: widget.api),
+      ),
+    );
+  }
+
+  Future<void> _openCharacters() async {
+    final ok = await _ensureLogin();
+    if (!ok || !mounted) return;
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ChildrenManageScreen(api: widget.api),
+      ),
+    );
   }
 
   Future<void> _pickLanguage(AppLocalizations l10n) async {
@@ -311,7 +374,7 @@ class _MeTabState extends State<MeTab> {
           connectedHint: l10n.profileConnected,
           loginLabel: l10n.profileLogin,
           refreshTooltip: l10n.profileRefresh,
-          onLogin: () => widget.onLoggedOut?.call(),
+          onLogin: () => unawaited(_openLogin()),
           onRefresh: _load,
         ),
         if (error != null) ...[
@@ -330,24 +393,12 @@ class _MeTabState extends State<MeTab> {
             _SettingsRow(
               icon: Icons.mic_none,
               title: l10n.meVoicesTitle,
-              onTap: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => VoicesManageScreen(api: widget.api),
-                  ),
-                );
-              },
+              onTap: () => unawaited(_openVoices()),
             ),
             _SettingsRow(
               icon: Icons.child_care_outlined,
               title: l10n.meCharactersTitle,
-              onTap: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => ChildrenManageScreen(api: widget.api),
-                  ),
-                );
-              },
+              onTap: () => unawaited(_openCharacters()),
             ),
           ],
         ),

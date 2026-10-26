@@ -32,6 +32,10 @@ async def test_retention_non_dev_requires_admin_token():
         "app.api.account.purge_expired_raw_voices", new_callable=AsyncMock, return_value=0
     ), patch(
         "app.api.account.purge_expired_stories", new_callable=AsyncMock, return_value=0
+    ), patch(
+        "app.api.account.purge_expired_analytics_events",
+        new_callable=AsyncMock,
+        return_value=0,
     ):
         transport = ASGITransport(app=_app())
         async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -44,6 +48,7 @@ async def test_retention_non_dev_requires_admin_token():
             )
             assert ok.status_code == 200
             assert ok.json()["purged_raw_voices"] == 0
+            assert ok.json()["purged_analytics_events"] == 0
 
 
 @pytest.mark.asyncio
@@ -58,6 +63,10 @@ async def test_retention_dev_accepts_admin_token_without_user():
         "app.api.account.purge_expired_raw_voices", new_callable=AsyncMock, return_value=1
     ), patch(
         "app.api.account.purge_expired_stories", new_callable=AsyncMock, return_value=2
+    ), patch(
+        "app.api.account.purge_expired_analytics_events",
+        new_callable=AsyncMock,
+        return_value=3,
     ):
         transport = ASGITransport(app=_app())
         async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -69,4 +78,5 @@ async def test_retention_dev_accepts_admin_token_without_user():
             body = ok.json()
             assert body["purged_raw_voices"] == 1
             assert body["purged_stories"] == 2
+            assert body["purged_analytics_events"] == 3
             assert body["requested_by"] is None

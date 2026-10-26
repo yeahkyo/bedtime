@@ -5,6 +5,8 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
 
+import 'analytics/analytics_tracker.dart';
+import 'analytics/umeng_apm.dart';
 import 'api/auth_storage.dart';
 import 'api/client.dart';
 import 'config.dart';
@@ -13,20 +15,27 @@ import 'l10n/locale_controller.dart';
 import 'local/local_store.dart';
 import 'local/network_errors.dart';
 import 'local/user_scope.dart';
-import 'screens/auth_screen.dart';
 import 'screens/home_shell.dart';
 import 'splash/splash_screen.dart';
 import 'theme/app_theme.dart';
+import 'utils/require_login.dart';
 
 Future<void> main() async {
-  final widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
+  // APM binding first so we can load assets, then optionally enable Umeng.
+  final widgetsBinding = BedtimeApmWidgetsFlutterBinding.ensureInitialized();
   FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
+  await AppConfig.load();
   await LocaleController.instance.load();
-  runApp(const BedtimeApp());
+
+  await runAppWithOptionalUmengApm((observer) {
+    return BedtimeApp(navigatorObserver: observer);
+  });
 }
 
 class BedtimeApp extends StatefulWidget {
-  const BedtimeApp({super.key});
+  const BedtimeApp({super.key, this.navigatorObserver});
+
+  final NavigatorObserver? navigatorObserver;
 
   @override
   State<BedtimeApp> createState() => _BedtimeAppState();
@@ -52,6 +61,9 @@ class _BedtimeAppState extends State<BedtimeApp> {
   @override
   Widget build(BuildContext context) {
     final locale = LocaleController.instance.locale;
+    final observers = <NavigatorObserver>[
+      if (widget.navigatorObserver != null) widget.navigatorObserver!,
+    ];
     return MaterialApp(
       onGenerateTitle: (ctx) => AppLocalizations.of(ctx).appTitle,
       debugShowCheckedModeBanner: false,
@@ -64,6 +76,7 @@ class _BedtimeAppState extends State<BedtimeApp> {
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
+      navigatorObservers: observers,
       home: const BootstrapGate(),
     );
   }
@@ -81,7 +94,6 @@ class _BootstrapGateState extends State<BootstrapGate>
   late final ApiClient api = ApiClient(onUnauthorized: _handleUnauthorized);
   String? error;
   bool loading = true;
-  bool needsAuth = false;
   bool offlineMode = false;
   LocalStore? localStore;
   int _bootEpoch = 0;
@@ -98,6 +110,7 @@ class _BootstrapGateState extends State<BootstrapGate>
   @override
   void initState() {
     super.initState();
+    AnalyticsTracker.instance.bind(api);
     WidgetsBinding.instance.addObserver(this);
     _exitController = AnimationController(
       vsync: this,
@@ -125,6 +138,7 @@ class _BootstrapGateState extends State<BootstrapGate>
 
   @override
   void dispose() {
+    AnalyticsTracker.instance.unbind(api);
     WidgetsBinding.instance.removeObserver(this);
     _exitController.dispose();
     super.dispose();
@@ -134,7 +148,6 @@ class _BootstrapGateState extends State<BootstrapGate>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed &&
         !loading &&
-        !needsAuth &&
         api.refreshToken != null) {
       // Soft renew only — network failures must not clear the session.
       unawaited(() async {
@@ -148,6 +161,7 @@ class _BootstrapGateState extends State<BootstrapGate>
 
   Future<void> _clearSession({bool clearLocal = true}) async {
     _storeEnsureGen++;
+    AnalyticsTracker.instance.clearQueue();
     if (clearLocal) {
       try {
         await LocalStore.clearActiveUserCache(api);
@@ -164,15 +178,28 @@ class _BootstrapGateState extends State<BootstrapGate>
     _reauthing = true;
     _clearSession().then((_) {
       if (!mounted) return;
+      // Stay in the app as guest; gated actions will prompt login.
       setState(() {
         loading = false;
-        needsAuth = true;
         offlineMode = false;
         error = null;
         localStore = null;
       });
       _reauthing = false;
     });
+  }
+
+  Future<bool> _requestLogin() async {
+    if (!mounted) return false;
+    if (apiHasAccessToken(api)) return true;
+    final ok = await pushLoginScreen(context, api);
+    if (!ok || !mounted) return false;
+    offlineMode = false;
+    error = null;
+    await _ensureStoreFromMe();
+    if (!mounted) return false;
+    setState(() {});
+    return apiHasAccessToken(api);
   }
 
   Future<LocalStore?> _resolveStore() async {
@@ -185,7 +212,7 @@ class _BootstrapGateState extends State<BootstrapGate>
     if (!mounted || bootEpoch != _bootEpoch || ensureGen != _storeEnsureGen) {
       return false;
     }
-    if (needsAuth || _reauthing) return false;
+    if (_reauthing) return false;
     final hasAccess = api.token != null && api.token!.isNotEmpty;
     final hasRefresh = api.refreshToken != null && api.refreshToken!.isNotEmpty;
     return hasAccess || hasRefresh;
@@ -275,7 +302,6 @@ class _BootstrapGateState extends State<BootstrapGate>
         }
         setState(() {
           loading = false;
-          needsAuth = false;
           offlineMode = enteredOffline;
           error = null;
         });
@@ -283,9 +309,9 @@ class _BootstrapGateState extends State<BootstrapGate>
         return;
       }
 
+      // No session → guest home (login deferred until gated actions).
       setState(() {
         loading = false;
-        needsAuth = true;
         offlineMode = false;
         error = null;
         localStore = null;
@@ -301,7 +327,6 @@ class _BootstrapGateState extends State<BootstrapGate>
         localStore = await _resolveStore();
         setState(() {
           loading = false;
-          needsAuth = false;
           offlineMode = true;
           error = null;
         });
@@ -315,7 +340,6 @@ class _BootstrapGateState extends State<BootstrapGate>
       setState(() {
         error = '${friendlyNetworkError(e)}\n\nAPI: $apiBaseUrl\n\n$hint';
         loading = false;
-        needsAuth = false;
         offlineMode = false;
       });
       await _finishSplash(skipDwell: true);
@@ -385,20 +409,6 @@ class _BootstrapGateState extends State<BootstrapGate>
         ),
       );
     }
-    if (needsAuth) {
-      return AuthScreen(
-        api: api,
-        onSuccess: () {
-          if (!mounted) return;
-          unawaited(_ensureStoreFromMe());
-          setState(() {
-            needsAuth = false;
-            offlineMode = false;
-            error = null;
-          });
-        },
-      );
-    }
     return HomeShell(
       api: api,
       localStore: localStore,
@@ -407,11 +417,11 @@ class _BootstrapGateState extends State<BootstrapGate>
         if (!mounted) return;
         setState(() => localStore = store);
       },
+      onRequestLogin: _requestLogin,
       onLoggedOut: () {
         if (!mounted) return;
         unawaited(_clearSession());
         setState(() {
-          needsAuth = true;
           offlineMode = false;
           error = null;
           loading = false;

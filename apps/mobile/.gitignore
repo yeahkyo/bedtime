@@ -43,3 +43,6 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Local env overlays (LAN IP, Umeng keys) — copy from *.local.json.example
+/assets/config/*.local.json

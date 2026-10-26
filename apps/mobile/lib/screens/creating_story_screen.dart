@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../analytics/analytics_tracker.dart';
 import '../api/client.dart';
 import '../l10n/app_localizations.dart';
 import '../local/local_store.dart';
@@ -51,6 +52,8 @@ class _CreatingStoryScreenState extends State<CreatingStoryScreen> {
       progressKey = prog;
       if (st == 'ready') {
         waiting = false;
+        AnalyticsTracker.instance.bind(widget.api);
+        AnalyticsTracker.instance.track('story_ready', storyId: widget.storyId);
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted) _openPlayer(initial);
         });
@@ -58,6 +61,12 @@ class _CreatingStoryScreenState extends State<CreatingStoryScreen> {
       }
       if (st == 'failed') {
         waiting = false;
+        AnalyticsTracker.instance.bind(widget.api);
+        AnalyticsTracker.instance.track(
+          'story_failed',
+          storyId: widget.storyId,
+          props: {'error_class': 'generate_failed'},
+        );
         final msg = (initial['error_message'] as String?)?.trim();
         if (msg == null || msg.isEmpty) {
           _useFailedFallback = true;
@@ -86,10 +95,21 @@ class _CreatingStoryScreenState extends State<CreatingStoryScreen> {
           setState(() => progressKey = p);
         },
       );
+      AnalyticsTracker.instance.bind(widget.api);
+      AnalyticsTracker.instance.track('story_ready', storyId: widget.storyId);
       await widget.localStore?.stories.upsertOne(story);
       if (!mounted) return;
       await _openPlayer(story);
     } catch (e) {
+      final failed = e is ApiException && e.storyFailed;
+      AnalyticsTracker.instance.bind(widget.api);
+      AnalyticsTracker.instance.track(
+        'story_failed',
+        storyId: widget.storyId,
+        props: {
+          'error_class': failed ? 'generate_failed' : 'wait_error',
+        },
+      );
       if (!mounted) return;
       setState(() {
         waiting = false;
@@ -116,10 +136,21 @@ class _CreatingStoryScreenState extends State<CreatingStoryScreen> {
           setState(() => progressKey = p);
         },
       );
+      AnalyticsTracker.instance.bind(widget.api);
+      AnalyticsTracker.instance.track('story_ready', storyId: widget.storyId);
       await widget.localStore?.stories.upsertOne(story);
       if (!mounted) return;
       await _openPlayer(story);
     } catch (e) {
+      final failed = e is ApiException && e.storyFailed;
+      AnalyticsTracker.instance.bind(widget.api);
+      AnalyticsTracker.instance.track(
+        'story_failed',
+        storyId: widget.storyId,
+        props: {
+          'error_class': failed ? 'generate_failed' : 'wait_error',
+        },
+      );
       if (!mounted) return;
       setState(() {
         waiting = false;

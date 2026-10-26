@@ -101,6 +101,8 @@ class Settings(BaseSettings):
 
     story_retention_months: int = 24
     raw_voice_retention_hours: int = 24
+    # Product analytics_events TTL (days); purged via retention cron.
+    analytics_retention_days: int = 180
     monthly_story_quota: int = 30
     monthly_clone_quota: int = 3
 

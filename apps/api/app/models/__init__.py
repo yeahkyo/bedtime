@@ -1,3 +1,4 @@
+from app.models.analytics import AnalyticsEvent
 from app.models.character import Character
 from app.models.child import Child
 from app.models.invite import InviteCode
@@ -28,6 +29,7 @@ __all__ = [
     "StoryAudio",
     "StorySeries",
     "UsageLedger",
+    "AnalyticsEvent",
     "Memory",
     "MemoryAsset",
     "MemoryElement",

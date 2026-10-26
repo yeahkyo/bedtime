@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../analytics/analytics_tracker.dart';
 import '../api/client.dart';
 import '../l10n/app_localizations.dart';
 import '../config.dart';
@@ -91,6 +92,8 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
   @override
   void initState() {
     super.initState();
+    AnalyticsTracker.instance.bind(widget.api);
+    AnalyticsTracker.instance.track('create_open');
     _prepare();
   }
 
@@ -526,6 +529,15 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
 
     setState(() => busy = true);
     try {
+      AnalyticsTracker.instance.track(
+        'generate_tap',
+        props: {
+          'duration': duration,
+          'wonder': wonder,
+          'dialogue': dialogue,
+          'language': language,
+        },
+      );
       await widget.api.updateVoicePrefs(
         childId: childId!,
         speedTier: _speedTier,
@@ -575,6 +587,14 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
             initialStory: created,
           ),
         ),
+      );
+    } on ApiException catch (e) {
+      if (e.statusCode == 429) {
+        AnalyticsTracker.instance.track('quota_hit', props: {'kind': 'story'});
+      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(friendlyNetworkError(e))),
       );
     } catch (e) {
       if (!mounted) return;

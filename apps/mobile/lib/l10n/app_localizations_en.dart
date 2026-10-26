@@ -310,6 +310,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get authFeatureRecoverPassword => 'Password recovery';
 
   @override
+  String get authClose => 'Close';
+
+  @override
   String get storyProgressQueued => 'In queue…';
 
   @override
@@ -1255,9 +1258,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get bootHintRemote =>
-      'For staging/online, use the Cloudflare HTTPS host:\n--dart-define=API_BASE_URL=https://bedtime-api.<your-domain>\nand register with an invite code or sign in with phone.';
+      'For staging/online, run with --dart-define=APP_ENV=staging\n(see assets/config/staging.json) and register with an invite code or sign in with phone.';
 
   @override
   String get bootHintLocal =>
-      'If the screen stays blank or won\'t connect: Settings → Privacy & Security → Local Network → enable this app;\nand launch with --dart-define=API_BASE_URL=http://<your-Mac-LAN-IP>:8000.';
+      'If the screen stays blank or won\'t connect: Settings → Privacy & Security → Local Network → enable this app;\nfor a physical device set api_base_url in assets/config/dev.local.json (copy from *.example) to http://<your-Mac-LAN-IP>:8000.';
 }

@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../analytics/analytics_tracker.dart';
 import '../api/client.dart';
 import '../config.dart';
 import '../l10n/app_localizations.dart';
@@ -156,6 +157,10 @@ class _PlayerScreenState extends State<PlayerScreen> {
   @override
   void initState() {
     super.initState();
+    final sid = widget.storyId;
+    if (sid != null) {
+      AnalyticsTracker.instance.track('player_open', storyId: sid);
+    }
     _narrationStateSub = narration.playerStateStream.listen((state) {
       if (state.processingState == ProcessingState.completed) {
         unawaited(_onNarrationCompleted());
@@ -311,6 +316,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
   Future<void> _onNarrationCompleted() async {
     final store = widget.localStore;
     final id = widget.storyId;
+    if (id != null) {
+      AnalyticsTracker.instance.track('playback_complete', storyId: id);
+    }
     if (store != null && id != null) {
       unawaited(store.playback.clear(id));
       unawaited(store.media.markReadyIfComplete(id));

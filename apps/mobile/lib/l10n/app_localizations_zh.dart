@@ -308,6 +308,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get authFeatureRecoverPassword => '找回密码';
 
   @override
+  String get authClose => '关闭';
+
+  @override
   String get storyProgressQueued => '排队中…';
 
   @override
@@ -1208,11 +1211,11 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get bootHintRemote =>
-      '线上/内测请用 Cloudflare HTTPS 域名：\n--dart-define=API_BASE_URL=https://bedtime-api.<你的域名>\n并使用邀请码注册或手机号登录。';
+      '线上/内测请用：flutter run --dart-define=APP_ENV=staging\n（见 assets/config/staging.json），并用邀请码注册或手机号登录。';
 
   @override
   String get bootHintLocal =>
-      '若卡在白屏或连不上：系统设置 → 隐私与安全性 → 本地网络 → 打开本 App；\n并确认用 --dart-define=API_BASE_URL=http://<电脑局域网IP>:8000 启动。';
+      '若卡在白屏或连不上：系统设置 → 隐私与安全性 → 本地网络 → 打开本 App；\n真机请在 assets/config/dev.local.json（从 *.example 复制）把 api_base_url 设为 http://<电脑局域网IP>:8000。';
 }
 
 /// The translations for Chinese, as used in Taiwan (`zh_TW`).
@@ -1517,6 +1520,9 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get authFeatureRecoverPassword => '找回密碼';
+
+  @override
+  String get authClose => '關閉';
 
   @override
   String get storyProgressQueued => '排隊中…';
@@ -2420,9 +2426,9 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get bootHintRemote =>
-      '線上/內測請用 Cloudflare HTTPS 網域：\n--dart-define=API_BASE_URL=https://bedtime-api.<你的網域>\n並使用邀請碼註冊或手機號登入。';
+      '線上/內測請用：flutter run --dart-define=APP_ENV=staging\n（見 assets/config/staging.json），並用邀請碼註冊或手機號登入。';
 
   @override
   String get bootHintLocal =>
-      '若卡在白屏或連不上：系統設定 → 隱私與安全性 → 本機網路 → 打開本 App；\n並確認用 --dart-define=API_BASE_URL=http://<電腦區網IP>:8000 啟動。';
+      '若卡在白屏或連不上：系統設定 → 隱私與安全性 → 本機網路 → 打開本 App；\n真機請在 assets/config/dev.local.json（從 *.example 複製）把 api_base_url 設為 http://<電腦區網IP>:8000。';
 }

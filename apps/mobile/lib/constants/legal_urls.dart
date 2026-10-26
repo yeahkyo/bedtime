@@ -1,15 +1,17 @@
 import 'dart:ui' show Locale;
 
+import '../config.dart';
+
 /// Marketing-site origin for privacy / terms (not the API host).
 class LegalConfig {
   static const supportEmail = 'support@lullvale.com';
 
-  /// Production legal site. Override with `--dart-define=LEGAL_HOST=...`
-  /// (e.g. http://127.0.0.1:8765 while previewing web/legal).
+  /// Default when config has not loaded yet (should not happen after main()).
   static const defaultBaseUrl = 'https://huhu.lullvale.com';
 
+  /// From `assets/config/{env}.json` → `legal_host`.
   static String get baseUrl => _normalizeBaseUrl(
-        const String.fromEnvironment('LEGAL_HOST', defaultValue: defaultBaseUrl),
+        AppConfig.isLoaded ? AppConfig.instance.legalHost : defaultBaseUrl,
       );
 
   static String _normalizeBaseUrl(String raw) {

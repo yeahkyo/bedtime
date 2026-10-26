@@ -59,8 +59,10 @@ Override SSH target: `DEPLOY_SSH=root@lullvale01 REMOTE_REPO_ROOT=/srv/bedtime .
    SPA uses same-origin `/admin/*`; nginx proxies to the `api` container — leave `ADMIN_UI_API_BASE` empty.
 8. Legal site: deploy sibling [`../Lullvale`](../../Lullvale); DNS `huhu.lullvale.com` → VPS, Proxied; Origin Rule → **8082**.  
    Smoke: `curl -sI https://huhu.lullvale.com/legal/privacy/en.html` → **200**.
-9. App: `flutter run --dart-define=API_BASE_URL=https://bedtime-api.lullvale.com`  
-   (legal URLs default to `https://huhu.lullvale.com`; optional `LEGAL_HOST=…`)
+9. App: `flutter run --dart-define=APP_ENV=staging`  
+   Config: [`apps/mobile/assets/config/staging.json`](../apps/mobile/assets/config/staging.json) (`api_base_url`, `legal_host`, feature flags).  
+   Umeng U-APM: put AppKeys in `staging.json` or gitignored `staging.local.json` (see `*.local.json.example`). Empty keys → APM skipped. Upload symbol/dSYM in the Umeng console for readable stacks.  
+   Local/CI: default `APP_ENV=dev` (LAN API, empty Umeng keys).
 10. Retention cron on the VPS (see below).
 
 ## Fill these in `.env.staging` before first deploy
@@ -137,7 +139,7 @@ curl -fsS -X POST -H "X-Retention-Admin-Token: $RETENTION_ADMIN_TOKEN" \
 
 1. `curl -sS https://bedtime-api.lullvale.com/health`  
 2. `curl -sI https://huhu.lullvale.com/legal/privacy/en.html` → **200**  
-3. App with HTTPS `API_BASE_URL`  
+3. App with `APP_ENV=staging` (HTTPS API from config)
 4. Create child → story → play (R2). Soft series / voice clone are off by default (`FEATURE_SOFT_SERIES` / `FEATURE_VOICE_CLONE`).  
 5. Retention curl above  
 

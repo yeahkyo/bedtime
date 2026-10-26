@@ -599,6 +599,16 @@ class ApiClient {
     return jsonDecode(res.body) as Map<String, dynamic>;
   }
 
+  /// Batch product analytics events (self-hosted). Requires a valid access token.
+  Future<void> postAnalyticsEvents(List<Map<String, dynamic>> events) async {
+    if (token == null || events.isEmpty) return;
+    await _post(
+      _u('/v1/analytics/events'),
+      body: jsonEncode({'events': events}),
+      timeout: const Duration(seconds: 15),
+    );
+  }
+
   void _ensureAuthResponse(http.Response res) {
     if (res.statusCode < 400) return;
     throw ApiException(_friendlyError(res.statusCode, res.body), statusCode: res.statusCode);

@@ -1,17 +1,34 @@
 # Lullvale Bedtime (Flutter)
 
-## API base URL
+## Environments (`assets/config/`)
+
+| File | Use |
+|------|-----|
+| `dev.json` | Local API (`127.0.0.1:8000`), Umeng keys empty (APM skipped) |
+| `staging.json` | Online API host, fill Umeng keys (or use `staging.local.json`) |
+| `production.json` | Store / prod host + keys (ready for later) |
+
+Select env with a single define (default `dev`):
 
 ```bash
-# Simulator / local Docker API
-flutter run --dart-define=API_BASE_URL=http://127.0.0.1:8000
-
-# Physical device on LAN
-flutter run --dart-define=API_BASE_URL=http://<电脑局域网IP>:8000
-
-# Staging / online via Cloudflare (HTTPS — iOS ATS)
-flutter run --dart-define=API_BASE_URL=https://bedtime-api.lullvale.com
+flutter run
+flutter run --dart-define=APP_ENV=staging
+flutter run --dart-define=APP_ENV=production
 ```
+
+Optional **gitignored** overlays (copy from `*.local.json.example`):
+
+```bash
+# Physical device → Mac LAN IP
+cp assets/config/dev.local.json.example assets/config/dev.local.json
+# edit api_base_url
+
+# Keep Umeng keys out of git
+cp assets/config/staging.local.json.example assets/config/staging.local.json
+# edit umeng_*_app_key
+```
+
+After changing any config JSON, do a full restart (not just hot reload).
 
 ## Navigation
 

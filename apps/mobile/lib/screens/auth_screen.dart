@@ -1,5 +1,6 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import '../analytics/analytics_tracker.dart';
 import '../api/auth_storage.dart';
 import '../api/client.dart';
 import '../constants/legal_urls.dart';
@@ -9,10 +10,17 @@ import '../utils/legal_launcher.dart';
 
 /// Login / register (invite + phone + password).
 class AuthScreen extends StatefulWidget {
-  const AuthScreen({super.key, required this.api, this.onSuccess});
+  const AuthScreen({
+    super.key,
+    required this.api,
+    this.onSuccess,
+    this.allowDismiss = false,
+  });
 
   final ApiClient api;
   final VoidCallback? onSuccess;
+  /// When true (modal from gated actions), show a close control.
+  final bool allowDismiss;
 
   @override
   State<AuthScreen> createState() => _AuthScreenState();
@@ -131,6 +139,10 @@ class _AuthScreenState extends State<AuthScreen> {
       await AuthStorage.save(access: access, refresh: refresh);
       widget.api.token = access;
       widget.api.refreshToken = refresh;
+      AnalyticsTracker.instance.bind(widget.api);
+      AnalyticsTracker.instance.track(
+        _registerMode ? 'register_success' : 'login_success',
+      );
       if (!mounted) return;
       widget.onSuccess?.call();
     } on ApiException catch (e) {
@@ -153,6 +165,13 @@ class _AuthScreenState extends State<AuthScreen> {
     });
   }
 
+  void _dismiss() {
+    if (_busy) return;
+    if (Navigator.of(context).canPop()) {
+      Navigator.of(context).pop(false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final tt = Theme.of(context).textTheme;
@@ -165,9 +184,24 @@ class _AuthScreenState extends State<AuthScreen> {
           SafeArea(
             child: Column(
               children: [
+                if (widget.allowDismiss)
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: IconButton(
+                      tooltip: l10n.authClose,
+                      onPressed: _busy ? null : _dismiss,
+                      icon: const Icon(Icons.close),
+                      color: AppColors.onSurfaceMuted,
+                    ),
+                  ),
                 Expanded(
                   child: ListView(
-                    padding: const EdgeInsets.fromLTRB(24, 36, 24, 16),
+                    padding: EdgeInsets.fromLTRB(
+                      24,
+                      widget.allowDismiss ? 8 : 36,
+                      24,
+                      16,
+                    ),
                     children: [
                       _buildHeader(tt, l10n),
                       const SizedBox(height: 32),

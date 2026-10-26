@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 
 from app.api.admin import (
+    analytics,
     auth,
     elements,
     invites,
@@ -26,3 +27,4 @@ router.include_router(elements.router)
 router.include_router(kernels.router)
 router.include_router(llm_agents.router)
 router.include_router(voices.router)
+router.include_router(analytics.router)

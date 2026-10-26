@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../analytics/analytics_tracker.dart';
 import '../api/client.dart';
 import '../l10n/app_localizations.dart';
 import '../local/local_store.dart';
@@ -14,6 +15,7 @@ class HomeShell extends StatefulWidget {
     this.localStore,
     this.offlineMode = false,
     this.onLocalStoreReady,
+    this.onRequestLogin,
     this.onLoggedOut,
   });
 
@@ -21,7 +23,9 @@ class HomeShell extends StatefulWidget {
   final LocalStore? localStore;
   final bool offlineMode;
   final void Function(LocalStore store)? onLocalStoreReady;
-  /// Called after credentials are cleared so the root gate can show AuthScreen.
+  /// Opens login; returns true if the user signed in.
+  final Future<bool> Function()? onRequestLogin;
+  /// Called after credentials are cleared (stay on guest home).
   final VoidCallback? onLoggedOut;
 
   @override
@@ -36,6 +40,10 @@ class _HomeShellState extends State<HomeShell> {
   @override
   void initState() {
     super.initState();
+    AnalyticsTracker.instance.bind(widget.api);
+    if (!widget.offlineMode) {
+      AnalyticsTracker.instance.track('app_open');
+    }
     if (widget.offlineMode) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted || _offlineBannerShown) return;
@@ -81,11 +89,13 @@ class _HomeShellState extends State<HomeShell> {
                 key: _storiesKey,
                 api: widget.api,
                 localStore: store,
+                onRequestLogin: widget.onRequestLogin,
               ),
               MeTab(
                 api: widget.api,
                 localStore: store,
                 onLocalStoreReady: widget.onLocalStoreReady,
+                onRequestLogin: widget.onRequestLogin,
                 onLoggedOut: widget.onLoggedOut,
               ),
             ],

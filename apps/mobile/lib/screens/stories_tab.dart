@@ -9,15 +9,22 @@ import '../local/local_store.dart';
 import '../local/network_errors.dart';
 import '../theme/app_theme.dart';
 import '../theme/widgets.dart';
+import '../utils/require_login.dart';
 import 'create_story_screen.dart';
 import 'player_screen.dart';
 
 /// Tab 1: story library (newest first) + entry to create flow.
 class StoriesTab extends StatefulWidget {
-  const StoriesTab({super.key, required this.api, this.localStore});
+  const StoriesTab({
+    super.key,
+    required this.api,
+    this.localStore,
+    this.onRequestLogin,
+  });
 
   final ApiClient api;
   final LocalStore? localStore;
+  final Future<bool> Function()? onRequestLogin;
 
   @override
   State<StoriesTab> createState() => StoriesTabState();
@@ -39,7 +46,15 @@ class StoriesTabState extends State<StoriesTab> {
   @override
   void didUpdateWidget(covariant StoriesTab oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.localStore == null && widget.localStore != null) {
+    if (oldWidget.localStore != null && widget.localStore == null) {
+      setState(() {
+        stories = [];
+        loading = false;
+        continuing = false;
+        retrying = false;
+        retryProgress = null;
+      });
+    } else if (oldWidget.localStore == null && widget.localStore != null) {
       unawaited(_load());
     }
   }
@@ -94,9 +109,29 @@ class StoriesTabState extends State<StoriesTab> {
       return;
     }
 
+    if (!apiHasAccessToken(widget.api)) {
+      if (mounted) {
+        setState(() {
+          stories = [];
+          loading = false;
+        });
+      }
+      return;
+    }
+
     setState(() => loading = true);
     try {
       stories = await widget.api.listStories();
+    } on ApiException catch (e) {
+      if (e.unauthorized) {
+        if (mounted) setState(() => stories = []);
+        return;
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(friendlyNetworkError(e))),
+        );
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -108,7 +143,16 @@ class StoriesTabState extends State<StoriesTab> {
     }
   }
 
+  Future<bool> _ensureLogin() async {
+    if (apiHasAccessToken(widget.api)) return true;
+    final request = widget.onRequestLogin;
+    if (request != null) return request();
+    return requireLogin(context, widget.api);
+  }
+
   Future<void> _openCreate() async {
+    final ok = await _ensureLogin();
+    if (!ok || !mounted) return;
     await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => CreateStoryScreen(
