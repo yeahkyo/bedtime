@@ -269,25 +269,39 @@ def test_mood_rich_soft_guard():
     assert dials["imagery"]["level"] == "balanced"
 
 
-def test_length_band_plus_minus_one_minute():
-    zh5 = estimate_length_target("zh", 5)
-    assert zh5["target"] == 5 * 220
-    assert zh5["min"] == 1100 - 220
-    assert zh5["max"] == 1100 + 220
-    assert length_range_for_llm("zh", 5) == "880-1320"
+def test_length_band_product_tiers():
+    from app.providers.story_prompt import canonicalize_duration_minutes
+
+    assert canonicalize_duration_minutes(3) == 3
+    assert canonicalize_duration_minutes(4) == 3
+    assert canonicalize_duration_minutes(5) == 5
+    assert canonicalize_duration_minutes(7) == 5
+    assert canonicalize_duration_minutes(8) == 10
+    assert canonicalize_duration_minutes(12) == 10
+
+    # UI listen copy unchanged; LLM len uses reference minutes ±1 @ 220 chars/min
     zh3 = estimate_length_target("zh", 3)
-    assert zh3["target"] == 660
-    assert zh3["min"] == 440
-    assert zh3["max"] == 880
-    assert length_range_for_llm("zh", 3) == "440-880"
+    assert zh3["listen_minutes_min"] == 2 and zh3["listen_minutes_max"] == 4
+    assert zh3["reference_minutes"] == 4
+    assert zh3["target"] == 880
+    assert zh3["min"] == 660
+    assert zh3["max"] == 1100
+    assert length_range_for_llm("zh", 3) == "660-1100"
+    zh5 = estimate_length_target("zh", 5)
+    assert zh5["reference_minutes"] == 7
+    assert zh5["min"] == 1320
+    assert zh5["max"] == 1760
+    assert length_range_for_llm("zh", 5) == "1320-1760"
     zh10 = estimate_length_target("zh", 10)
-    assert zh10["min"] == 2200 - 220
-    assert zh10["max"] == 2200 + 220
+    assert zh10["reference_minutes"] == 10
+    assert zh10["min"] == 1980
+    assert zh10["max"] == 2420
+    assert estimate_length_target("zh", 8)["duration_minutes"] == 10
     en5 = estimate_length_target("en", 5)
     assert en5["unit"] == "words"
-    assert en5["target"] == 5 * 100
-    assert en5["min"] == 400
-    assert en5["max"] == 600
+    assert en5["reference_minutes"] == 7
+    assert en5["min"] == 600
+    assert en5["max"] == 800
     zh5_tok = max_tokens_for_story("zh", 5)
     zh10_tok = max_tokens_for_story("zh", 10)
     assert zh5_tok >= 1024

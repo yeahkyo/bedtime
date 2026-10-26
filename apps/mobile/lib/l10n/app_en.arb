@@ -215,6 +215,20 @@
       }
     }
   },
+  "storiesLengthShort": "Short",
+  "storiesLengthMedium": "Medium",
+  "storiesLengthLong": "Long",
+  "storiesLengthLabel": "{label} · ~{minutes} min",
+  "@storiesLengthLabel": {
+    "placeholders": {
+      "label": {
+        "type": "String"
+      },
+      "minutes": {
+        "type": "Object"
+      }
+    }
+  },
   "storiesSeriesMeta": "Series {id}",
   "@storiesSeriesMeta": {
     "placeholders": {
@@ -487,6 +501,12 @@
   "createStoryDreamRules": "Bedtime pace",
   "createStoryDreamRulesBody": "The story eases into a calm rhythm, then fades into soft goodnight sounds.",
   "createStoryDuration": "Length",
+  "createStoryLengthShort": "Short",
+  "createStoryLengthMedium": "Medium",
+  "createStoryLengthLong": "Long",
+  "createStoryLengthHintShort": "About 2–4 min",
+  "createStoryLengthHintMedium": "About 4–7 min",
+  "createStoryLengthHintLong": "About 8–12 min",
   "createStoryErrAddChild": "Please add a listener first",
   "createStoryErrNickname": "Please add a nickname (tap the profile to edit)",
   "createStoryErrVoice": "Please choose a voice",
@@ -561,19 +581,6 @@
     }
   },
   "playerTimerDelay": "Delay",
-  "createStoryDurationMood3": "3 min · short",
-  "createStoryDurationMood5": "5 min · bedtime",
-  "createStoryDurationMood8": "8 min · cozy",
-  "createStoryDurationMood10": "10 min · longer",
-  "createStoryDurationMood12": "12 min · deep rest",
-  "createStoryDurationMinutes": "{minutes} min",
-  "@createStoryDurationMinutes": {
-    "placeholders": {
-      "minutes": {
-        "type": "int"
-      }
-    }
-  },
   "playerOutroMood0": "0 min · stop with story",
   "playerOutroMood1": "1 min · soft fade",
   "playerOutroMood5": "5 min · wind-down",

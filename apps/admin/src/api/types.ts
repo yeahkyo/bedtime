@@ -107,7 +107,10 @@ export interface AdminStoryListItem {
   user_display_name: string | null
   child_id: number | null
   story_provider: string | null
+  story_model?: string | null
   speech_provider: string | null
+  speech_model?: string | null
+  voice_name?: string | null
   duration_minutes: number
   created_at: string | null
   error_message: string | null
@@ -146,6 +149,7 @@ export interface AdminStoryDetailOut {
   voice_id: number | null
   voice_name: string | null
   story_provider: string | null
+  story_model?: string | null
   speech_provider: string | null
   speech_model?: string | null
   duration_minutes: number

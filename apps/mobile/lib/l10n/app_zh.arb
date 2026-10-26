@@ -215,6 +215,20 @@
       }
     }
   },
+  "storiesLengthShort": "短篇",
+  "storiesLengthMedium": "中篇",
+  "storiesLengthLong": "长篇",
+  "storiesLengthLabel": "{label} · 约 {minutes} 分钟",
+  "@storiesLengthLabel": {
+    "placeholders": {
+      "label": {
+        "type": "String"
+      },
+      "minutes": {
+        "type": "Object"
+      }
+    }
+  },
   "storiesSeriesMeta": "系列 #{id}",
   "@storiesSeriesMeta": {
     "placeholders": {
@@ -486,7 +500,13 @@
   "createStoryEpisodeNo": "系列集数",
   "createStoryDreamRules": "织梦守则",
   "createStoryDreamRulesBody": "故事将自动调节平静舒缓的语言节奏，末尾缓缓淡入晚安白噪音。",
-  "createStoryDuration": "时长 (分钟)",
+  "createStoryDuration": "篇幅",
+  "createStoryLengthShort": "短篇",
+  "createStoryLengthMedium": "中篇",
+  "createStoryLengthLong": "长篇",
+  "createStoryLengthHintShort": "约 2–4 分钟",
+  "createStoryLengthHintMedium": "约 4–7 分钟",
+  "createStoryLengthHintLong": "约 8–12 分钟",
   "createStoryErrAddChild": "请先添加孩子档案",
   "createStoryErrNickname": "请先完善孩子昵称（点档案卡片编辑）",
   "createStoryErrVoice": "请选择音色（或先到「音色」页创建系统音色）",
@@ -561,19 +581,6 @@
     }
   },
   "playerTimerDelay": "延迟时长",
-  "createStoryDurationMood3": "3 分钟 · 短篇微睡",
-  "createStoryDurationMood5": "5 分钟 · 适合入睡",
-  "createStoryDurationMood8": "8 分钟 · 沉浸暖梦",
-  "createStoryDurationMood10": "10 分钟 · 悠长童话",
-  "createStoryDurationMood12": "12 分钟 · 深度安歇",
-  "createStoryDurationMinutes": "{minutes} 分钟",
-  "@createStoryDurationMinutes": {
-    "placeholders": {
-      "minutes": {
-        "type": "int"
-      }
-    }
-  },
   "playerOutroMood0": "0 分钟 · 故事结束即关",
   "playerOutroMood1": "1 分钟 · 余韵轻停",
   "playerOutroMood5": "5 分钟 · 温柔收束",

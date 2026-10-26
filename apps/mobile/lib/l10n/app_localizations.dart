@@ -891,6 +891,30 @@ abstract class AppLocalizations {
   /// **'{minutes} min'**
   String storiesMinutes(Object minutes);
 
+  /// No description provided for @storiesLengthShort.
+  ///
+  /// In en, this message translates to:
+  /// **'Short'**
+  String get storiesLengthShort;
+
+  /// No description provided for @storiesLengthMedium.
+  ///
+  /// In en, this message translates to:
+  /// **'Medium'**
+  String get storiesLengthMedium;
+
+  /// No description provided for @storiesLengthLong.
+  ///
+  /// In en, this message translates to:
+  /// **'Long'**
+  String get storiesLengthLong;
+
+  /// No description provided for @storiesLengthLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'{label} · ~{minutes} min'**
+  String storiesLengthLabel(String label, Object minutes);
+
   /// No description provided for @storiesSeriesMeta.
   ///
   /// In en, this message translates to:
@@ -1959,6 +1983,42 @@ abstract class AppLocalizations {
   /// **'Length'**
   String get createStoryDuration;
 
+  /// No description provided for @createStoryLengthShort.
+  ///
+  /// In en, this message translates to:
+  /// **'Short'**
+  String get createStoryLengthShort;
+
+  /// No description provided for @createStoryLengthMedium.
+  ///
+  /// In en, this message translates to:
+  /// **'Medium'**
+  String get createStoryLengthMedium;
+
+  /// No description provided for @createStoryLengthLong.
+  ///
+  /// In en, this message translates to:
+  /// **'Long'**
+  String get createStoryLengthLong;
+
+  /// No description provided for @createStoryLengthHintShort.
+  ///
+  /// In en, this message translates to:
+  /// **'About 2–4 min'**
+  String get createStoryLengthHintShort;
+
+  /// No description provided for @createStoryLengthHintMedium.
+  ///
+  /// In en, this message translates to:
+  /// **'About 4–7 min'**
+  String get createStoryLengthHintMedium;
+
+  /// No description provided for @createStoryLengthHintLong.
+  ///
+  /// In en, this message translates to:
+  /// **'About 8–12 min'**
+  String get createStoryLengthHintLong;
+
   /// No description provided for @createStoryErrAddChild.
   ///
   /// In en, this message translates to:
@@ -2150,42 +2210,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Delay'**
   String get playerTimerDelay;
-
-  /// No description provided for @createStoryDurationMood3.
-  ///
-  /// In en, this message translates to:
-  /// **'3 min · short'**
-  String get createStoryDurationMood3;
-
-  /// No description provided for @createStoryDurationMood5.
-  ///
-  /// In en, this message translates to:
-  /// **'5 min · bedtime'**
-  String get createStoryDurationMood5;
-
-  /// No description provided for @createStoryDurationMood8.
-  ///
-  /// In en, this message translates to:
-  /// **'8 min · cozy'**
-  String get createStoryDurationMood8;
-
-  /// No description provided for @createStoryDurationMood10.
-  ///
-  /// In en, this message translates to:
-  /// **'10 min · longer'**
-  String get createStoryDurationMood10;
-
-  /// No description provided for @createStoryDurationMood12.
-  ///
-  /// In en, this message translates to:
-  /// **'12 min · deep rest'**
-  String get createStoryDurationMood12;
-
-  /// No description provided for @createStoryDurationMinutes.
-  ///
-  /// In en, this message translates to:
-  /// **'{minutes} min'**
-  String createStoryDurationMinutes(int minutes);
 
   /// No description provided for @playerOutroMood0.
   ///

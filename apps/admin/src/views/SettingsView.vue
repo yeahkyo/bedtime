@@ -27,7 +27,8 @@ async function load() {
     const res = await api.get<ProvidersSettingsOut>('/admin/settings/providers')
     data.value = res.data
     storyProvider.value = res.data.story_provider
-    storyModel.value = res.data.story_model
+    // Only show Redis force override; empty = routing/env applies.
+    storyModel.value = res.data.overrides?.story_model || ''
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败')
   } finally {
@@ -43,8 +44,8 @@ async function save() {
       story_model: storyModel.value.trim(),
     })
     data.value = res.data
-    storyModel.value = res.data.story_model
-    ElMessage.success('已保存运行时默认 Story Provider / 模型')
+    storyModel.value = res.data.overrides?.story_model || ''
+    ElMessage.success('已保存运行时 Story Provider / 强制模型')
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '保存失败')
   } finally {
@@ -59,11 +60,10 @@ onMounted(load)
   <div v-loading="loading">
     <h2>Provider 设置</h2>
     <p class="hint">
-      运行时覆盖写入 Redis，优先于环境变量。模型请直接填写服务商 id（无固定列表）。
-      App 创建故事不暴露选择器。TTS / 克隆供应商与模型看所选音色的
-      <code>Voice.provider</code> / <code>Voice.speech_model</code>（在「音色」页管理），
-      不再使用全局 Speech Provider。
-      Agent 行上若填写了 provider / model，该阶段会覆盖本页全局配置。
+      运行时覆盖写入 Redis。Story Model 留空则走「LLM 路由」+「LLM 模型」注册表（再回退
+      env）；填写则为全站强制钉死（kill-switch，优先级最高）。日常分档请用 LLM 路由，勿在此填
+      模型。TTS 看音色页的 <code>Voice.provider</code> /
+      <code>speech_model</code>。Agent 显式 model 亦会覆盖路由。
     </p>
     <template v-if="data">
       <el-form label-width="140px" style="max-width: 560px">
@@ -77,12 +77,12 @@ onMounted(load)
             />
           </el-select>
         </el-form-item>
-        <el-form-item label="Story Model">
+        <el-form-item label="强制 Story Model">
           <el-input
             v-model="storyModel"
             clearable
             style="width: 280px"
-            placeholder="如 doubao-seed-1.6-250615"
+            placeholder="空 = 不强制，走路由/注册表/env"
           />
           <div class="field-hint">Env 默认：{{ storyEnvModel || '—' }}</div>
         </el-form-item>

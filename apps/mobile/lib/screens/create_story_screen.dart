@@ -86,9 +86,6 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
         ('zh', l10n.createStoryLangZh),
         ('en', 'English'),
       ];
-  /// Discrete duration ticks (minutes).
-  static const durationTicks = [3, 5, 8, 10, 12];
-
   @override
   void initState() {
     super.initState();
@@ -309,7 +306,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
           ..addAll(ids.map(_asId).whereType<int>());
       }
       final d = prefs['duration'] as int?;
-      if (d != null) duration = d;
+      if (d != null) duration = _canonicalizeDuration(d);
       final w = prefs['wonder'] as String?;
       if (w != null) wonder = w;
       final dlg = prefs['dialogue'] as String?;
@@ -363,20 +360,28 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
     return l10n.createStoryDialogueSome;
   }
 
-  String _durationMoodLabel(AppLocalizations l10n, int minutes) {
-    switch (minutes) {
+  /// Match API `canonicalize_duration_minutes` (short≤4 → 3, ≤7 → 5, else → 10).
+  static int _canonicalizeDuration(int minutes) {
+    final m = minutes.clamp(2, 12);
+    if (m <= 4) return 3;
+    if (m <= 7) return 5;
+    return 10;
+  }
+
+  List<(int, String)> _lengthTier(AppLocalizations l10n) => [
+        (3, l10n.createStoryLengthShort),
+        (5, l10n.createStoryLengthMedium),
+        (10, l10n.createStoryLengthLong),
+      ];
+
+  String _lengthHint(AppLocalizations l10n, int minutes) {
+    switch (_canonicalizeDuration(minutes)) {
       case 3:
-        return l10n.createStoryDurationMood3;
-      case 5:
-        return l10n.createStoryDurationMood5;
-      case 8:
-        return l10n.createStoryDurationMood8;
+        return l10n.createStoryLengthHintShort;
       case 10:
-        return l10n.createStoryDurationMood10;
-      case 12:
-        return l10n.createStoryDurationMood12;
+        return l10n.createStoryLengthHintLong;
       default:
-        return l10n.createStoryDurationMinutes(minutes);
+        return l10n.createStoryLengthHintMedium;
     }
   }
 
@@ -1103,7 +1108,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
           const SizedBox(height: 10),
           _wonderSegmented(),
           const SizedBox(height: 22),
-          _durationTickPicker(),
+          _lengthTierPicker(),
           const SizedBox(height: 22),
           _sectionLabel(
             context,
@@ -1495,11 +1500,10 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
     } catch (_) {}
   }
 
-  Widget _durationTickPicker() {
-    final ticks = durationTicks;
-    var idx = ticks.indexOf(duration);
-    if (idx < 0) idx = ticks.indexOf(5).clamp(0, ticks.length - 1);
+  Widget _lengthTierPicker() {
+    final l10n = AppLocalizations.of(context);
     final tt = Theme.of(context).textTheme;
+    final selected = _canonicalizeDuration(duration);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1507,10 +1511,10 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
           children: [
             const Icon(Icons.bedtime_outlined, size: 18, color: AppColors.primary),
             const SizedBox(width: 6),
-            Text(AppLocalizations.of(context).createStoryDuration, style: tt.labelLarge),
+            Text(l10n.createStoryDuration, style: tt.labelLarge),
             const Spacer(),
             Text(
-              _durationMoodLabel(AppLocalizations.of(context), duration),
+              _lengthHint(l10n, selected),
               style: tt.labelMedium?.copyWith(
                 color: AppColors.primary,
                 fontWeight: FontWeight.w600,
@@ -1518,43 +1522,50 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
             ),
           ],
         ),
-        const SizedBox(height: 8),
-        SliderTheme(
-          data: SliderTheme.of(context).copyWith(
-            trackHeight: 4,
-            activeTrackColor: AppColors.primary,
-            inactiveTrackColor: AppColors.surfaceHighest,
-            thumbColor: AppColors.primaryContainer,
-            overlayColor: AppColors.primary.withValues(alpha: 0.18),
-            activeTickMarkColor: AppColors.onPrimary,
-            inactiveTickMarkColor: AppColors.onSurfaceDim,
-            showValueIndicator: ShowValueIndicator.never,
+        const SizedBox(height: 10),
+        Container(
+          padding: const EdgeInsets.all(6),
+          decoration: BoxDecoration(
+            color: AppColors.surfaceLow,
+            borderRadius: BorderRadius.circular(AppRadii.xl),
           ),
-          child: Slider(
-            value: idx.toDouble(),
-            min: 0,
-            max: (ticks.length - 1).toDouble(),
-            divisions: ticks.length - 1,
-            onChanged: (v) {
-              setState(() => duration = ticks[v.round()]);
-              unawaited(_savePrefs());
-            },
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 4),
           child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              for (final m in ticks)
-                Text(
-                  '$m',
-                  style: tt.labelSmall?.copyWith(
-                    color: m == duration
-                        ? AppColors.primary
-                        : AppColors.onSurfaceDim,
-                    fontWeight:
-                        m == duration ? FontWeight.w700 : FontWeight.w500,
+              for (final (minutes, label) in _lengthTier(l10n))
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 2),
+                    child: Material(
+                      color: selected == minutes
+                          ? AppColors.primaryContainer
+                          : Colors.transparent,
+                      borderRadius: BorderRadius.circular(AppRadii.md),
+                      elevation: selected == minutes ? 2 : 0,
+                      shadowColor: AppColors.lanternGlow,
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(AppRadii.md),
+                        onTap: () {
+                          setState(() => duration = minutes);
+                          unawaited(_savePrefs());
+                        },
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          child: Text(
+                            label,
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: selected == minutes
+                                  ? FontWeight.w700
+                                  : FontWeight.w500,
+                              color: selected == minutes
+                                  ? AppColors.onPrimaryContainer
+                                  : AppColors.onSurfaceMuted,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
                   ),
                 ),
             ],

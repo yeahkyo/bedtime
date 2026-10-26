@@ -581,6 +581,11 @@ async def process_story_job(
             story.error_message = None
             story.story_provider = story_name
             story.speech_provider = speech_name
+            from app.services.llm_routing import draft_model_from_metrics
+
+            draft_model = draft_model_from_metrics(result.metrics)
+            if draft_model:
+                story.story_model = draft_model
             if result.episode_plan is not None:
                 story.episode_plan_json = json.dumps(
                     result.episode_plan, ensure_ascii=False

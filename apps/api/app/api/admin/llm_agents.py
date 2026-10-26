@@ -46,7 +46,9 @@ class LlmAgentOut(BaseModel):
 class LlmAgentListOut(BaseModel):
     items: list[LlmAgentOut]
     total: int
-    priority_hint: str = "调用方覆盖 > Agent 配置 > 全局/env"
+    priority_hint: str = (
+        "force runtime story_model > Agent model > 路由(绑定 llm_models) > env"
+    )
 
 
 class LlmAgentPatch(BaseModel):

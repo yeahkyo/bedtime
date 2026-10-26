@@ -164,7 +164,7 @@ DEFAULT_DIALS = {
 
 # Duration → length band for LLM `len` (+ max_tokens headroom).
 # zh: characters/minute; en: words/minute — units differ, must stay separate.
-# Band width is ±1 listening minute (per_minute units), not a percentage of target.
+# Product exposes 3 length tiers (短/中/长); API still stores canonical minutes.
 LENGTH_RATES = {
     "zh": {
         "unit": "chars",
@@ -178,6 +178,36 @@ LENGTH_RATES = {
         "per_minute": 100,
     },
 }
+
+# Canonical duration_minutes → inclusive listen-minute range shown on create UI.
+# (Copy only — LLM length uses LENGTH_TIER_REFERENCE_MINUTES below.)
+LENGTH_TIER_LISTEN_MINUTES: dict[int, tuple[int, int]] = {
+    3: (2, 4),  # short
+    5: (4, 7),  # medium
+    10: (8, 12),  # long
+}
+
+# Minutes used for LLM len / max_tokens (mini underwrites → aim at tier high end;
+# long aims at canonical 10, not the UI max 12). Band = reference ±1 listening minute.
+LENGTH_TIER_REFERENCE_MINUTES: dict[int, int] = {
+    3: 4,
+    5: 7,
+    10: 10,
+}
+
+
+def canonicalize_duration_minutes(duration_minutes: int | None) -> int:
+    """Snap any 2–12 value to product tiers: short=3, medium=5, long=10."""
+    try:
+        m = int(duration_minutes or 5)
+    except (TypeError, ValueError):
+        m = 5
+    m = max(2, min(12, m))
+    if m <= 4:
+        return 3
+    if m <= 7:
+        return 5
+    return 10
 
 
 @dataclass(frozen=True)
@@ -380,7 +410,7 @@ SYSTEM_PROMPT = """你是一个资深的睡前故事作家。你擅长将一个�
 - age：目标听众的年龄（整数，单位：岁）。你的文字、语言要适合这个年纪的听众。
 - gender：目标听众的性别（如：男孩、女孩、其他、不指定）。可轻柔影响称呼与细节，禁止刻板印象与说教。
 - dialog: 对话的多少，0-5打分。分数越高则写更多的对话，分数越低则少对话，0分是完全不要用直接的对话描写。
-- len：正文目标篇幅范围，字符串格式「下限-上限」（如 880-1320）；中文按汉字计、英文按词计。body（含开篇垫话与结尾）尽量落在该区间内；优先故事质量，禁止堆形容词或空描写凑字。
+- len：正文目标篇幅范围，字符串格式「下限-上限」（如 1320-1760）；中文按汉字计、英文按词计。body（含开篇垫话与结尾）尽量落在该区间内，优先靠近上限；禁止堆形容词或空描写凑字。
 
 【输出要求】
 输出一个json对象，字段说明如下：
@@ -437,7 +467,7 @@ PLAN_SYSTEM_PROMPT = """你是一位世界级的儿童睡前故事作家，你�
 - age：目标听众的年龄（整数，单位：岁）。你的故事情节、角色要适合这个年纪的听众。
 - gender：目标听众的性别（如：男孩、女孩、其他、不指定）。构思角色与称呼时可参考，禁止刻板印象与说教。
 - fantasy: 故事是偏幻想还是偏日常。0-5打分。分数越高则世界观与剧情设定更偏虚构幻想充满想象力；分数越低则更偏日常生活。
-- len：目标正文篇幅范围，字符串格式「下限-上限」（如 880-1320）；中文按汉字计、英文按词计。beats 数量与密度应能支撑该篇幅，仍保持睡前温和，禁止为空凑拍。
+- len：目标正文篇幅范围，字符串格式「下限-上限」（如 1320-1760）；中文按汉字计、英文按词计。beats 数量与密度应能支撑该篇幅（按上限规划），仍保持睡前温和，禁止为空凑拍。
 - roster：今晚已选角色库（数组，可空）。元素含 k（child|person|toy）、n（名字），可选 rel（关系）、note（特征）。优先轻用 1～3 个写入 casts；禁止把名单当必须清单；可与 keywords 搭配，勿整篇只围着名单转。
 
 【输出格式】
@@ -565,23 +595,31 @@ def length_lang_key(language: str | None) -> str:
 
 def story_http_timeout_seconds(duration_minutes: int) -> float:
     """HTTP timeout for LLM generation; scales with target listening duration."""
-    minutes = max(2, min(12, int(duration_minutes or 5)))
+    minutes = canonicalize_duration_minutes(duration_minutes)
     return float(min(360, 90 + minutes * 45))
 
 
 def estimate_length_target(language: str | None, duration_minutes: int) -> dict:
-    """Map duration → {min,max,target} band (zh chars / en words, ±1 minute)."""
-    minutes = max(2, min(12, int(duration_minutes or 5)))
+    """Map product length tier → {min,max,target} band (zh chars / en words).
+
+    UI listen copy stays LENGTH_TIER_LISTEN_MINUTES; submitted len uses
+    LENGTH_TIER_REFERENCE_MINUTES ±1 minute × rate.
+    """
+    minutes = canonicalize_duration_minutes(duration_minutes)
+    listen_lo, listen_hi = LENGTH_TIER_LISTEN_MINUTES[minutes]
+    ref = int(LENGTH_TIER_REFERENCE_MINUTES[minutes])
     key = length_lang_key(language)
     cfg = LENGTH_RATES[key]
     rate = int(cfg["per_minute"])
-    target = int(round(minutes * rate))
-    # ±1 listening minute of content, independent of total duration.
+    target = int(round(ref * rate))
     min_n = max(1, target - rate)
     max_n = target + rate
     return {
         "language_key": key,
         "duration_minutes": minutes,
+        "listen_minutes_min": listen_lo,
+        "listen_minutes_max": listen_hi,
+        "reference_minutes": ref,
         "unit": cfg["unit"],
         "unit_label": cfg.get("unit_label") or cfg["unit"],
         "rate_per_minute": rate,
@@ -592,7 +630,7 @@ def estimate_length_target(language: str | None, duration_minutes: int) -> dict:
 
 
 def length_range_for_llm(language: str | None, duration_minutes: int) -> str:
-    """Compact len string for plan/draft user JSON, e.g. '880-1320'."""
+    """Compact len string for plan/draft user JSON, e.g. '1320-1760'."""
     band = estimate_length_target(language, duration_minutes)
     return f"{int(band['min'])}-{int(band['max'])}"
 

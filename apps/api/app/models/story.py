@@ -39,8 +39,10 @@ class Story(Base):
     recap: Mapped[str | None] = mapped_column(Text, nullable=True)
     soft_hook: Mapped[str | None] = mapped_column(Text, nullable=True)
     voice_settings_json: Mapped[str | None] = mapped_column(Text, nullable=True)
-    # Generation meta for admin comparison (not chosen by App clients).
+    # Job-level story provider snapshot (fallback / legacy). Prefer metrics_json stages.
     story_provider: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    # Snapshot of resolved draft LLM model (list/filter); metrics_json is source of truth.
+    story_model: Mapped[str | None] = mapped_column(String(128), nullable=True)
     speech_provider: Mapped[str | None] = mapped_column(String(32), nullable=True)
     # Snapshot of Voice.speech_model (or resolved default) at generation time.
     speech_model: Mapped[str | None] = mapped_column(String(128), nullable=True)

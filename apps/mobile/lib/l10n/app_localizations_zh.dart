@@ -427,6 +427,20 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String get storiesLengthShort => '短篇';
+
+  @override
+  String get storiesLengthMedium => '中篇';
+
+  @override
+  String get storiesLengthLong => '长篇';
+
+  @override
+  String storiesLengthLabel(String label, Object minutes) {
+    return '$label · 约 $minutes 分钟';
+  }
+
+  @override
   String storiesSeriesMeta(Object id) {
     return '系列 #$id';
   }
@@ -984,7 +998,25 @@ class AppLocalizationsZh extends AppLocalizations {
   String get createStoryDreamRulesBody => '故事将自动调节平静舒缓的语言节奏，末尾缓缓淡入晚安白噪音。';
 
   @override
-  String get createStoryDuration => '时长 (分钟)';
+  String get createStoryDuration => '篇幅';
+
+  @override
+  String get createStoryLengthShort => '短篇';
+
+  @override
+  String get createStoryLengthMedium => '中篇';
+
+  @override
+  String get createStoryLengthLong => '长篇';
+
+  @override
+  String get createStoryLengthHintShort => '约 2–4 分钟';
+
+  @override
+  String get createStoryLengthHintMedium => '约 4–7 分钟';
+
+  @override
+  String get createStoryLengthHintLong => '约 8–12 分钟';
 
   @override
   String get createStoryErrAddChild => '请先添加孩子档案';
@@ -1093,26 +1125,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get playerTimerDelay => '延迟时长';
-
-  @override
-  String get createStoryDurationMood3 => '3 分钟 · 短篇微睡';
-
-  @override
-  String get createStoryDurationMood5 => '5 分钟 · 适合入睡';
-
-  @override
-  String get createStoryDurationMood8 => '8 分钟 · 沉浸暖梦';
-
-  @override
-  String get createStoryDurationMood10 => '10 分钟 · 悠长童话';
-
-  @override
-  String get createStoryDurationMood12 => '12 分钟 · 深度安歇';
-
-  @override
-  String createStoryDurationMinutes(int minutes) {
-    return '$minutes 分钟';
-  }
 
   @override
   String get playerOutroMood0 => '0 分钟 · 故事结束即关';
@@ -1638,6 +1650,20 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
   @override
   String storiesMinutes(Object minutes) {
     return '$minutes 分鐘';
+  }
+
+  @override
+  String get storiesLengthShort => '短篇';
+
+  @override
+  String get storiesLengthMedium => '中篇';
+
+  @override
+  String get storiesLengthLong => '長篇';
+
+  @override
+  String storiesLengthLabel(String label, Object minutes) {
+    return '$label · 約 $minutes 分鐘';
   }
 
   @override
@@ -2198,7 +2224,25 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
   String get createStoryDreamRulesBody => '故事將自動調節平靜舒緩的語言節奏，末尾緩緩淡入晚安白噪音。';
 
   @override
-  String get createStoryDuration => '時長 (分鐘)';
+  String get createStoryDuration => '篇幅';
+
+  @override
+  String get createStoryLengthShort => '短篇';
+
+  @override
+  String get createStoryLengthMedium => '中篇';
+
+  @override
+  String get createStoryLengthLong => '長篇';
+
+  @override
+  String get createStoryLengthHintShort => '約 2–4 分鐘';
+
+  @override
+  String get createStoryLengthHintMedium => '約 4–7 分鐘';
+
+  @override
+  String get createStoryLengthHintLong => '約 8–12 分鐘';
 
   @override
   String get createStoryErrAddChild => '請先新增孩子檔案';
@@ -2307,26 +2351,6 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get playerTimerDelay => '延遲時長';
-
-  @override
-  String get createStoryDurationMood3 => '3 分鐘 · 短篇微睡';
-
-  @override
-  String get createStoryDurationMood5 => '5 分鐘 · 適合入睡';
-
-  @override
-  String get createStoryDurationMood8 => '8 分鐘 · 沉浸暖夢';
-
-  @override
-  String get createStoryDurationMood10 => '10 分鐘 · 悠長童話';
-
-  @override
-  String get createStoryDurationMood12 => '12 分鐘 · 深度安歇';
-
-  @override
-  String createStoryDurationMinutes(int minutes) {
-    return '$minutes 分鐘';
-  }
 
   @override
   String get playerOutroMood0 => '0 分鐘 · 故事結束即關';

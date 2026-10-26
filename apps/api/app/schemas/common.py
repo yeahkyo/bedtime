@@ -199,6 +199,7 @@ class StoryOut(BaseModel):
     voice_name: str | None = None
     core: str | None = None
     story_provider: str | None = None
+    story_model: str | None = None
     speech_provider: str | None = None
     speech_model: str | None = None
 

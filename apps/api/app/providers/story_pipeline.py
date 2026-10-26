@@ -33,6 +33,7 @@ from app.services.llm_agents import (
     get_agent_standalone,
     resolve_temperature,
 )
+from app.services.llm_routing import ResolveContext, resolve_llm_choice_standalone
 
 logger = logging.getLogger(__name__)
 
@@ -123,6 +124,8 @@ async def _chat_json(
     effective_provider: str | None = None,
     temperature: float | None = None,
     stage_metrics: list[dict[str, Any]] | None = None,
+    choice_tier: str | None = None,
+    policy_reason: str | None = None,
 ) -> dict:
     """max_tokens is visible JSON (content) budget. Truncation retries prefer
     disabling thinking over inflating the budget (cheaper than a second fat CoT).
@@ -183,6 +186,10 @@ async def _chat_json(
                     row["provider"] = effective_provider
                 if model:
                     row["model"] = model
+                if choice_tier:
+                    row["tier"] = choice_tier
+                if policy_reason:
+                    row["policy_reason"] = policy_reason
                 row.update(outcome.usage_dict())
                 stage_metrics.append(row)
             return data
@@ -235,12 +242,12 @@ async def _run_agent_stage(
     default_max_tokens: int,
     default_timeout: float,
     default_provider: str,
+    duration_minutes: int | None = None,
+    language: str | None = None,
     retries: int = 1,
     stage_metrics: list[dict[str, Any]] | None = None,
     stage_prompts: list[dict[str, str]] | None = None,
 ) -> dict:
-    from app.services.provider_settings import resolve_story_model
-
     system, user = build_chat_messages(
         agent, user_payload=user_payload, extra_vars=extra_vars
     )
@@ -250,9 +257,26 @@ async def _run_agent_stage(
     timeout = (
         float(agent.timeout_seconds) if agent.timeout_seconds else default_timeout
     )
-    provider_override = (agent.provider or "").strip().lower() or None
-    effective_provider = provider_override or (default_provider or "").strip().lower()
-    model = (agent.model or "").strip() or await resolve_story_model(effective_provider)
+    agent_provider = (agent.provider or "").strip().lower() or None
+    choice = await resolve_llm_choice_standalone(
+        ResolveContext(
+            stage=agent.id,
+            duration_minutes=duration_minutes,
+            language=language,
+            default_provider=default_provider,
+            agent_provider=agent_provider,
+            agent_model=(agent.model or "").strip() or None,
+        )
+    )
+    effective_provider = choice.provider
+    model = choice.model
+    # Job chat is bound to default_provider; cross-provider (route/agent) needs override.
+    job_provider = (default_provider or "").strip().lower()
+    chat_provider_override = (
+        effective_provider
+        if effective_provider and effective_provider != job_provider
+        else None
+    )
     return await _chat_json(
         chat,
         system=system,
@@ -262,10 +286,12 @@ async def _run_agent_stage(
         timeout=timeout,
         retries=retries,
         model=model,
-        provider_override=provider_override,
+        provider_override=chat_provider_override,
         effective_provider=effective_provider,
         temperature=agent.temperature,
         stage_metrics=stage_metrics,
+        choice_tier=choice.tier,
+        policy_reason=choice.reason_str() or None,
     )
 
 
@@ -360,6 +386,8 @@ async def _run_story_pipeline_body(
             default_max_tokens=OUTLINE_MAX_TOKENS,
             default_timeout=OUTLINE_TIMEOUT_SECONDS,
             default_provider=job_provider,
+            duration_minutes=request.duration_minutes,
+            language=request.language,
             retries=1,
             stage_metrics=stage_metrics,
             stage_prompts=stage_prompts,
@@ -420,6 +448,8 @@ async def _run_story_pipeline_body(
                 default_max_tokens=PLAN_MAX_TOKENS,
                 default_timeout=PLAN_TIMEOUT_SECONDS,
                 default_provider=job_provider,
+                duration_minutes=request.duration_minutes,
+                language=request.language,
                 retries=1,
                 stage_metrics=stage_metrics,
                 stage_prompts=stage_prompts,
@@ -441,6 +471,8 @@ async def _run_story_pipeline_body(
         default_max_tokens=max_tokens_for_story(request.language, request.duration_minutes),
         default_timeout=draft_timeout,
         default_provider=job_provider,
+        duration_minutes=request.duration_minutes,
+        language=request.language,
         retries=2,
         stage_metrics=stage_metrics,
         stage_prompts=stage_prompts,

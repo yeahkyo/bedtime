@@ -134,8 +134,12 @@ onMounted(load)
     <h2>LLM Agents</h2>
     <p class="hint">
       配置故事流水线与目录编撰的 system / user 模板。占位符语法
-      <code>{{ placeholderExample }}</code>。优先级：{{ priorityHint || '调用方覆盖 > Agent 配置 > 全局/env' }}。
-      全局默认 Provider 仍在「Provider 设置」。禁用 Agent 时运行时强制用代码 fallback。
+      <code>{{ placeholderExample }}</code>。优先级：{{
+        priorityHint || 'force > Agent > 路由 > 注册表 > env'
+      }}。
+      某阶段要走「LLM 路由」时，请将该 Agent 的 Provider/Model
+      <strong>留空</strong>。全局强制模型在「Provider 设置」；实例在「LLM 模型」，条件绑定在「LLM
+      路由」。禁用 Agent 时用代码 fallback prompt。
     </p>
     <el-table :data="items" stripe style="width: 100%">
       <el-table-column prop="id" label="ID" min-width="160" />
@@ -186,7 +190,7 @@ onMounted(load)
           <el-form-item label="Model">
             <el-input
               v-model="form.model"
-              placeholder="空 = 用全局/该 provider 默认；填写则本阶段覆盖"
+              placeholder="空 = 走路由/注册表/env；填写则本阶段钉死"
               clearable
             />
           </el-form-item>

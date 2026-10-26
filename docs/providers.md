@@ -2,10 +2,11 @@
 
 Text (story LLM) and speech (TTS + voice clone) are **independent**. App clients do not pick providers.
 
-- **Story LLM** defaults: Admin runtime override → `STORY_PROVIDER` → `PROVIDER_PROFILE` → mock.
+- **Story provider** defaults: Admin runtime override → `STORY_PROVIDER` → `PROVIDER_PROFILE` → mock.
+- **Story model** (per stage): see [Model resolution](#story-model-resolution) below.
 - **TTS / clone** follow the selected **Voice**: `Voice.provider` + optional `Voice.speech_model` (empty → env default for that provider). There is **no global Speech Provider** setting.
 
-## Story selection order
+## Story provider selection order
 
 1. Redis runtime override (`PATCH /admin/settings/providers`) — if set
 2. `STORY_PROVIDER` env — if non-empty
@@ -25,11 +26,30 @@ STORY_PROVIDER=doubao          # doubao | openai | deepseek | mock
 STORY_SKIP_TTS=0               # optional: 1 = skip TTS after LLM (text-only ready)
 ```
 
-Admin **Provider 设置**只覆盖 Story Provider / Model。TTS 在 **音色**页配置每条 `Voice.provider` / `Voice.speech_model` / `provider_voice_id`。克隆默认跟随一条已启用的全局系统音色的 `provider`（否则探测已配置 key 的 speech 后端）。LLM Agent 行上的 `provider` / `model` 仅对该 agent 阶段生效。
+## Story model resolution
+
+Admin entities (not a “catalog” name in code):
+
+| Admin | Table | Role |
+|-------|-------|------|
+| **LLM 模型** | `llm_models` | Admin-managed instances: `provider` + `model_id` + optional **tier** label (`mini` \| `lite` \| `pro`). **Not auto-seeded.** |
+| **LLM 路由** | `llm_routing_rules` | Match stage + conditions → **`target_llm_model_id`** (binds a full instance, can cross providers). Not auto-seeded. |
+| **Provider 设置** | Redis | Optional **force** `story_model` (kill-switch); empty = routing / env apply. Global `story_provider` is fallback when no route/agent pin. |
+
+**Per-stage resolve priority** (see `services/llm_routing.py`):
+
+1. Runtime Redis `story_model` (force)
+2. Agent row `model` (pin; leave empty to allow routing)
+3. First matching enabled routing rule → that `llm_models` row (`provider` + `model_id`)
+4. Env default for fallback provider (`ARK_MODEL` / `OPENAI_MODEL` / `DEEPSEEK_MODEL`)
+
+Example: register two instances, then rules on `story_draft` with `{"duration_minutes_max": 5}` → mini instance and `{}` → pro instance (possibly different providers). Any agent stage can have rules.
 
 When `STORY_SKIP_TTS=1`, the job finishes after outline/plan/draft with `status=ready` and no audio. Default is off (`0`).
 
-Story rows store `story_provider` + `speech_provider` for admin comparison.
+Story rows store `story_provider` + `story_model` + `speech_provider` (+ `speech_model`) for admin list/filter. Stage metrics include `model` / `tier` / `policy_reason` (detail prefers metrics; list falls back to them when the column is empty).
+
+TTS 在 **音色**页配置每条 `Voice.provider` / `Voice.speech_model` / `provider_voice_id`。克隆默认跟随一条已启用的全局系统音色的 `provider`（否则探测已配置 key 的 speech 后端）。
 
 ## Fish Audio（默认语音）
 
@@ -129,7 +149,7 @@ ELEVENLABS_MODEL_ID=eleven_multilingual_v2
   - `wonder`: everyday | soft | fantasy
   - `wind_down`: deep | gentle | playful
   - `dialogue`: low | some | more
-- 时长 → 篇幅：中文约 **220 字/分钟**（±1 分钟 = ±220 字），英文约 **100 words/分钟**（±1 分钟 = ±100 words）；plan/draft 的 `user_payload.len` 为字符串如 `"880-1320"`（5 分钟）；`max_tokens` 按上限估算
+- 篇幅三档（App）→ 内部 `duration_minutes`：短=`3`（文案约 2–4 分）、中=`5`（约 4–7 分）、长=`10`（约 8–12 分）。LLM `len` 按参考分钟 ±1 × 语速（短参考 **4**、中 **7**、长 **10**；中文 **220 字/分**，英文 **100 words/分**）；如中篇 `len`=`"1320-1760"`；非三档入参会 snap 到最近档；`max_tokens` 按上限估算
 - `keywords` 为未建档临时补充；档案 `interests` 仅作轻度 likes，不并入 kw；`PATCH /children/{id}` 可改昵称/年龄/兴趣
 - 发展焦点可覆盖；母题白名单只借鉴安心内核
 

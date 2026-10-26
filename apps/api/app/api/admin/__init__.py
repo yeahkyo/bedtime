@@ -7,6 +7,8 @@ from app.api.admin import (
     invites,
     kernels,
     llm_agents,
+    llm_models,
+    llm_routing_rules,
     series,
     settings,
     shapes,
@@ -27,6 +29,8 @@ router.include_router(shapes.router)
 router.include_router(elements.router)
 router.include_router(kernels.router)
 router.include_router(llm_agents.router)
+router.include_router(llm_models.router)
+router.include_router(llm_routing_rules.router)
 router.include_router(voices.router)
 router.include_router(tts_lab.router)
 router.include_router(analytics.router)

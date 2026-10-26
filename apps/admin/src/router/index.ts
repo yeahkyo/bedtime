@@ -37,6 +37,16 @@ const router = createRouter({
         { path: 'elements', name: 'elements', component: () => import('@/views/ElementsView.vue') },
         { path: 'kernels', name: 'kernels', component: () => import('@/views/KernelsView.vue') },
         { path: 'agents', name: 'agents', component: () => import('@/views/AgentsView.vue') },
+        {
+          path: 'llm-models',
+          name: 'llm-models',
+          component: () => import('@/views/LlmModelsView.vue'),
+        },
+        {
+          path: 'llm-routing',
+          name: 'llm-routing',
+          component: () => import('@/views/LlmRoutingView.vue'),
+        },
         { path: 'voices', name: 'voices', component: () => import('@/views/VoicesView.vue') },
         { path: 'tts-lab', name: 'tts-lab', component: () => import('@/views/TtsLabView.vue') },
       ],

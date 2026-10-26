@@ -433,6 +433,20 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get storiesLengthShort => 'Short';
+
+  @override
+  String get storiesLengthMedium => 'Medium';
+
+  @override
+  String get storiesLengthLong => 'Long';
+
+  @override
+  String storiesLengthLabel(String label, Object minutes) {
+    return '$label · ~$minutes min';
+  }
+
+  @override
   String storiesSeriesMeta(Object id) {
     return 'Series $id';
   }
@@ -1025,6 +1039,24 @@ class AppLocalizationsEn extends AppLocalizations {
   String get createStoryDuration => 'Length';
 
   @override
+  String get createStoryLengthShort => 'Short';
+
+  @override
+  String get createStoryLengthMedium => 'Medium';
+
+  @override
+  String get createStoryLengthLong => 'Long';
+
+  @override
+  String get createStoryLengthHintShort => 'About 2–4 min';
+
+  @override
+  String get createStoryLengthHintMedium => 'About 4–7 min';
+
+  @override
+  String get createStoryLengthHintLong => 'About 8–12 min';
+
+  @override
   String get createStoryErrAddChild => 'Please add a listener first';
 
   @override
@@ -1134,26 +1166,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get playerTimerDelay => 'Delay';
-
-  @override
-  String get createStoryDurationMood3 => '3 min · short';
-
-  @override
-  String get createStoryDurationMood5 => '5 min · bedtime';
-
-  @override
-  String get createStoryDurationMood8 => '8 min · cozy';
-
-  @override
-  String get createStoryDurationMood10 => '10 min · longer';
-
-  @override
-  String get createStoryDurationMood12 => '12 min · deep rest';
-
-  @override
-  String createStoryDurationMinutes(int minutes) {
-    return '$minutes min';
-  }
 
   @override
   String get playerOutroMood0 => '0 min · stop with story';

@@ -19,7 +19,10 @@ from app.models.user import User
 from app.models.voice import Voice, VoicePrefs
 from app.providers.base import StoryRequest, VoiceSettings
 from app.providers.factory import get_story_provider, get_tts_provider
-from app.providers.story_prompt import focus_from_series_outline
+from app.providers.story_prompt import (
+    canonicalize_duration_minutes,
+    focus_from_series_outline,
+)
 from app.schemas.common import StoryCreate, StoryOut
 from app.services.errors import safe_error_message
 from app.services.quota import check_and_increment
@@ -30,6 +33,7 @@ from app.services.child_profile import (
     sync_age_band,
 )
 from app.services.narration_prosody import prepare_narration, synthesize_with_prosody
+from app.services.llm_routing import ResolveContext, resolve_llm_choice_standalone
 from app.services.provider_settings import (
     first_configured_speech_provider,
     resolve_speech_model,
@@ -230,7 +234,7 @@ async def _build_story_request(
         age_band=age_band,
         language=body.language,
         theme=theme,
-        duration_minutes=body.duration_minutes,
+        duration_minutes=canonicalize_duration_minutes(body.duration_minutes),
         audiences=audiences or None,
         roster=roster or None,
         child_gender=normalize_gender(child.gender),
@@ -301,6 +305,7 @@ async def _story_out(db: AsyncSession, story: Story) -> StoryOut:
         voice_name=voice_name,
         core=core,
         story_provider=story.story_provider,
+        story_model=getattr(story, "story_model", None),
         speech_provider=story.speech_provider,
         speech_model=getattr(story, "speech_model", None),
     )
@@ -426,6 +431,14 @@ async def create_story_batch(
     speech_model = await resolve_speech_model(
         speech_provider, voice_model=voice.speech_model
     )
+    draft_choice = await resolve_llm_choice_standalone(
+        ResolveContext(
+            stage="story_draft",
+            duration_minutes=story_req.duration_minutes,
+            language=body.language,
+            default_provider=story_provider,
+        )
+    )
 
     story = Story(
         user_id=user.id,
@@ -433,7 +446,7 @@ async def create_story_batch(
         voice_id=voice.id,
         language=body.language,
         theme=story_req.theme,
-        duration_minutes=body.duration_minutes,
+        duration_minutes=story_req.duration_minutes,
         status="generating",
         progress="queued",
         progress_at=datetime.now(timezone.utc),
@@ -443,6 +456,7 @@ async def create_story_batch(
         voice_settings_json=json.dumps(vs.__dict__),
         expires_at=story_expiry_from_now(user.story_retention_months),
         story_provider=story_provider,
+        story_model=draft_choice.model or None,
         speech_provider=speech_provider,
         speech_model=speech_model or None,
     )
@@ -632,6 +646,15 @@ async def retry_failed_story(
     speech_model = await resolve_speech_model(
         speech_provider, voice_model=voice.speech_model
     )
+    duration_minutes = canonicalize_duration_minutes(story.duration_minutes)
+    draft_choice = await resolve_llm_choice_standalone(
+        ResolveContext(
+            stage="story_draft",
+            duration_minutes=duration_minutes,
+            language=story.language,
+            default_provider=story_provider,
+        )
+    )
 
     story.status = "generating"
     story.progress = "tts" if resume_tts_only else "queued"
@@ -641,6 +664,8 @@ async def retry_failed_story(
     story.params_json = json.dumps(retry_params, ensure_ascii=False)
     story.voice_settings_json = json.dumps(vs.__dict__)
     story.story_provider = story_provider
+    story.story_model = draft_choice.model or None
+    story.duration_minutes = duration_minutes
     story.speech_provider = speech_provider
     story.speech_model = speech_model or None
     await db.commit()
@@ -767,6 +792,14 @@ async def create_story_streaming(
     speech_model = await resolve_speech_model(
         speech_name, voice_model=voice.speech_model
     )
+    draft_choice = await resolve_llm_choice_standalone(
+        ResolveContext(
+            stage="story_draft",
+            duration_minutes=story_req.duration_minutes,
+            language=body.language,
+            default_provider=story_name,
+        )
+    )
 
     story = Story(
         user_id=user.id,
@@ -774,7 +807,7 @@ async def create_story_streaming(
         voice_id=voice.id,
         language=body.language,
         theme=story_req.theme,
-        duration_minutes=body.duration_minutes,
+        duration_minutes=story_req.duration_minutes,
         status="generating",
         progress="queued",
         progress_at=datetime.now(timezone.utc),
@@ -784,6 +817,7 @@ async def create_story_streaming(
         voice_settings_json=json.dumps(vs.__dict__),
         expires_at=story_expiry_from_now(user.story_retention_months),
         story_provider=story_name,
+        story_model=draft_choice.model or None,
         speech_provider=speech_name,
         speech_model=speech_model or None,
     )
@@ -907,6 +941,7 @@ async def create_story_streaming(
                         merge_metrics_dicts,
                         parse_metrics_json,
                     )
+                    from app.services.llm_routing import draft_model_from_metrics
 
                     s.metrics_json = json.dumps(
                         merge_metrics_dicts(
@@ -915,6 +950,9 @@ async def create_story_streaming(
                         ),
                         ensure_ascii=False,
                     )
+                    draft_mid = draft_model_from_metrics(result.metrics)
+                    if draft_mid:
+                        s.story_model = draft_mid
                 from app.providers.story_pipeline import merge_submitted_prompts
 
                 prompts_json = merge_submitted_prompts(s.prompts_json, result.prompts)

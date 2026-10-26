@@ -18,6 +18,8 @@ const active = computed(() => {
   if (route.path.startsWith('/elements')) return '/elements'
   if (route.path.startsWith('/kernels')) return '/kernels'
   if (route.path.startsWith('/agents')) return '/agents'
+  if (route.path.startsWith('/llm-models')) return '/llm-models'
+  if (route.path.startsWith('/llm-routing')) return '/llm-routing'
   if (route.path.startsWith('/voices')) return '/voices'
   if (route.path.startsWith('/tts-lab')) return '/tts-lab'
   return route.path
@@ -69,6 +71,14 @@ function logout() {
         <el-menu-item index="/agents">
           <el-icon><Cpu /></el-icon>
           <span>LLM Agents</span>
+        </el-menu-item>
+        <el-menu-item index="/llm-models">
+          <el-icon><Box /></el-icon>
+          <span>LLM 模型</span>
+        </el-menu-item>
+        <el-menu-item index="/llm-routing">
+          <el-icon><Guide /></el-icon>
+          <span>LLM 路由</span>
         </el-menu-item>
         <el-menu-item index="/voices">
           <el-icon><Headset /></el-icon>

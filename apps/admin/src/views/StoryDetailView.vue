@@ -135,6 +135,25 @@ const metricsSummary = computed(() => {
   }
 })
 
+/** Draft-stage provider/model from metrics (source of truth for routed LLM). */
+const draftLlm = computed(() => {
+  const stages = metricsSummary.value?.stages || []
+  for (let i = stages.length - 1; i >= 0; i--) {
+    const row = stages[i]
+    if (row?.stage !== 'draft') continue
+    return {
+      provider: typeof row.provider === 'string' ? row.provider : null,
+      model: typeof row.model === 'string' ? row.model : null,
+      tier: typeof row.tier === 'string' ? row.tier : null,
+    }
+  }
+  return {
+    provider: null as string | null,
+    model: (story.value?.story_model as string | null | undefined) || null,
+    tier: null as string | null,
+  }
+})
+
 const planHighlights = computed(() => {
   const raw = story.value?.episode_plan_json
   if (!raw) return null
@@ -226,21 +245,26 @@ onMounted(load)
       <el-descriptions :column="2" border class="block">
         <el-descriptions-item label="标题">{{ story.title || '—' }}</el-descriptions-item>
         <el-descriptions-item label="状态">{{ story.status }} / {{ story.progress || '—' }}</el-descriptions-item>
-        <el-descriptions-item label="Job 默认 Story">
-          <el-tag>{{ story.story_provider || '—' }}</el-tag>
-          <span class="muted tiny">（任务级；各阶段以 metrics 为准）</span>
+        <el-descriptions-item label="正文 LLM">
+          <template v-if="draftLlm.model || story.story_model">
+            <el-tag v-if="draftLlm.provider" type="warning">{{ draftLlm.provider }}</el-tag>
+            <span class="model-id">{{ draftLlm.model || story.story_model }}</span>
+            <el-tag v-if="draftLlm.tier" size="small" class="tier-tag">{{ draftLlm.tier }}</el-tag>
+          </template>
+          <template v-else>—</template>
         </el-descriptions-item>
-        <el-descriptions-item label="Job 默认 Speech">
-          <el-tag type="success">{{ story.speech_provider || '—' }}</el-tag>
-          <span v-if="story.speech_model" class="muted tiny"> · {{ story.speech_model }}</span>
+        <el-descriptions-item label="语音（音色）">
+          {{ story.voice_name || '—' }}
+          <span v-if="story.voice_id != null" class="muted tiny"> (#{{ story.voice_id }})</span>
+          <div v-if="story.speech_provider || story.speech_model" class="muted tiny">
+            <el-tag type="success" size="small">{{ story.speech_provider || '—' }}</el-tag>
+            <span v-if="story.speech_model"> · {{ story.speech_model }}</span>
+          </div>
         </el-descriptions-item>
         <el-descriptions-item label="用户">
           <el-button link type="primary" @click="router.push(`/users/${story.user_id}`)">
             #{{ story.user_id }} {{ story.user_display_name || '' }}
           </el-button>
-        </el-descriptions-item>
-        <el-descriptions-item label="音色">
-          {{ story.voice_name || '—' }} (#{{ story.voice_id ?? '—' }})
         </el-descriptions-item>
         <el-descriptions-item label="语言 / 时长">
           {{ story.language }} · {{ story.duration_minutes }} 分
@@ -307,7 +331,7 @@ onMounted(load)
       </template>
 
       <template v-if="metricsSummary">
-        <h3>阶段 Provider / Model · 耗时 / Tokens</h3>
+        <h3>各阶段实际 LLM / TTS · 耗时 / Tokens</h3>
         <el-descriptions :column="2" border size="small" class="block">
           <el-descriptions-item label="总耗时">{{ fmtMs(metricsSummary.total_ms) }}</el-descriptions-item>
           <el-descriptions-item label="LLM">{{ fmtMs(metricsSummary.llm_ms) }}</el-descriptions-item>
@@ -329,26 +353,32 @@ onMounted(load)
           stripe
           class="stage-table"
         >
-          <el-table-column prop="stage" label="阶段" min-width="120" />
-          <el-table-column label="Provider" min-width="110">
+          <el-table-column prop="stage" label="阶段" min-width="110" />
+          <el-table-column label="Provider" min-width="100">
             <template #default="{ row }">{{ row.provider || '—' }}</template>
           </el-table-column>
-          <el-table-column label="Model" min-width="160" show-overflow-tooltip>
+          <el-table-column label="Model" min-width="140" show-overflow-tooltip>
             <template #default="{ row }">{{ row.model || '—' }}</template>
           </el-table-column>
-          <el-table-column label="耗时" width="100">
+          <el-table-column label="Tier" width="70">
+            <template #default="{ row }">{{ row.tier || '—' }}</template>
+          </el-table-column>
+          <el-table-column label="路由原因" min-width="160" show-overflow-tooltip>
+            <template #default="{ row }">{{ row.policy_reason || '—' }}</template>
+          </el-table-column>
+          <el-table-column label="耗时" width="90">
             <template #default="{ row }">{{ fmtMs(row.ms) }}</template>
           </el-table-column>
-          <el-table-column label="prompt" width="90">
+          <el-table-column label="prompt" width="80">
             <template #default="{ row }">{{ fmtTok(row.prompt_tokens) }}</template>
           </el-table-column>
-          <el-table-column label="completion" width="100">
+          <el-table-column label="completion" width="90">
             <template #default="{ row }">{{ fmtTok(row.completion_tokens) }}</template>
           </el-table-column>
-          <el-table-column label="reasoning" width="100">
+          <el-table-column label="reasoning" width="90">
             <template #default="{ row }">{{ fmtTok(row.reasoning_tokens) }}</template>
           </el-table-column>
-          <el-table-column label="total" width="90">
+          <el-table-column label="total" width="80">
             <template #default="{ row }">{{ fmtTok(row.total_tokens) }}</template>
           </el-table-column>
         </el-table>
@@ -516,6 +546,14 @@ h3 {
 .tiny {
   margin-left: 8px;
   font-size: 12px;
+}
+.model-id {
+  margin-left: 8px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 13px;
+}
+.tier-tag {
+  margin-left: 8px;
 }
 .stage-table {
   margin: 8px 0 12px;

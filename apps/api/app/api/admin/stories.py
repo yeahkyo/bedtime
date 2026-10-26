@@ -12,10 +12,25 @@ from app.models.story import Story
 from app.models.story_series import StorySeries
 from app.models.user import User
 from app.models.voice import Voice
+from app.services.llm_routing import draft_model_from_metrics
 from app.services.narration_prosody import prepare_narration
 from app.services.storage import storage_service
 
 router = APIRouter(prefix="/stories", tags=["admin-stories"])
+
+
+def _effective_story_model(story: Story) -> str | None:
+    """Column first; legacy rows fall back to draft stage in metrics_json."""
+    stored = (getattr(story, "story_model", None) or "").strip()
+    if stored:
+        return stored
+    try:
+        metrics = json.loads(story.metrics_json or "")
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(metrics, dict):
+        return None
+    return draft_model_from_metrics(metrics)
 
 
 class AdminStoryListItem(BaseModel):
@@ -28,8 +43,13 @@ class AdminStoryListItem(BaseModel):
     user_id: int
     user_display_name: str | None = None
     child_id: int | None
+    # Job fallback provider (not necessarily the draft LLM used).
     story_provider: str | None
+    # Draft-stage model snapshot (primary LLM signal for ops).
+    story_model: str | None = None
     speech_provider: str | None
+    speech_model: str | None = None
+    voice_name: str | None = None
     duration_minutes: int
     created_at: str | None
     error_message: str | None = None
@@ -70,6 +90,7 @@ class AdminStoryDetailOut(BaseModel):
     voice_id: int | None
     voice_name: str | None
     story_provider: str | None
+    story_model: str | None = None
     speech_provider: str | None
     speech_model: str | None = None
     duration_minutes: int
@@ -105,18 +126,20 @@ async def list_stories(
     page_size: int = Query(20, ge=1, le=100),
     status: str | None = None,
     user_id: int | None = None,
-    story_provider: str | None = None,
+    story_model: str | None = None,
     speech_provider: str | None = None,
     _: str = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ) -> AdminStoryListOut:
+    from app.models.voice import Voice
+
     filters = []
     if status:
         filters.append(Story.status == status.strip())
     if user_id is not None:
         filters.append(Story.user_id == user_id)
-    if story_provider:
-        filters.append(Story.story_provider == story_provider.strip().lower())
+    if story_model and story_model.strip():
+        filters.append(Story.story_model.contains(story_model.strip()))
     if speech_provider:
         filters.append(Story.speech_provider == speech_provider.strip().lower())
 
@@ -139,6 +162,14 @@ async def list_stories(
         ).scalars().all():
             users[u.id] = u
 
+    voice_ids = {s.voice_id for s in rows if s.voice_id is not None}
+    voices: dict[int, Voice] = {}
+    if voice_ids:
+        for v in (
+            await db.execute(select(Voice).where(Voice.id.in_(voice_ids)))
+        ).scalars().all():
+            voices[v.id] = v
+
     items = [
         AdminStoryListItem(
             id=s.id,
@@ -151,7 +182,14 @@ async def list_stories(
             user_display_name=users.get(s.user_id).display_name if s.user_id in users else None,
             child_id=s.child_id,
             story_provider=s.story_provider,
+            story_model=_effective_story_model(s),
             speech_provider=s.speech_provider,
+            speech_model=getattr(s, "speech_model", None),
+            voice_name=(
+                voices[s.voice_id].name
+                if s.voice_id is not None and s.voice_id in voices
+                else None
+            ),
             duration_minutes=s.duration_minutes,
             created_at=s.created_at.isoformat() if s.created_at else None,
             error_message=s.error_message,
@@ -183,6 +221,12 @@ async def get_story(
     audio_url = None
     if story.audio:
         audio_url = await storage_service.presigned_url(story.audio.object_key)
+
+    # Lazy backfill for stories generated before story_model column was written.
+    effective_model = _effective_story_model(story)
+    if effective_model and not (story.story_model or "").strip():
+        story.story_model = effective_model
+        await db.commit()
 
     series_brief: AdminStorySeriesBrief | None = None
     if story.series_id is not None:
@@ -233,6 +277,7 @@ async def get_story(
         voice_id=story.voice_id,
         voice_name=voice_name,
         story_provider=story.story_provider,
+        story_model=effective_model,
         speech_provider=story.speech_provider,
         speech_model=story.speech_model,
         duration_minutes=story.duration_minutes,

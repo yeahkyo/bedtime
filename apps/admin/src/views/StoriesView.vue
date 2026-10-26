@@ -13,7 +13,7 @@ const page = ref(1)
 const pageSize = ref(20)
 const total = ref(0)
 const status = ref('')
-const storyProvider = ref('')
+const storyModel = ref('')
 const speechProvider = ref('')
 const userId = ref('')
 const items = ref<AdminStoryListOut['items']>([])
@@ -26,7 +26,7 @@ async function load() {
         page: page.value,
         page_size: pageSize.value,
         status: status.value || undefined,
-        story_provider: storyProvider.value || undefined,
+        story_model: storyModel.value.trim() || undefined,
         speech_provider: speechProvider.value || undefined,
         user_id: userId.value ? Number(userId.value) : undefined,
       },
@@ -75,15 +75,15 @@ watch(
           <el-option label="failed" value="failed" />
         </el-select>
       </el-form-item>
-      <el-form-item label="Story">
-        <el-select v-model="storyProvider" clearable placeholder="全部" style="width: 120px">
-          <el-option label="doubao" value="doubao" />
-          <el-option label="openai" value="openai" />
-          <el-option label="deepseek" value="deepseek" />
-          <el-option label="mock" value="mock" />
-        </el-select>
+      <el-form-item label="正文模型">
+        <el-input
+          v-model="storyModel"
+          clearable
+          placeholder="story_model 子串"
+          style="width: 160px"
+        />
       </el-form-item>
-      <el-form-item label="Speech">
+      <el-form-item label="语音">
         <el-select v-model="speechProvider" clearable placeholder="全部" style="width: 130px">
           <el-option label="fishaudio" value="fishaudio" />
           <el-option label="volc" value="volc" />
@@ -103,8 +103,18 @@ watch(
       <el-table-column prop="id" label="ID" width="80" />
       <el-table-column prop="title" label="标题" min-width="160" show-overflow-tooltip />
       <el-table-column prop="status" label="状态" width="100" />
-      <el-table-column prop="story_provider" label="Story Provider" width="120" />
-      <el-table-column prop="speech_provider" label="Speech Provider" width="130" />
+      <el-table-column label="正文模型" min-width="160" show-overflow-tooltip>
+        <template #default="{ row }">{{ row.story_model || '—' }}</template>
+      </el-table-column>
+      <el-table-column label="语音" min-width="160" show-overflow-tooltip>
+        <template #default="{ row }">
+          <span v-if="row.voice_name">{{ row.voice_name }}</span>
+          <span v-else>—</span>
+          <span v-if="row.speech_provider" class="muted tiny">
+            · {{ row.speech_provider }}{{ row.speech_model ? ` / ${row.speech_model}` : '' }}
+          </span>
+        </template>
+      </el-table-column>
       <el-table-column label="用户" min-width="120">
         <template #default="{ row }">
           #{{ row.user_id }} {{ row.user_display_name || '' }}
@@ -134,6 +144,12 @@ watch(
   margin-top: 16px;
   display: flex;
   justify-content: flex-end;
+}
+.muted {
+  color: var(--el-text-color-secondary);
+}
+.tiny {
+  font-size: 12px;
 }
 :deep(.el-table__row) {
   cursor: pointer;

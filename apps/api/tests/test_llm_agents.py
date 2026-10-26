@@ -23,6 +23,16 @@ from app.services.llm_agents import (
     resolve_temperature,
     seed_llm_agents_if_missing,
 )
+from app.services.llm_routing import LlmChoice
+
+
+def _fake_llm_choice(ctx) -> LlmChoice:
+    return LlmChoice(
+        provider=ctx.default_provider or "mock",
+        model=ctx.agent_model or "test-model",
+        tier=None,
+        reasons=("test",),
+    )
 
 
 def test_resolve_temperature_default_and_clamp():
@@ -297,7 +307,7 @@ async def test_admin_list_patch_reset_smoke():
             assert listed.status_code == 200
             body = listed.json()
             assert body["total"] == len(AGENT_IDS)
-            assert "调用方覆盖" in body["priority_hint"]
+            assert "Agent model" in body["priority_hint"]
 
             patched = await client.patch(
                 "/admin/llm-agents/story_draft",
@@ -360,7 +370,7 @@ async def test_pipeline_uses_agent_messages_with_fallback():
                 "fantasy",
                 "len",
             }
-            assert payload["len"] == "440-880"  # 3×220 ±1 minute
+            assert payload["len"] == "660-1100"  # short tier LLM ref 4 min ±1 @ 220 chars/min
             return (
                 '{"title":"月亮夜","theme":"窗边一点光","core":"一点暖光",'
                 '"casts":[{"name":"豆豆","desc":"爱踮脚看月亮的孩子"}],'
@@ -383,9 +393,15 @@ async def test_pipeline_uses_agent_messages_with_fallback():
         soft_series_mode=False,
     )
 
-    with patch(
-        "app.providers.story_pipeline.get_agent_standalone",
-        side_effect=lambda aid: code_default_config(aid),
+    with (
+        patch(
+            "app.providers.story_pipeline.get_agent_standalone",
+            side_effect=lambda aid: code_default_config(aid),
+        ),
+        patch(
+            "app.providers.story_pipeline.resolve_llm_choice_standalone",
+            AsyncMock(side_effect=_fake_llm_choice),
+        ),
     ):
         result = await run_story_pipeline(req, chat=chat)
 
@@ -431,9 +447,15 @@ async def test_pipeline_skips_plan_llm_when_episode_plan_provided():
             "shape": "一点点靠近再安静",
         },
     )
-    with patch(
-        "app.providers.story_pipeline.get_agent_standalone",
-        side_effect=lambda aid: code_default_config(aid),
+    with (
+        patch(
+            "app.providers.story_pipeline.get_agent_standalone",
+            side_effect=lambda aid: code_default_config(aid),
+        ),
+        patch(
+            "app.providers.story_pipeline.resolve_llm_choice_standalone",
+            AsyncMock(side_effect=_fake_llm_choice),
+        ),
     ):
         result = await run_story_pipeline(req, chat=chat)
 
@@ -475,9 +497,15 @@ async def test_pipeline_calls_on_plan_before_draft():
         duration_minutes=3,
         soft_series_mode=False,
     )
-    with patch(
-        "app.providers.story_pipeline.get_agent_standalone",
-        side_effect=lambda aid: code_default_config(aid),
+    with (
+        patch(
+            "app.providers.story_pipeline.get_agent_standalone",
+            side_effect=lambda aid: code_default_config(aid),
+        ),
+        patch(
+            "app.providers.story_pipeline.resolve_llm_choice_standalone",
+            AsyncMock(side_effect=_fake_llm_choice),
+        ),
     ):
         await run_story_pipeline(req, chat=chat, on_plan=on_plan)
 
@@ -509,9 +537,15 @@ async def test_pipeline_keeps_submitted_prompts_when_draft_fails():
         soft_series_mode=False,
     )
 
-    with patch(
-        "app.providers.story_pipeline.get_agent_standalone",
-        side_effect=lambda aid: code_default_config(aid),
+    with (
+        patch(
+            "app.providers.story_pipeline.get_agent_standalone",
+            side_effect=lambda aid: code_default_config(aid),
+        ),
+        patch(
+            "app.providers.story_pipeline.resolve_llm_choice_standalone",
+            AsyncMock(side_effect=_fake_llm_choice),
+        ),
     ):
         with pytest.raises(RuntimeError) as raised:
             await run_story_pipeline(req, chat=chat)
