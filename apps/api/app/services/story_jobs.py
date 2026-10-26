@@ -217,7 +217,7 @@ async def _run_tts_and_store(
     tts = get_tts_provider(speech_name)
     speech_model = await resolve_speech_model(speech_name, voice_model=voice_model)
     tts_t0 = time.perf_counter()
-    audio_bytes, display_body = await synthesize_with_prosody(
+    synth = await synthesize_with_prosody(
         tts,
         narration_body,
         provider_voice_id,
@@ -225,14 +225,19 @@ async def _run_tts_and_store(
         speech_provider=speech_name,
         model=speech_model,
     )
+    audio_bytes = synth.audio
+    display_body = synth.display
     tts_ms = int((time.perf_counter() - tts_t0) * 1000)
     logger.info(
-        "story_timing story_id=%s stage=tts ok ms=%s audio_bytes=%s provider=%s model=%s",
+        "story_timing story_id=%s stage=tts ok ms=%s audio_bytes=%s provider=%s model=%s "
+        "speak_chars=%s used_ssml=%s",
         story_id,
         tts_ms,
         len(audio_bytes),
         speech_name,
         speech_model,
+        len(synth.speak_text or ""),
+        synth.used_ssml,
     )
     story = await db.get(Story, story_id)
     if story is None:

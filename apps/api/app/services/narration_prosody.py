@@ -14,6 +14,8 @@ from app.providers.base import TtsProvider, VoiceSettings
 logger = logging.getLogger(__name__)
 
 PauseKind = Literal["short", "think", "long"]
+# auto = pick by speech_provider; others force a render path (admin TTS lab).
+ProsodyMode = Literal["auto", "fish_break", "punct", "none"]
 
 # Legacy LLM / heuristic markers still stripped from display + input.
 MARKER_RE = re.compile(
@@ -22,8 +24,21 @@ MARKER_RE = re.compile(
 )
 # Fish S2 pause tags — never show in display if they leaked into body.
 FISH_BREAK_RE = re.compile(
-    r"\[(?:long-)?break\]|\[(?:short|long)\s+pause\]",
+    r"\[(?:long-)?break\]|"
+    r"\[(?:short|long)\s+pause\]|"
+    r"\[pause\]",
     re.IGNORECASE,
+)
+
+# Collapse 。…… / 。！ / ？。 etc. so we don't emit orphan punct segments + stacked pauses.
+_MULTI_TERMINATOR_RE = re.compile(r"([。！？!?])[。！？!?…⋯.]+")
+# Closing quotes / brackets that belong after 。！？ (Chinese dialogue: 。” / ！”).
+_TRAILING_CLOSER_CLASS = "”’』」\"'）)》"
+_PUNCT_ONLY_RE = re.compile(rf"^[。！？!?…⋯.\s　{_TRAILING_CLOSER_CLASS}]+$")
+# One sentence: body + optional terminator + optional trailing closers.
+_SENTENCE_RE = re.compile(
+    rf"[^。！？!?]+[。！？!?]?(?:[{_TRAILING_CLOSER_CLASS}])*",
+    re.S,
 )
 
 PAUSE_MS: dict[PauseKind, int] = {
@@ -38,6 +53,7 @@ PAUSE_PUNCT: dict[PauseKind, str] = {
     "long": "……\n\n",
 }
 
+# Fish S2 bracket pause cues (sentence / paragraph).
 FISH_PAUSE: dict[PauseKind, str] = {
     "short": "[break]",
     "think": "[long-break]",
@@ -45,6 +61,65 @@ FISH_PAUSE: dict[PauseKind, str] = {
 }
 
 _ALIYUN_PROVIDERS = frozenset({"aliyun", "dashscope", "cosyvoice"})
+_FISH_PROVIDERS = frozenset({"fishaudio", "fish"})
+
+# CosyVoice often misreads these (e.g. —— → "mashen") or treats them as spoken names.
+_ZERO_WIDTH_RE = re.compile(r"[\u200b\u200c\u200d\ufeff\u2060]")
+_DASH_PAUSE_RE = re.compile(r"(?:——|──|—|–|―)+")
+_DECORATIVE_RE = re.compile(r"[~～·•●★☆※→←⇒]+")
+_EMOJI_RE = re.compile(
+    "["
+    "\U0001F300-\U0001FAFF"
+    "\U00002700-\U000027BF"
+    "\U0001F1E0-\U0001F1FF"
+    "]+",
+)
+_ASCII_ELLIPSIS_RE = re.compile(r"\.{3,}")
+# Keep parenthetical content; turn brackets into comma breaths (open-source CosyVoice
+# strips （）【】 entirely — we keep words and preserve a pause).
+_PAREN_RE = re.compile(r"[（(]([^）)]*)[）)]")
+_BRACKET_RE = re.compile(r"[【\[]([^】\]]*)[】\]]")
+_MULTI_COMMA_RE = re.compile(r"[，,]{2,}")
+_COMMA_BEFORE_END_RE = re.compile(r"，+([。！？!?…])")
+_COMMA_AFTER_OPEN_QUOTE_RE = re.compile(r"([“\"'])，+")
+
+
+def sanitize_for_cosyvoice(text: str) -> str:
+    """
+    Speak-only cleanup for Aliyun CosyVoice.
+
+    Replace misread symbols with Chinese commas so the model still breathes;
+    strip zero-width / emoji junk. Display body should stay unsanitized.
+    """
+    s = text or ""
+    if not s:
+        return ""
+    s = _ZERO_WIDTH_RE.sub("", s)
+    s = s.replace("\xa0", " ")
+    # Em dash / box-drawing runs → comma pause (not silence-delete).
+    s = _DASH_PAUSE_RE.sub("，", s)
+    s = _ASCII_ELLIPSIS_RE.sub("……", s)
+    s = _DECORATIVE_RE.sub("，", s)
+    s = _EMOJI_RE.sub("", s)
+    # ASCII punctuation CosyVoice may name aloud in Chinese prose.
+    s = s.replace("&", "，")
+    s = s.replace("@", "，")
+    s = s.replace("#", "，")
+    s = s.replace("*", "，")
+    s = s.replace("/", "，")
+    s = s.replace("\\", "，")
+    s = _PAREN_RE.sub(r"，\1，", s)
+    s = _BRACKET_RE.sub(r"，\1，", s)
+    # Mid-CJK ASCII period → Chinese full stop (avoid reading 「点」).
+    s = re.sub(r"(?<=[\u4e00-\u9fff])\.(?=[\u4e00-\u9fff])", "。", s)
+    s = _MULTI_COMMA_RE.sub("，", s)
+    s = _COMMA_BEFORE_END_RE.sub(r"\1", s)
+    s = _COMMA_AFTER_OPEN_QUOTE_RE.sub(r"\1", s)
+    s = re.sub(r"(^|\n)[，,]+", r"\1", s)
+    s = re.sub(r"[，,]+($|\n)", r"\1", s)
+    s = re.sub(r"[ \t]{2,}", " ", s)
+    s = re.sub(r"\n{3,}", "\n\n", s)
+    return s.strip()
 
 
 @dataclass
@@ -54,6 +129,19 @@ class PreparedNarration:
     ssml: str | None
     speech_rate_delta: int = 0
     loudness_rate: int = 0
+    prosody_mode: str = "auto"
+
+
+@dataclass
+class SynthesizeWithProsodyResult:
+    """Audio plus the exact TTS payload used (admin lab / debugging)."""
+
+    audio: bytes
+    display: str
+    speak_text: str
+    ssml: str | None
+    used_ssml: bool
+    prosody_mode: str = "auto"
 
 
 @dataclass(frozen=True)
@@ -78,13 +166,28 @@ def _split_paragraphs(body: str) -> list[str]:
 
 
 def _split_sentences(para: str) -> list[str]:
-    parts = re.findall(r"[^。！？!?]+[。！？!?]?", para, flags=re.S)
-    return [p.strip() for p in parts if p.strip()]
+    """
+    Split on 。！？!? after collapsing stacked terminators / ellipsis.
+
+    Trailing closers (。” / ！”) stay on the same sentence so Fish does not get
+    `。[break]”[long-break]` (quote sandwiched between two pause tags).
+
+    Without collapse, `说完了。……` becomes two segs → stacked pauses / fillers.
+    """
+    cleaned = _MULTI_TERMINATOR_RE.sub(r"\1", para or "")
+    parts = _SENTENCE_RE.findall(cleaned)
+    out: list[str] = []
+    for raw in parts:
+        sent = raw.strip()
+        if not sent or _PUNCT_ONLY_RE.match(sent):
+            continue
+        out.append(sent)
+    return out
 
 
 def _content_len(sent: str) -> int:
-    """Rough glyph count without trailing sentence punctuation."""
-    return len(re.sub(r"[。！？!?\s]+$", "", sent or ""))
+    """Rough glyph count without trailing sentence punctuation / closers."""
+    return len(re.sub(rf"[。！？!?\s{_TRAILING_CLOSER_CLASS}]+$", "", sent or ""))
 
 
 def build_pause_segments(body: str) -> list[_Seg]:
@@ -133,15 +236,31 @@ def render_ssml_breaks(segs: list[_Seg]) -> str:
 
 
 def render_fish_breaks(segs: list[_Seg]) -> str:
+    """
+    Inject Fish `[break]` / `[long-break]` between sentences.
+
+    No extra blank lines after tags: paragraph gaps are already encoded by
+    think/long pause kind; stacking `\\n\\n` on top encouraged filler sounds.
+    """
     parts: list[str] = []
-    for i, seg in enumerate(segs):
-        parts.append(seg.text)
+    last_was_pause = False
+    for seg in segs:
+        text = seg.text or ""
+        if text:
+            parts.append(text)
+            last_was_pause = False
         if not seg.after:
             continue
+        # Never emit two pause tags back-to-back (punct-only segs / empty text).
+        if last_was_pause:
+            # Keep the stronger pause (think/long over short).
+            if seg.after in ("think", "long") and parts:
+                prev = parts[-1]
+                if prev == FISH_PAUSE["short"]:
+                    parts[-1] = FISH_PAUSE[seg.after]
+            continue
         parts.append(FISH_PAUSE[seg.after])
-        # Keep paragraph readability for models that treat newlines as breath.
-        if seg.after in ("think", "long") and i < len(segs) - 1:
-            parts.append("\n\n")
+        last_was_pause = True
     return "".join(parts).strip()
 
 
@@ -180,6 +299,16 @@ def normalize_speech_provider(speech_provider: str | None) -> str:
     return (speech_provider or "").strip().lower()
 
 
+def normalize_prosody_mode(mode: str | None) -> ProsodyMode:
+    raw = (mode or "auto").strip().lower().replace("-", "_")
+    # fish_pause was a short-lived A/B; treat as fish_break.
+    if raw == "fish_pause":
+        return "fish_break"
+    if raw in ("auto", "fish_break", "punct", "none"):
+        return raw  # type: ignore[return-value]
+    return "auto"
+
+
 def voice_supports_ssml(
     voice_id: str,
     *,
@@ -188,7 +317,7 @@ def voice_supports_ssml(
     """
     Aliyun CosyVoice: prefer SSML breaks (provider sets enable_ssml).
     Volc: system voices only when resource/flag allows (not seed-tts-2.0 / icl by default).
-    Fish / ElevenLabs / mock → False (Fish uses bracket breaks instead).
+    Fish / ElevenLabs / mock → False (Fish uses bracket pauses instead).
     """
     provider = normalize_speech_provider(speech_provider)
     if provider in _ALIYUN_PROVIDERS:
@@ -212,25 +341,44 @@ def prepare_narration(
     *,
     voice_id: str = "",
     speech_provider: str | None = None,
+    prosody_mode: str | None = None,
 ) -> PreparedNarration:
     """Clean display + provider-specific speak_text / ssml with sentence/paragraph pauses."""
     display = strip_performance_markers(body)
-    segs = build_pause_segments(display)
-    if not segs:
-        return PreparedNarration(display="", speak_text="", ssml=None)
-
-    plain = plain_text_from_segments(segs) or display
+    mode = normalize_prosody_mode(prosody_mode)
     provider = normalize_speech_provider(speech_provider)
+
+    # CosyVoice: sanitize speak source (keep display with original —— etc.).
+    speak_source = display
+    if provider in _ALIYUN_PROVIDERS:
+        speak_source = sanitize_for_cosyvoice(display)
+
+    segs = build_pause_segments(speak_source)
+    if not segs:
+        return PreparedNarration(
+            display=display if display else "",
+            speak_text="",
+            ssml=None,
+            prosody_mode=mode,
+        )
+
+    plain = plain_text_from_segments(segs) or speak_source
 
     ssml: str | None = None
     speak: str
 
-    if provider in _ALIYUN_PROVIDERS or (
+    if mode == "none":
+        speak = plain
+    elif mode == "punct":
+        speak = render_punct_breaths(segs)
+    elif mode == "fish_break":
+        speak = render_fish_breaks(segs)
+    elif provider in _ALIYUN_PROVIDERS or (
         voice_id and voice_supports_ssml(voice_id, speech_provider=speech_provider)
     ):
         ssml = render_ssml_breaks(segs)
         speak = plain
-    elif provider in ("fishaudio", "fish"):
+    elif provider in _FISH_PROVIDERS:
         speak = render_fish_breaks(segs)
     else:
         # Volc without SSML, elevenlabs, mock, unknown → punctuation breaths.
@@ -242,6 +390,7 @@ def prepare_narration(
         ssml=ssml,
         speech_rate_delta=0,
         loudness_rate=0,
+        prosody_mode=mode,
     )
 
 
@@ -253,20 +402,26 @@ async def synthesize_with_prosody(
     *,
     speech_provider: str | None = None,
     model: str | None = None,
-) -> tuple[bytes, str]:
+    prosody_mode: str | None = None,
+) -> SynthesizeWithProsodyResult:
     """
     Single TTS call with provider pauses (SSML / Fish brackets / punct).
-    Returns (audio_mp3, display_body without control tags).
+    Returns audio, display body, and the exact speak_text / ssml sent to TTS.
     """
     prepared = prepare_narration(
-        text, voice_id=voice_id, speech_provider=speech_provider
+        text,
+        voice_id=voice_id,
+        speech_provider=speech_provider,
+        prosody_mode=prosody_mode,
     )
     display = prepared.display or strip_performance_markers(text)
+    mode = prepared.prosody_mode
 
     if prepared.ssml:
+        speak = prepared.speak_text or display
         try:
             audio = await tts.synthesize(
-                prepared.speak_text or display,
+                speak,
                 voice_id,
                 settings,
                 speech_rate_delta=prepared.speech_rate_delta,
@@ -274,14 +429,26 @@ async def synthesize_with_prosody(
                 ssml=prepared.ssml,
                 model=model,
             )
-            return audio, display
+            return SynthesizeWithProsodyResult(
+                audio=audio,
+                display=display,
+                speak_text=speak,
+                ssml=prepared.ssml,
+                used_ssml=True,
+                prosody_mode=mode,
+            )
         except Exception as exc:
             logger.warning("SSML synthesize failed, falling back to plain: %s", exc)
 
     # Plain fallback: prefer punct breaths if SSML path failed but we only had SSML.
     speak = prepared.speak_text or display or text
     if prepared.ssml:
-        segs = build_pause_segments(display)
+        # Must reuse CosyVoice sanitization — rebuilding from raw display would
+        # reintroduce —— and other misread symbols on the fallback path.
+        fallback_src = display
+        if normalize_speech_provider(speech_provider) in _ALIYUN_PROVIDERS:
+            fallback_src = sanitize_for_cosyvoice(display)
+        segs = build_pause_segments(fallback_src)
         if segs:
             speak = render_punct_breaths(segs)
 
@@ -293,4 +460,11 @@ async def synthesize_with_prosody(
         loudness_rate=prepared.loudness_rate,
         model=model,
     )
-    return audio, display
+    return SynthesizeWithProsodyResult(
+        audio=audio,
+        display=display,
+        speak_text=speak,
+        ssml=None,
+        used_ssml=False,
+        prosody_mode=mode,
+    )

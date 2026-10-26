@@ -38,6 +38,7 @@ const router = createRouter({
         { path: 'kernels', name: 'kernels', component: () => import('@/views/KernelsView.vue') },
         { path: 'agents', name: 'agents', component: () => import('@/views/AgentsView.vue') },
         { path: 'voices', name: 'voices', component: () => import('@/views/VoicesView.vue') },
+        { path: 'tts-lab', name: 'tts-lab', component: () => import('@/views/TtsLabView.vue') },
       ],
     },
   ],

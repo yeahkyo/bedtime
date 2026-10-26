@@ -11,6 +11,7 @@ from app.api.admin import (
     settings,
     shapes,
     stories,
+    tts_lab,
     users,
     voices,
 )
@@ -27,4 +28,5 @@ router.include_router(elements.router)
 router.include_router(kernels.router)
 router.include_router(llm_agents.router)
 router.include_router(voices.router)
+router.include_router(tts_lab.router)
 router.include_router(analytics.router)

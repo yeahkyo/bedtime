@@ -147,7 +147,7 @@ async def _synthesize_preview(
     vs = resolve_voice_settings(speed=clamp_speed(speed if speed is not None else 1.0))
     tts = get_tts_provider(name)
     try:
-        audio, _ = await synthesize_with_prosody(
+        synth = await synthesize_with_prosody(
             tts,
             sample,
             voice_id,
@@ -155,6 +155,7 @@ async def _synthesize_preview(
             speech_provider=name,
             model=model or None,
         )
+        audio = synth.audio
     except HTTPException:
         raise
     except Exception as exc:

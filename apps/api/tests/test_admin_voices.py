@@ -142,9 +142,17 @@ async def test_admin_voice_preview_generate_persists():
     app.dependency_overrides[require_admin] = lambda: "admin"
 
     async def _fake_synth(tts, text, voice_id, settings, **kwargs):
+        from app.services.narration_prosody import SynthesizeWithProsodyResult
+
         assert isinstance(settings, VoiceSettings)
         assert text
-        return b"ID3fake-preview-mp3", text
+        return SynthesizeWithProsodyResult(
+            audio=b"ID3fake-preview-mp3",
+            display=text,
+            speak_text=text,
+            ssml=None,
+            used_ssml=False,
+        )
 
     put = AsyncMock(return_value="voices/1/preview.mp3")
     transport = ASGITransport(app=app)

@@ -12,6 +12,7 @@ from app.models.story import Story
 from app.models.story_series import StorySeries
 from app.models.user import User
 from app.models.voice import Voice
+from app.services.narration_prosody import prepare_narration
 from app.services.storage import storage_service
 
 router = APIRouter(prefix="/stories", tags=["admin-stories"])
@@ -82,6 +83,20 @@ class AdminStoryDetailOut(BaseModel):
     prompts_json: str | None = None
     series: AdminStorySeriesBrief | None = None
     created_at: str | None
+
+
+class AdminStoryTtsInputOut(BaseModel):
+    """Recomputed TTS payload from current body + voice."""
+
+    story_id: int
+    source: str = "recomputed"
+    speak_text: str
+    ssml: str | None = None
+    used_ssml: bool = False
+    provider: str | None = None
+    model: str | None = None
+    display: str = ""
+    prosody_mode: str = "auto"
 
 
 @router.get("", response_model=AdminStoryListOut)
@@ -231,4 +246,53 @@ async def get_story(
         prompts_json=story.prompts_json,
         series=series_brief,
         created_at=story.created_at.isoformat() if story.created_at else None,
+    )
+
+
+@router.get("/{story_id}/tts-input", response_model=AdminStoryTtsInputOut)
+async def recompute_story_tts_input(
+    story_id: int,
+    _: str = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> AdminStoryTtsInputOut:
+    """
+    Re-run prepare_narration on the stored body for admin inspection.
+
+    Result follows *current* prosody rules and may differ from the audio on disk.
+    """
+    story = await db.get(Story, story_id)
+    if story is None:
+        raise HTTPException(status_code=404, detail="Story not found")
+    body = (story.body or "").strip()
+    if not body:
+        raise HTTPException(status_code=400, detail="Story has no body")
+
+    provider_voice_id = ""
+    speech_provider = (story.speech_provider or "").strip() or None
+    speech_model = (story.speech_model or "").strip() or None
+    if story.voice_id is not None:
+        voice = await db.get(Voice, story.voice_id)
+        if voice is not None:
+            provider_voice_id = (voice.provider_voice_id or "").strip()
+            if not speech_provider:
+                speech_provider = (voice.provider or "").strip() or None
+            if not speech_model:
+                speech_model = (voice.speech_model or "").strip() or None
+
+    prepared = prepare_narration(
+        body,
+        voice_id=provider_voice_id,
+        speech_provider=speech_provider,
+    )
+    used_ssml = bool(prepared.ssml)
+    return AdminStoryTtsInputOut(
+        story_id=story.id,
+        source="recomputed",
+        speak_text=prepared.speak_text or "",
+        ssml=prepared.ssml if used_ssml else None,
+        used_ssml=used_ssml,
+        provider=speech_provider,
+        model=speech_model,
+        display=prepared.display or "",
+        prosody_mode=prepared.prosody_mode,
     )

@@ -161,6 +161,37 @@ export interface AdminStoryDetailOut {
   created_at: string | null
 }
 
+/** Recomputed TTS payload for admin inspection. */
+export interface AdminStoryTtsInputOut {
+  story_id: number
+  source: string
+  speak_text: string
+  ssml: string | null
+  used_ssml: boolean
+  provider: string | null
+  model: string | null
+  display?: string
+  prosody_mode?: string
+}
+
+export interface AdminTtsLabPrepareOut {
+  display: string
+  speak_text: string
+  ssml: string | null
+  used_ssml: boolean
+  prosody_mode: string
+  provider: string | null
+  model: string | null
+  voice_id: number | null
+  voice_name: string | null
+}
+
+export interface AdminTtsLabSynthesizeOut extends AdminTtsLabPrepareOut {
+  audio_base64: string
+  audio_content_type: string
+  audio_bytes: number
+}
+
 export interface AdminSeriesListItem {
   id: number
   title: string

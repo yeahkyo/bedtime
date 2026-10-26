@@ -113,3 +113,4 @@ def test_merge_metrics_dicts_across_retry():
     assert m["total_tokens"] == 50
     assert m["llm_ms"] == 1000 + 2100
     assert m["pipeline_ms"] == 2100
+

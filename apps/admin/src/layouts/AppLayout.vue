@@ -19,6 +19,7 @@ const active = computed(() => {
   if (route.path.startsWith('/kernels')) return '/kernels'
   if (route.path.startsWith('/agents')) return '/agents'
   if (route.path.startsWith('/voices')) return '/voices'
+  if (route.path.startsWith('/tts-lab')) return '/tts-lab'
   return route.path
 })
 
@@ -72,6 +73,10 @@ function logout() {
         <el-menu-item index="/voices">
           <el-icon><Headset /></el-icon>
           <span>音色</span>
+        </el-menu-item>
+        <el-menu-item index="/tts-lab">
+          <el-icon><Microphone /></el-icon>
+          <span>TTS 试验台</span>
         </el-menu-item>
         <el-menu-item index="/settings">
           <el-icon><Setting /></el-icon>

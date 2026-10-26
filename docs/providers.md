@@ -78,6 +78,7 @@ ALIYUN_TTS_DEFAULT_VOICE=longanyang
 - 克隆：`voice-enrollment` / `create_voice`；样本需**公网可访问 URL**（实现会先上传到 S3/R2 再传 URL）。本地 `STORAGE_BACKEND=local` 时克隆不可用
 - 复刻音色的 `target_model` 必须与 `ALIYUN_TTS_MODEL` / Admin `speech_model` 一致
 - 睡前停顿：TTS 前注入 CosyVoice SSML（`<speak>` + `<break time="…ms"/>`，`enable_ssml=true`）；个别音色不支持时自动降级为标点呼吸
+- CosyVoice 易乱读符号（`——`、装饰符、零宽字符等）仅在 **speak/SSML** 侧换成 `，` 等停顿，展示正文保留原样
 
 ## DeepSeek（故事）
 

@@ -701,7 +701,7 @@ async def stream_story_audio(
     tts = get_tts_provider(speech_provider)
 
     async def gen() -> AsyncIterator[bytes]:
-        audio, _display = await synthesize_with_prosody(
+        synth = await synthesize_with_prosody(
             tts,
             story.body or "",
             voice.provider_voice_id,
@@ -709,6 +709,7 @@ async def stream_story_audio(
             speech_provider=speech_provider,
             model=speech_model,
         )
+        audio = synth.audio
         # Chunk for progressive transfer; full file already paced with pauses.
         step = 16_384
         for i in range(0, len(audio), step):
@@ -939,7 +940,7 @@ async def create_story_streaming(
                 await session.commit()
 
         try:
-            audio_bytes, _ = await synthesize_with_prosody(
+            synth = await synthesize_with_prosody(
                 tts,
                 result.body,
                 voice.provider_voice_id,
@@ -947,6 +948,7 @@ async def create_story_streaming(
                 speech_provider=speech_name,
                 model=speech_model,
             )
+            audio_bytes = synth.audio
             key = storage_service.new_key(f"stories/{user.id}", ".mp3")
             await storage_service.put_bytes(key, audio_bytes, "audio/mpeg")
         except Exception as exc:

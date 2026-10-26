@@ -3,13 +3,15 @@ import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { api } from '@/api/client'
-import type { AdminStoryDetailOut } from '@/api/types'
+import type { AdminStoryDetailOut, AdminStoryTtsInputOut } from '@/api/types'
 import { formatAdminTime } from '@/utils/datetime'
 
 const route = useRoute()
 const router = useRouter()
 const loading = ref(false)
 const story = ref<AdminStoryDetailOut | null>(null)
+const recomputedTts = ref<AdminStoryTtsInputOut | null>(null)
+const recomputingTts = ref(false)
 
 function prettyJson(raw: string | null | undefined): string {
   if (!raw) return ''
@@ -172,6 +174,7 @@ const planHighlights = computed(() => {
 
 async function load() {
   loading.value = true
+  recomputedTts.value = null
   try {
     const { data } = await api.get<AdminStoryDetailOut>(`/admin/stories/${route.params.id}`)
     story.value = data
@@ -180,6 +183,33 @@ async function load() {
   } finally {
     loading.value = false
   }
+}
+
+async function recomputeTtsInput() {
+  if (!story.value) return
+  recomputingTts.value = true
+  try {
+    const { data } = await api.get<AdminStoryTtsInputOut>(
+      `/admin/stories/${story.value.id}/tts-input`,
+    )
+    recomputedTts.value = data
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '后算失败')
+  } finally {
+    recomputingTts.value = false
+  }
+}
+
+function openInTtsLab() {
+  if (!story.value) return
+  const text = (story.value.body || '').trim()
+  router.push({
+    name: 'tts-lab',
+    query: {
+      ...(text ? { text } : {}),
+      ...(story.value.voice_id != null ? { voice_id: String(story.value.voice_id) } : {}),
+    },
+  })
 }
 
 onMounted(load)
@@ -354,6 +384,47 @@ onMounted(load)
       <h3>正文</h3>
       <el-input :model-value="story.body" type="textarea" :rows="16" readonly />
 
+      <div class="tts-input-head">
+        <h3>发给 TTS 的文案</h3>
+        <el-button
+          size="small"
+          :loading="recomputingTts"
+          :disabled="!(story.body || '').trim()"
+          @click="recomputeTtsInput"
+        >
+          后算查看
+        </el-button>
+        <el-button size="small" :disabled="!(story.body || '').trim()" @click="openInTtsLab">
+          打开 TTS 试验台
+        </el-button>
+      </div>
+      <p class="muted tiny tts-input-hint">
+        按当前停顿规则重算（可能与磁盘上旧音频不完全一致）。要换音色 / 算法试听请用试验台。
+      </p>
+      <template v-if="recomputedTts">
+        <el-descriptions :column="2" border size="small" class="block">
+          <el-descriptions-item v-if="recomputedTts.provider" label="provider">
+            {{ recomputedTts.provider }}
+          </el-descriptions-item>
+          <el-descriptions-item v-if="recomputedTts.model" label="model">
+            {{ recomputedTts.model }}
+          </el-descriptions-item>
+          <el-descriptions-item v-if="recomputedTts.prosody_mode" label="prosody">
+            {{ recomputedTts.prosody_mode }}
+          </el-descriptions-item>
+          <el-descriptions-item label="used_ssml">
+            {{ recomputedTts.used_ssml ? 'yes' : 'no' }}
+          </el-descriptions-item>
+        </el-descriptions>
+        <p class="prompt-label">speak_text</p>
+        <el-input :model-value="recomputedTts.speak_text" type="textarea" :rows="12" readonly />
+        <template v-if="recomputedTts.ssml">
+          <p class="prompt-label">ssml</p>
+          <pre class="json prompt-body">{{ recomputedTts.ssml }}</pre>
+        </template>
+      </template>
+      <p v-else class="muted metrics-missing">尚未后算。点「后算查看」查看当前注入后的 TTS 文案。</p>
+
       <h3>Episode Plan</h3>
       <template v-if="episodePlanPretty">
         <el-descriptions v-if="planHighlights" :column="2" border size="small" class="plan-hi">
@@ -466,5 +537,17 @@ h3 {
 }
 .series-tag {
   margin-left: 8px;
+}
+.tts-input-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+}
+.tts-input-head h3 {
+  margin: 0;
+}
+.tts-input-hint {
+  margin: 4px 0 12px;
 }
 </style>
