@@ -234,3 +234,22 @@ export interface AnalyticsSummaryOut {
   story_status_counts: Record<string, number>
   listen_rate: number | null
 }
+
+export interface AnalyticsEngagementOut {
+  from_date: string
+  to_date: string
+  as_of: string
+  max_range_days: number
+  dau: { date: string; users: number }[]
+  retention: {
+    cohort_date: string
+    cohort_size: number
+    d1: number | null
+    d7: number | null
+    d30: number | null
+  }[]
+  avg_dau: number | null
+  avg_d1: number | null
+  avg_d7: number | null
+  avg_d30: number | null
+}
