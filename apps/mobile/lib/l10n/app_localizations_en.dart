@@ -933,7 +933,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get createStoryThemeHint =>
-      'e.g. a kitten watching stars on a cloud…';
+      'Optional — e.g. a kitten watching stars on a cloud…';
 
   @override
   String get createStoryCastTitle => 'Tonight\'s cast';

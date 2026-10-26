@@ -12,6 +12,7 @@ import '../l10n/app_localizations.dart';
 import '../local/local_store.dart';
 import '../local/network_errors.dart';
 import '../theme/app_theme.dart';
+import '../utils/story_sentences.dart';
 
 class _BedTrack {
   const _BedTrack({required this.id, required this.label, required this.asset});
@@ -19,25 +20,6 @@ class _BedTrack {
   final String id;
   final String label;
   final String asset;
-}
-
-List<String> _splitSentences(String body) {
-  final trimmed = body.trim();
-  if (trimmed.isEmpty) return const [];
-  final parts = <String>[];
-  final buf = StringBuffer();
-  for (final rune in trimmed.runes) {
-    final ch = String.fromCharCode(rune);
-    buf.write(ch);
-    if ('。！？…；\n'.contains(ch)) {
-      final s = buf.toString().trim();
-      if (s.isNotEmpty) parts.add(s);
-      buf.clear();
-    }
-  }
-  final tail = buf.toString().trim();
-  if (tail.isNotEmpty) parts.add(tail);
-  return parts.isEmpty ? [trimmed] : parts;
 }
 
 int _sentenceIndexForPosition({
@@ -152,7 +134,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
   /// Story id currently being filled via LockCaching (cleared in dispose).
   int? _playbackCachingStoryId;
 
-  late final List<String> _sentences = _splitSentences(widget.body);
+  late final List<String> _sentences = splitStorySentences(widget.body);
 
   double playSpeed = 1.0;
   double bedVolume = _bedVolumeDefault;
