@@ -36,6 +36,7 @@ def test_password_hash_roundtrip():
 def test_normalize_phone():
     assert normalize_phone("13800138000") == "13800138000"
     assert normalize_phone("+86 138-0013-8000") == "13800138000"
+    assert normalize_phone("01234567890") == "01234567890"  # App Review allowlist
     with pytest.raises(HTTPException):
         normalize_phone("123")
 
