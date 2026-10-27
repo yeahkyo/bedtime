@@ -37,10 +37,10 @@ class MeTab extends StatefulWidget {
   final VoidCallback? onLoggedOut;
 
   @override
-  State<MeTab> createState() => _MeTabState();
+  State<MeTab> createState() => MeTabState();
 }
 
-class _MeTabState extends State<MeTab> {
+class MeTabState extends State<MeTab> {
   bool loading = true;
   bool loggedIn = false;
   String displayName = '';
@@ -144,12 +144,18 @@ class _MeTabState extends State<MeTab> {
     return store;
   }
 
-  Future<void> _load() async {
+  Future<void> reload({bool quiet = false}) => _load(quiet: quiet);
+
+  Future<void> _load({bool quiet = false}) async {
     final l10n = AppLocalizations.of(context);
-    setState(() {
-      loading = true;
-      error = null;
-    });
+    if (!quiet) {
+      setState(() {
+        loading = true;
+        error = null;
+      });
+    } else {
+      setState(() => error = null);
+    }
     final hasToken = widget.api.token != null && widget.api.token!.isNotEmpty;
     final hasRefresh =
         widget.api.refreshToken != null && widget.api.refreshToken!.isNotEmpty;

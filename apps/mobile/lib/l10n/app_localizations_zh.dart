@@ -457,13 +457,24 @@ class AppLocalizationsZh extends AppLocalizations {
   String get creatingBackTooltip => '返回故事列表';
 
   @override
-  String get creatingHeadlineOk => '正在为今晚写故事';
+  String get creatingHeadlineOk => '正在准备今晚的故事';
 
   @override
   String get creatingHeadlineFail => '这次没能完成';
 
   @override
-  String get creatingBodyOk => '云端正在写正文并录制朗读，通常需要一两分钟。';
+  String creatingBodyOk(String eta) {
+    return '云端正在写正文并录制朗读，通常需要$eta。';
+  }
+
+  @override
+  String get creatingWaitEtaShort => '1–2 分钟';
+
+  @override
+  String get creatingWaitEtaMedium => '2–3 分钟';
+
+  @override
+  String get creatingWaitEtaLong => '6–7 分钟';
 
   @override
   String get creatingBodyFail => '可以重试，或先回列表，稍后再打开这篇故事。';
@@ -499,7 +510,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get creatingBackFailed => '返回故事列表';
 
   @override
-  String get creatingBackOk => '先回故事列表';
+  String get creatingBackOk => '返回故事列表';
 
   @override
   String get voicesManageTitle => '音色管理';
@@ -875,6 +886,18 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get createStoryGenerating => '生成中…';
+
+  @override
+  String get createStoryConfirmTitle => '确认生成今晚的故事？';
+
+  @override
+  String get createStoryConfirmCannotUndo => '将消耗 1 次本月额度，生成后无法撤销。';
+
+  @override
+  String get createStoryConfirmAction => '确认生成';
+
+  @override
+  String get createStoryConfirmCancel => '再看看';
 
   @override
   String get createStoryQuotaPrefix => '本月故事 ';
@@ -1683,13 +1706,24 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
   String get creatingBackTooltip => '返回故事列表';
 
   @override
-  String get creatingHeadlineOk => '正在為今晚寫故事';
+  String get creatingHeadlineOk => '正在準備今晚的故事';
 
   @override
   String get creatingHeadlineFail => '這次沒能完成';
 
   @override
-  String get creatingBodyOk => '雲端正在寫正文並錄製朗讀，通常需要一兩分鐘。';
+  String creatingBodyOk(String eta) {
+    return '雲端正在寫正文並錄製朗讀，通常需要$eta。';
+  }
+
+  @override
+  String get creatingWaitEtaShort => '1–2 分鐘';
+
+  @override
+  String get creatingWaitEtaMedium => '2–3 分鐘';
+
+  @override
+  String get creatingWaitEtaLong => '6–7 分鐘';
 
   @override
   String get creatingBodyFail => '可以重試，或先回列表，稍後再打開這篇故事。';
@@ -1725,7 +1759,7 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
   String get creatingBackFailed => '返回故事列表';
 
   @override
-  String get creatingBackOk => '先回故事列表';
+  String get creatingBackOk => '返回故事列表';
 
   @override
   String get voicesManageTitle => '音色管理';
@@ -2101,6 +2135,18 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get createStoryGenerating => '產生中…';
+
+  @override
+  String get createStoryConfirmTitle => '確認產生今晚的故事？';
+
+  @override
+  String get createStoryConfirmCannotUndo => '將消耗 1 次本月額度，產生後無法撤銷。';
+
+  @override
+  String get createStoryConfirmAction => '確認產生';
+
+  @override
+  String get createStoryConfirmCancel => '再看看';
 
   @override
   String get createStoryQuotaPrefix => '本月故事 ';

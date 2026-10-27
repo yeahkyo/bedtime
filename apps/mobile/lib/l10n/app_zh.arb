@@ -247,9 +247,17 @@
   },
   "creatingTitle": "创作中",
   "creatingBackTooltip": "返回故事列表",
-  "creatingHeadlineOk": "正在为今晚写故事",
+  "creatingHeadlineOk": "正在准备今晚的故事",
   "creatingHeadlineFail": "这次没能完成",
-  "creatingBodyOk": "云端正在写正文并录制朗读，通常需要一两分钟。",
+  "creatingBodyOk": "云端正在写正文并录制朗读，通常需要{eta}。",
+  "@creatingBodyOk": {
+    "placeholders": {
+      "eta": { "type": "String" }
+    }
+  },
+  "creatingWaitEtaShort": "1–2 分钟",
+  "creatingWaitEtaMedium": "2–3 分钟",
+  "creatingWaitEtaLong": "6–7 分钟",
   "creatingBodyFail": "可以重试，或先回列表，稍后再打开这篇故事。",
   "creatingHintsOkTitle": "生成时你可以",
   "creatingHintsFailTitle": "接下来可以",
@@ -261,7 +269,7 @@
   "creatingRetry": "重新生成",
   "creatingRetrying": "重试中…",
   "creatingBackFailed": "返回故事列表",
-  "creatingBackOk": "先回故事列表",
+  "creatingBackOk": "返回故事列表",
   "voicesManageTitle": "音色管理",
   "voicesManageEyebrow": "呼呼 · Voice",
   "voicesManageHeaderTitle": "我的音色",
@@ -444,6 +452,10 @@
   "createStoryGoAddChild": "去添加孩子档案",
   "createStoryGenerate": "生成今晚的故事",
   "createStoryGenerating": "生成中…",
+  "createStoryConfirmTitle": "确认生成今晚的故事？",
+  "createStoryConfirmCannotUndo": "将消耗 1 次本月额度，生成后无法撤销。",
+  "createStoryConfirmAction": "确认生成",
+  "createStoryConfirmCancel": "再看看",
   "createStoryQuotaPrefix": "本月故事 ",
   "createStoryQuotaLine": "本月故事 {used}/{limit}",
   "@createStoryQuotaLine": {

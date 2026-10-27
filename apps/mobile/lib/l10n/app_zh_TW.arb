@@ -247,9 +247,17 @@
   },
   "creatingTitle": "創作中",
   "creatingBackTooltip": "返回故事列表",
-  "creatingHeadlineOk": "正在為今晚寫故事",
+  "creatingHeadlineOk": "正在準備今晚的故事",
   "creatingHeadlineFail": "這次沒能完成",
-  "creatingBodyOk": "雲端正在寫正文並錄製朗讀，通常需要一兩分鐘。",
+  "creatingBodyOk": "雲端正在寫正文並錄製朗讀，通常需要{eta}。",
+  "@creatingBodyOk": {
+    "placeholders": {
+      "eta": { "type": "String" }
+    }
+  },
+  "creatingWaitEtaShort": "1–2 分鐘",
+  "creatingWaitEtaMedium": "2–3 分鐘",
+  "creatingWaitEtaLong": "6–7 分鐘",
   "creatingBodyFail": "可以重試，或先回列表，稍後再打開這篇故事。",
   "creatingHintsOkTitle": "產生時你可以",
   "creatingHintsFailTitle": "接下來可以",
@@ -261,7 +269,7 @@
   "creatingRetry": "重新產生",
   "creatingRetrying": "重試中…",
   "creatingBackFailed": "返回故事列表",
-  "creatingBackOk": "先回故事列表",
+  "creatingBackOk": "返回故事列表",
   "voicesManageTitle": "音色管理",
   "voicesManageEyebrow": "呼呼 · Voice",
   "voicesManageHeaderTitle": "我的音色",
@@ -444,6 +452,10 @@
   "createStoryGoAddChild": "去新增孩子檔案",
   "createStoryGenerate": "產生今晚的故事",
   "createStoryGenerating": "產生中…",
+  "createStoryConfirmTitle": "確認產生今晚的故事？",
+  "createStoryConfirmCannotUndo": "將消耗 1 次本月額度，產生後無法撤銷。",
+  "createStoryConfirmAction": "確認產生",
+  "createStoryConfirmCancel": "再看看",
   "createStoryQuotaPrefix": "本月故事 ",
   "createStoryQuotaLine": "本月故事 {used}/{limit}",
   "@createStoryQuotaLine": {

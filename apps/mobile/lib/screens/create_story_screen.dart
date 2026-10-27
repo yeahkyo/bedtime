@@ -50,6 +50,8 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
   int? continueSeriesId;
   int episodeCount = 4;
   bool busy = false;
+  /// True while the generate confirm sheet is open (blocks double-tap).
+  bool _confirmOpen = false;
   bool preparing = true;
   bool moreOptionsOpen = false;
   /// AppBar title fades in after the page hero title scrolls away.
@@ -102,7 +104,12 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
     return null;
   }
 
+  void _dismissKeyboard() {
+    FocusManager.instance.primaryFocus?.unfocus();
+  }
+
   Future<void> _openVoicePicker() async {
+    _dismissKeyboard();
     final picked = await showVoicePickerSheet(
       context: context,
       voices: voices,
@@ -228,6 +235,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
   }
 
   Future<void> _toggleChildSelection(int id) async {
+    _dismissKeyboard();
     setState(() {
       if (selectedChildIds.contains(id)) {
         if (selectedChildIds.length <= 1) return; // keep at least one
@@ -495,6 +503,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
   }
 
   Future<void> _openChildEditor() async {
+    _dismissKeyboard();
     await Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => ChildrenManageScreen(api: widget.api)),
     );
@@ -502,7 +511,100 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
     await _prepare();
   }
 
+  Future<bool> _showGenerateConfirmSheet() async {
+    _dismissKeyboard();
+    final l10n = AppLocalizations.of(context);
+    final confirmed = await showModalBottomSheet<bool>(
+      context: context,
+      backgroundColor: AppColors.card,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadii.xl)),
+      ),
+      builder: (ctx) {
+        final tt = Theme.of(ctx).textTheme;
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: AppColors.outline.withValues(alpha: 0.45),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(l10n.createStoryConfirmTitle, style: tt.titleLarge),
+                const SizedBox(height: 8),
+                Text(
+                  l10n.createStoryConfirmCannotUndo,
+                  style: tt.bodyMedium?.copyWith(color: AppColors.onSurfaceMuted),
+                ),
+                const SizedBox(height: 20),
+                AmberCta(
+                  label: l10n.createStoryConfirmAction,
+                  onPressed: () => Navigator.pop(ctx, true),
+                ),
+                const SizedBox(height: 8),
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: Text(l10n.createStoryConfirmCancel),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+    return confirmed == true;
+  }
+
+  Future<void> _onGeneratePressed() async {
+    if (busy || _confirmOpen) return;
+    if (children.isEmpty || childId == null || selectedChildIds.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(AppLocalizations.of(context).createStoryErrAddChild)),
+      );
+      await _openChildEditor();
+      return;
+    }
+    if (nickname.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(AppLocalizations.of(context).createStoryErrNickname)),
+      );
+      return;
+    }
+    if (voiceId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(AppLocalizations.of(context).createStoryErrVoice)),
+      );
+      return;
+    }
+    if (_audiencesForApi().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(AppLocalizations.of(context).createStoryErrListener)),
+      );
+      return;
+    }
+    setState(() => _confirmOpen = true);
+    try {
+      final ok = await _showGenerateConfirmSheet();
+      if (!ok || !mounted) return;
+      await _generate();
+    } finally {
+      if (mounted) setState(() => _confirmOpen = false);
+    }
+  }
+
   Future<void> _generate() async {
+    if (busy) return;
     if (children.isEmpty || childId == null || selectedChildIds.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(AppLocalizations.of(context).createStoryErrAddChild)),
@@ -562,6 +664,19 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
         dialogue: dialogue,
       );
       await widget.localStore?.stories.upsertOne(created);
+      // Quota is charged at create — refresh local account snapshot for Me tab.
+      try {
+        final snap = await widget.localStore?.account.refresh();
+        final q = snap?['quota'] as Map<String, dynamic>?;
+        if (q != null && mounted) {
+          setState(() {
+            storyUsed = q['story_used'] as int? ?? storyUsed;
+            storyLimit = q['story_limit'] as int? ?? storyLimit;
+          });
+        }
+      } catch (_) {
+        /* non-fatal: list/me will refresh on next focus */
+      }
       if (!mounted) return;
 
       final id = created['id'];
@@ -687,6 +802,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
             child: NotificationListener<ScrollNotification>(
               onNotification: _onCreateScroll,
               child: ListView(
+                keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
                 padding: const EdgeInsets.fromLTRB(20, 4, 20, 28),
                 children: [
                   _buildCreateHeader(context),
@@ -714,15 +830,12 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
                 ),
               ],
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                AmberCta(
-                  label: busy ? l10n.createStoryGenerating : l10n.createStoryGenerate,
-                  busy: busy,
-                  onPressed: busy ? null : _generate,
-                ),
-              ],
+            child: AmberCta(
+              label: busy ? l10n.createStoryGenerating : l10n.createStoryGenerate,
+              busy: busy,
+              onPressed: (busy || _confirmOpen)
+                  ? null
+                  : () => unawaited(_onGeneratePressed()),
             ),
           ),
         ],
@@ -1043,6 +1156,9 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
             ),
             minLines: 2,
             maxLines: 4,
+            textInputAction: TextInputAction.done,
+            onTapOutside: (_) => _dismissKeyboard(),
+            onEditingComplete: _dismissKeyboard,
           ),
           const SizedBox(height: 22),
           _sectionLabel(
@@ -1090,6 +1206,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
                         label: label.isEmpty ? l10n.createStoryCharacterFallback : label,
                         selected: selected,
                         onSelected: (_) {
+                          _dismissKeyboard();
                           setState(() {
                             if (selected) {
                               selectedCharacterIds.remove(cid);
@@ -1202,6 +1319,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
                   child: InkWell(
                     borderRadius: BorderRadius.circular(AppRadii.md),
                     onTap: () {
+                      _dismissKeyboard();
                       setState(() => wonder = id);
                       unawaited(_savePrefs());
                     },
@@ -1252,7 +1370,10 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
             color: Colors.transparent,
             child: InkWell(
               borderRadius: BorderRadius.circular(AppRadii.xl),
-              onTap: () => setState(() => moreOptionsOpen = !moreOptionsOpen),
+              onTap: () {
+                _dismissKeyboard();
+                setState(() => moreOptionsOpen = !moreOptionsOpen);
+              },
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(20, 16, 16, 16),
                 child: Row(
@@ -1327,11 +1448,14 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
                         contentPadding: EdgeInsets.zero,
                         title: Text(l10n.createStorySoftSeries),
                         value: softSeries,
-                        onChanged: (v) => setState(() {
-                          softSeries = v;
-                          if (!v) continueSeriesId = null;
-                          unawaited(_savePrefs());
-                        }),
+                        onChanged: (v) {
+                          _dismissKeyboard();
+                          setState(() {
+                            softSeries = v;
+                            if (!v) continueSeriesId = null;
+                            unawaited(_savePrefs());
+                          });
+                        },
                       ),
                       if (softSeries) ...[
                         TextField(
@@ -1339,6 +1463,9 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
                           decoration: InputDecoration(
                             labelText: l10n.createStorySoftHook,
                           ),
+                          textInputAction: TextInputAction.done,
+                          onTapOutside: (_) => _dismissKeyboard(),
+                          onEditingComplete: _dismissKeyboard,
                         ),
                         const SizedBox(height: 12),
                         SoftSelectField<int>(
@@ -1391,6 +1518,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
                       child: InkWell(
                         borderRadius: BorderRadius.circular(AppRadii.md),
                         onTap: () {
+                          _dismissKeyboard();
                           if (disabled) {
                             onDisabledTap?.call(id);
                             return;
@@ -1545,6 +1673,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
                       child: InkWell(
                         borderRadius: BorderRadius.circular(AppRadii.md),
                         onTap: () {
+                          _dismissKeyboard();
                           setState(() => duration = minutes);
                           unawaited(_savePrefs());
                         },

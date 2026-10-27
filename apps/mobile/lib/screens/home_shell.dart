@@ -35,6 +35,7 @@ class HomeShell extends StatefulWidget {
 class _HomeShellState extends State<HomeShell> {
   int index = 0;
   final _storiesKey = GlobalKey<StoriesTabState>();
+  final _meKey = GlobalKey<MeTabState>();
   bool _offlineBannerShown = false;
 
   @override
@@ -92,6 +93,7 @@ class _HomeShellState extends State<HomeShell> {
                 onRequestLogin: widget.onRequestLogin,
               ),
               MeTab(
+                key: _meKey,
                 api: widget.api,
                 localStore: store,
                 onLocalStoreReady: widget.onLocalStoreReady,
@@ -105,9 +107,18 @@ class _HomeShellState extends State<HomeShell> {
       bottomNavigationBar: NavigationBar(
         selectedIndex: index,
         onDestinationSelected: (i) {
+          final leavingStories = index == 0 && i != 0;
           setState(() => index = i);
           if (i == 0) {
+            _storiesKey.currentState?.setTabActive(true);
             _storiesKey.currentState?.reload();
+          } else {
+            if (leavingStories) {
+              _storiesKey.currentState?.setTabActive(false);
+            }
+            if (i == 1) {
+              _meKey.currentState?.reload(quiet: true);
+            }
           }
         },
         destinations: [

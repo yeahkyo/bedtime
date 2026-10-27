@@ -469,8 +469,18 @@ class AppLocalizationsEn extends AppLocalizations {
   String get creatingHeadlineFail => 'This one didn\'t finish';
 
   @override
-  String get creatingBodyOk =>
-      'We\'re writing the story and recording the narration — usually a minute or two.';
+  String creatingBodyOk(String eta) {
+    return 'We\'re writing the story and recording the narration — usually $eta.';
+  }
+
+  @override
+  String get creatingWaitEtaShort => '1–2 minutes';
+
+  @override
+  String get creatingWaitEtaMedium => '2–3 minutes';
+
+  @override
+  String get creatingWaitEtaLong => '6–7 minutes';
 
   @override
   String get creatingBodyFail =>
@@ -906,6 +916,19 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get createStoryGenerating => 'Creating…';
+
+  @override
+  String get createStoryConfirmTitle => 'Create tonight\'s story?';
+
+  @override
+  String get createStoryConfirmCannotUndo =>
+      'This uses 1 story from your monthly quota and can\'t be undone.';
+
+  @override
+  String get createStoryConfirmAction => 'Confirm';
+
+  @override
+  String get createStoryConfirmCancel => 'Not yet';
 
   @override
   String get createStoryQuotaPrefix => 'Stories this month ';

@@ -13,7 +13,7 @@ import 'player_screen.dart';
 
 /// Full-screen wait state after enqueueing a story.
 ///
-/// Back /「先回故事列表」return to the previous route (story list when opened
+/// Back /「返回故事列表」return to the previous route (story list when opened
 /// via [Navigator.pushReplacement] from create). Generation continues on the
 /// server; the list can show progress.
 class CreatingStoryScreen extends StatefulWidget {
@@ -179,6 +179,17 @@ class _CreatingStoryScreenState extends State<CreatingStoryScreen> {
     Navigator.of(context).pop();
   }
 
+  String _waitEtaLabel(AppLocalizations l10n) {
+    final raw = widget.initialStory?['duration_minutes'];
+    final minutes = raw is int
+        ? raw
+        : int.tryParse('$raw') ?? 5;
+    // Align with create-story tiers: short ≤4 → 3, medium ≤7 → 5, else long → 10.
+    if (minutes <= 4) return l10n.creatingWaitEtaShort;
+    if (minutes <= 7) return l10n.creatingWaitEtaMedium;
+    return l10n.creatingWaitEtaLong;
+  }
+
   String _progressLabel(AppLocalizations l10n, String progress) {
     switch (progress) {
       case 'queued':
@@ -238,7 +249,9 @@ class _CreatingStoryScreenState extends State<CreatingStoryScreen> {
               ),
               const SizedBox(height: 8),
               Text(
-                failed ? l10n.creatingBodyFail : l10n.creatingBodyOk,
+                failed
+                    ? l10n.creatingBodyFail
+                    : l10n.creatingBodyOk(_waitEtaLabel(l10n)),
                 style: tt.bodyMedium?.copyWith(color: AppColors.onSurfaceMuted),
               ),
               const SizedBox(height: 36),
@@ -315,6 +328,20 @@ class _CreatingStoryScreenState extends State<CreatingStoryScreen> {
               ],
               OutlinedButton(
                 onPressed: _backToStories,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.onSurface,
+                  side: const BorderSide(color: AppColors.outline),
+                  padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 16),
+                  minimumSize: const Size.fromHeight(54),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  textStyle: const TextStyle(
+                    fontFamily: 'Georgia',
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
                 child: Text(
                   failed ? l10n.creatingBackFailed : l10n.creatingBackOk,
                 ),

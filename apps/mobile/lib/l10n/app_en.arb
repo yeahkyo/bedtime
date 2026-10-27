@@ -249,7 +249,15 @@
   "creatingBackTooltip": "Back to stories",
   "creatingHeadlineOk": "Writing tonight's story",
   "creatingHeadlineFail": "This one didn't finish",
-  "creatingBodyOk": "We're writing the story and recording the narration — usually a minute or two.",
+  "creatingBodyOk": "We're writing the story and recording the narration — usually {eta}.",
+  "@creatingBodyOk": {
+    "placeholders": {
+      "eta": { "type": "String" }
+    }
+  },
+  "creatingWaitEtaShort": "1–2 minutes",
+  "creatingWaitEtaMedium": "2–3 minutes",
+  "creatingWaitEtaLong": "6–7 minutes",
   "creatingBodyFail": "You can try again, or go back and open this story later.",
   "creatingHintsOkTitle": "While you wait",
   "creatingHintsFailTitle": "What you can do",
@@ -444,6 +452,10 @@
   "createStoryGoAddChild": "Add a listener",
   "createStoryGenerate": "Create tonight's story",
   "createStoryGenerating": "Creating…",
+  "createStoryConfirmTitle": "Create tonight's story?",
+  "createStoryConfirmCannotUndo": "This uses 1 story from your monthly quota and can't be undone.",
+  "createStoryConfirmAction": "Confirm",
+  "createStoryConfirmCancel": "Not yet",
   "createStoryQuotaPrefix": "Stories this month ",
   "createStoryQuotaLine": "Stories this month {used}/{limit}",
   "@createStoryQuotaLine": {

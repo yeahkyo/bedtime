@@ -954,8 +954,26 @@ abstract class AppLocalizations {
   /// No description provided for @creatingBodyOk.
   ///
   /// In en, this message translates to:
-  /// **'We\'re writing the story and recording the narration — usually a minute or two.'**
-  String get creatingBodyOk;
+  /// **'We\'re writing the story and recording the narration — usually {eta}.'**
+  String creatingBodyOk(String eta);
+
+  /// No description provided for @creatingWaitEtaShort.
+  ///
+  /// In en, this message translates to:
+  /// **'1–2 minutes'**
+  String get creatingWaitEtaShort;
+
+  /// No description provided for @creatingWaitEtaMedium.
+  ///
+  /// In en, this message translates to:
+  /// **'2–3 minutes'**
+  String get creatingWaitEtaMedium;
+
+  /// No description provided for @creatingWaitEtaLong.
+  ///
+  /// In en, this message translates to:
+  /// **'6–7 minutes'**
+  String get creatingWaitEtaLong;
 
   /// No description provided for @creatingBodyFail.
   ///
@@ -1742,6 +1760,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Creating…'**
   String get createStoryGenerating;
+
+  /// No description provided for @createStoryConfirmTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Create tonight\'s story?'**
+  String get createStoryConfirmTitle;
+
+  /// No description provided for @createStoryConfirmCannotUndo.
+  ///
+  /// In en, this message translates to:
+  /// **'This uses 1 story from your monthly quota and can\'t be undone.'**
+  String get createStoryConfirmCannotUndo;
+
+  /// No description provided for @createStoryConfirmAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Confirm'**
+  String get createStoryConfirmAction;
+
+  /// No description provided for @createStoryConfirmCancel.
+  ///
+  /// In en, this message translates to:
+  /// **'Not yet'**
+  String get createStoryConfirmCancel;
 
   /// No description provided for @createStoryQuotaPrefix.
   ///

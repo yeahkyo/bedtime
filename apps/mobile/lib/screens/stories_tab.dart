@@ -49,6 +49,27 @@ class StoriesTabState extends State<StoriesTab> {
   bool continuing = false;
   bool retrying = false;
   String? retryProgress;
+  Timer? _generatingPoll;
+  bool _loadInFlight = false;
+  /// Bumped on each load; stale responses are discarded.
+  int _loadSeq = 0;
+  /// Bottom-nav Stories tab selected. Polling only runs while true.
+  bool _tabActive = true;
+  final Set<int> _prefetchedReadyIds = {};
+
+  static bool _storyInFlight(dynamic raw) {
+    if (raw is! Map) return false;
+    final st = '${raw['status'] ?? ''}';
+    return st == 'generating' || st == 'text_ready';
+  }
+
+  static int? _storyId(dynamic raw) {
+    if (raw is! Map) return null;
+    final id = raw['id'];
+    if (id is int) return id;
+    if (id is num) return id.toInt();
+    return int.tryParse('$id');
+  }
 
   @override
   void initState() {
@@ -57,9 +78,17 @@ class StoriesTabState extends State<StoriesTab> {
   }
 
   @override
+  void dispose() {
+    _stopGeneratingPoll();
+    super.dispose();
+  }
+
+  @override
   void didUpdateWidget(covariant StoriesTab oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.localStore != null && widget.localStore == null) {
+      _stopGeneratingPoll();
+      _prefetchedReadyIds.clear();
       setState(() {
         stories = [];
         loading = false;
@@ -74,85 +103,166 @@ class StoriesTabState extends State<StoriesTab> {
 
   Future<void> reload() => _load();
 
-  Future<void> _load() async {
+  /// Called by [HomeShell] when the Stories bottom tab is selected / left.
+  void setTabActive(bool active) {
+    if (_tabActive == active) return;
+    _tabActive = active;
+    if (!active) {
+      _stopGeneratingPoll();
+    } else {
+      _syncGeneratingPoll();
+    }
+  }
+
+  void _stopGeneratingPoll() {
+    _generatingPoll?.cancel();
+    _generatingPoll = null;
+  }
+
+  void _syncGeneratingPoll() {
+    final needsPoll = _tabActive && stories.any(_storyInFlight);
+    if (!needsPoll) {
+      _stopGeneratingPoll();
+      return;
+    }
+    if (_generatingPoll != null) return;
+    _generatingPoll = Timer.periodic(const Duration(seconds: 3), (_) {
+      if (!mounted || !_tabActive || _loadInFlight) return;
+      if (!stories.any(_storyInFlight)) {
+        _stopGeneratingPoll();
+        return;
+      }
+      unawaited(_load(quiet: true));
+    });
+  }
+
+  void _maybePrefetchReady(List<dynamic> list) {
     final store = widget.localStore;
-    setState(() => loading = stories.isEmpty);
-    if (store != null) {
-      try {
-        final list = await store.stories.refresh(
-          onCached: (cached) {
-            if (!mounted || cached.isEmpty) return;
-            setState(() {
-              stories = cached;
-              loading = false;
-            });
-          },
-          onNetworkError: (msg) {
-            if (!mounted) return;
-            if (stories.isEmpty) {
-              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+    if (store == null) return;
+    final readyMaps = <Map<String, dynamic>>[];
+    final readyIds = <int>{};
+    for (final row in list) {
+      if (row is! Map) continue;
+      if ('${row['status'] ?? ''}' != 'ready') continue;
+      final id = _storyId(row);
+      if (id == null) continue;
+      readyIds.add(id);
+      if (!_prefetchedReadyIds.contains(id)) {
+        readyMaps.add(Map<String, dynamic>.from(row));
+      }
+    }
+    _prefetchedReadyIds
+      ..removeWhere((id) => !readyIds.contains(id))
+      ..addAll(readyIds);
+    if (readyMaps.isEmpty) return;
+    unawaited(store.media.prefetchReadyStories(readyMaps));
+  }
+
+  Future<void> _load({bool quiet = false}) async {
+    if (_loadInFlight && quiet) return;
+    final seq = ++_loadSeq;
+    _loadInFlight = true;
+    if (!quiet) {
+      setState(() => loading = stories.isEmpty);
+    }
+    final store = widget.localStore;
+    try {
+      if (store != null) {
+        try {
+          final list = await store.stories.refresh(
+            onCached: (cached) {
+              if (!mounted || cached.isEmpty || quiet || seq != _loadSeq) return;
+              setState(() {
+                stories = cached;
+                loading = false;
+              });
+            },
+            onNetworkError: (msg) {
+              if (!mounted || quiet || seq != _loadSeq) return;
+              if (stories.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+              }
+            },
+          );
+          if (!mounted || seq != _loadSeq) return;
+          setState(() {
+            stories = list;
+            if (!quiet) loading = false;
+          });
+          _maybePrefetchReady(list);
+          return;
+        } on ApiException catch (e) {
+          if (e.unauthorized) {
+            _stopGeneratingPoll();
+            if (mounted && seq == _loadSeq) {
+              setState(() => stories = []);
             }
-          },
-        );
-        if (!mounted) return;
+            return;
+          }
+          if (mounted && stories.isEmpty && !quiet && seq == _loadSeq) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(friendlyNetworkError(e))),
+            );
+          }
+        } catch (e) {
+          if (mounted && stories.isEmpty && !quiet && seq == _loadSeq) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(friendlyNetworkError(e))),
+            );
+          }
+        } finally {
+          if (mounted && !quiet && seq == _loadSeq) {
+            setState(() => loading = false);
+          }
+        }
+        return;
+      }
+
+      if (!apiHasAccessToken(widget.api)) {
+        if (mounted && seq == _loadSeq) {
+          setState(() {
+            stories = [];
+            if (!quiet) loading = false;
+          });
+        }
+        return;
+      }
+
+      if (!quiet && seq == _loadSeq) setState(() => loading = true);
+      try {
+        final list = await widget.api.listStories();
+        if (!mounted || seq != _loadSeq) return;
         setState(() {
           stories = list;
-          loading = false;
+          if (!quiet) loading = false;
         });
-        unawaited(store.media.prefetchReadyStories(
-          list.cast<Map<String, dynamic>>(),
-        ));
-        return;
       } on ApiException catch (e) {
-        if (e.unauthorized) rethrow;
-        if (mounted && stories.isEmpty) {
+        if (e.unauthorized) {
+          _stopGeneratingPoll();
+          if (mounted && seq == _loadSeq) setState(() => stories = []);
+          return;
+        }
+        if (mounted && !quiet && seq == _loadSeq) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text(friendlyNetworkError(e))),
           );
         }
       } catch (e) {
-        if (mounted && stories.isEmpty) {
+        if (mounted && !quiet && seq == _loadSeq) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text(friendlyNetworkError(e))),
           );
         }
       } finally {
-        if (mounted) setState(() => loading = false);
-      }
-      return;
-    }
-
-    if (!apiHasAccessToken(widget.api)) {
-      if (mounted) {
-        setState(() {
-          stories = [];
-          loading = false;
-        });
-      }
-      return;
-    }
-
-    setState(() => loading = true);
-    try {
-      stories = await widget.api.listStories();
-    } on ApiException catch (e) {
-      if (e.unauthorized) {
-        if (mounted) setState(() => stories = []);
-        return;
-      }
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(friendlyNetworkError(e))),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(friendlyNetworkError(e))),
-        );
+        if (mounted && !quiet && seq == _loadSeq) {
+          setState(() => loading = false);
+        }
       }
     } finally {
-      if (mounted) setState(() => loading = false);
+      if (seq == _loadSeq) {
+        _loadInFlight = false;
+        if (mounted) _syncGeneratingPoll();
+      }
     }
   }
 
