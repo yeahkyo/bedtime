@@ -1,18 +1,19 @@
 # Staging / online App testing deploy
 
-Same edge pattern as Bandage / Featee: **no reverse proxy on the VPS**.  
-Clients hit **Cloudflare** (orange-cloud + Universal SSL); origin speaks **HTTP** on a published port.
+**Current origin:** Alibaba Cloud Hong Kong lightweight (`Host lullvale-hk` in `~/.ssh/config`).  
+**Edge:** Cloudflare DNS **only** (grey cloud) — clients hit the origin directly.  
+**TLS:** Let’s Encrypt on the host (nginx `:443`), reverse-proxied to Docker publish ports.
 
 ```text
-App (HTTPS) → Cloudflare edge → Origin VPS :8080 → Docker api (uvicorn :8000)
-App legal links → Cloudflare → Origin VPS :8082 → Lullvale web (nginx /legal/*)
+App (HTTPS) → origin nginx :443 → Docker api :8080 (uvicorn :8000)
+App legal / marketing → origin nginx :443 → Lullvale web :8082
 Media put/get → Cloudflare R2 (S3 API + presigned URLs)
 ```
 
-Default API host port is **8080** so this stack can share the Bandage VPS (Bandage API already uses **:80**).  
-Set Cloudflare **Origin Rule**: hostname `bedtime-api.*` → origin port **8080**.  
-Legal / product site: `huhu.lullvale.com` → origin port **8082** (sibling repo [`../Lullvale`](../../Lullvale)).  
-(Dedicated VPS with free :80: set `API_HOST_PORT=80` in `.env.staging`.)
+Host nginx configs (on the VPS, not in this repo): `/etc/nginx/conf.d/bedtime-api.conf`, `lullvale-web.conf`, `lullvale-edge.conf`.  
+Compose still publishes **8080** (API) / **8082** (web) / **8083** (admin) on localhost for nginx upstreams and retention curl.
+
+Optional legacy path: orange-cloud + Origin Rules to those ports (slower from mainland China). Prefer grey cloud + origin TLS for staging.
 
 ## Secrets: local `.env.staging` + scp (no SSH editing)
 
@@ -35,35 +36,42 @@ cd ../Lullvale && ./deploy.sh
 Template: [`apps/api/.env.staging.example`](../apps/api/.env.staging.example) (committed).  
 Deploy script: [`deploy.sh`](../deploy.sh) (same idea as Bandage syncing `prod.env`).
 
-Override SSH target: `DEPLOY_SSH=root@lullvale01 REMOTE_REPO_ROOT=/srv/bedtime ./deploy.sh`
+Default SSH: `root@lullvale-hk` (see `~/.ssh/config`; key `~/.ssh/id_lullvale`).  
+Override old Linode: `DEPLOY_SSH=root@lullvale01 REMOTE_REPO_ROOT=/srv/bedtime ./deploy.sh`
+
+**Firewall (both layers):**
+
+1. Aliyun console → 轻量 → 防火墙: **22, 80, 443** (and **8080/8082/8083** if you still probe those ports directly).
+2. On-box `firewalld`: `http`, `https`, and the compose ports as needed (`firewall-cmd --list-all`).
+
+Do not publish MariaDB/Redis.
 
 ## Auth decision (current)
 
 | Phase | Auth | Notes |
 |-------|------|--------|
-| **Staging / closed beta (now)** | `ENV=staging` + `DEV_AUTH_BYPASS=0` + `EXPOSE_API_DOCS=0` | Invite code register + phone/password login. Access JWT (~60m) + opaque refresh (7d, rotate). `dev-login` **disabled**. `DELETE /v1/account` disabled outside `dev`. Admin UI: generate invites; disable users. |
+| **Staging / closed beta (now)** | Prefer `ENV=staging` + `DEV_AUTH_BYPASS=0` + `EXPOSE_API_DOCS=0` | Invite code register + phone/password login. Access JWT (~60m) + opaque refresh (7d, rotate). `dev-login` **disabled** when `ENV≠dev`. `DELETE /v1/account` disabled outside `dev`. Admin UI: generate invites; disable users. |
 | **Local engineering** | `ENV=dev` | `POST /v1/auth/dev-login` still available for engineers only. |
 | **Store-ready later** | Apple Sign-In with **JWKS verify** | Not implemented yet; phone/password + invite remains. |
 
-**Do not** set `DEV_AUTH_BYPASS=1` on a publicly reachable host.
+**Do not** set `DEV_AUTH_BYPASS=1` on a publicly reachable host.  
+If staging `.env` still has `ENV=dev` for App Review / `dev-login`, keep the hostname off the open internet or behind access control.
 
 ## Checklist
 
 1. Fill local `apps/api/.env.staging` (DB passwords, JWT, R2, Ark/Fish, `RETENTION_ADMIN_TOKEN`, `ADMIN_BOOTSTRAP_PASSWORD`, `PUBLIC_API_BASE_URL`).
 2. Private R2 bucket; leave `S3_PUBLIC_BASE_URL` empty.
-3. Cloudflare DNS: `bedtime-api.lullvale.com` → VPS IP, **Proxied**, SSL **Full**.
-4. Cloudflare **Origin Rule**: that hostname → **destination port 8080** (skip if you use `API_HOST_PORT=80` alone on the box).
-5. Firewall: allow **8080** (and **22**); do not publish MariaDB/Redis.
-6. `./deploy.sh` (API **:8080** + Admin UI **:8083**)
-7. Admin UI: open `http://<VPS_IP>:8083` (or a Cloudflare hostname with Origin Rule → **8083**).  
-   SPA uses same-origin `/admin/*`; nginx proxies to the `api` container — leave `ADMIN_UI_API_BASE` empty.
-8. Legal site: deploy sibling [`../Lullvale`](../../Lullvale); DNS `huhu.lullvale.com` → VPS, Proxied; Origin Rule → **8082**.  
+3. Cloudflare DNS (**DNS only** / grey cloud): `bedtime-api`, `huhu`, `featee`, `www` → origin A record (same IP as `lullvale-hk`).
+4. Origin TLS: certbot/nginx on the VPS for those hostnames (HTTP-01 needs **:80** open). Renewals via certbot timer.
+5. `./deploy.sh` (API **:8080** + Admin UI **:8083**).
+6. Admin UI: prefer SSH tunnel or a private hostname — **do not** grey-cloud `:8083` onto the public internet without extra auth.
+7. Legal / marketing: deploy sibling [`../Lullvale`](../../Lullvale).  
    Smoke: `curl -sI https://huhu.lullvale.com/legal/privacy/en.html` → **200**.
-9. App: `flutter run --dart-define=APP_ENV=staging`  
-   Config: [`apps/mobile/assets/config/staging.json`](../apps/mobile/assets/config/staging.json) (`api_base_url`, `legal_host`, feature flags).  
-   Umeng U-APM: put AppKeys in `staging.json` or gitignored `staging.local.json` (see `*.local.json.example`). Empty keys → APM skipped. Upload symbol/dSYM in the Umeng console for readable stacks.  
-   Local/CI: default `APP_ENV=dev` (LAN API, empty Umeng keys).
-10. Retention cron on the VPS (see below).
+8. App: `flutter run --dart-define=APP_ENV=staging`  
+   Config: [`apps/mobile/assets/config/staging.json`](../apps/mobile/assets/config/staging.json).  
+   LAN API for `APP_ENV=dev`: use gitignored `dev.local.json` (not committed `dev.json`).  
+   Umeng: `staging.json` or `staging.local.json`.
+9. Retention cron on the VPS (see below).
 
 ## Fill these in `.env.staging` before first deploy
 
@@ -80,31 +88,25 @@ Override SSH target: `DEPLOY_SSH=root@lullvale01 REMOTE_REPO_ROOT=/srv/bedtime .
 | `API_HOST_PORT` | optional (default **8080** in compose) |
 | `ADMIN_UI_PORT` | optional (default **8083**) |
 
-## Port conflicts (same VPS as Bandage)
+## Ports (dedicated HK box)
 
 | Host port | Owner |
 |-----------|--------|
-| 80 | Bandage API — **do not reuse** |
-| 8081 | Bandage admin |
+| **80 / 443** | Host nginx (TLS + Host routing) |
+| **8080** | Bedtime API (upstream) |
 | **8082** | Lullvale web (Featee / studio / Huhu) |
-| **8080** | Bedtime staging API (default) |
-| **8083** | Bedtime admin UI |
-| 3307 / 6390 | Bandage DB/Redis published — bedtime staging does **not** publish DB/Redis |
+| **8083** | Bedtime admin UI (keep private) |
 
-Use a separate Compose project (`-p bedtime` via `deploy.sh`).
+Compose project: `-p bedtime` via `deploy.sh`. Bandage remains on the old Linode if still running — not co-located on HK.
 
-## Cloudflare (edge)
+## Cloudflare
 
-| Hostname | Origin port | Service |
-|----------|-------------|---------|
-| `bedtime-api.lullvale.com` | **8080** | bedtime `api` |
-| `huhu.lullvale.com` | **8082** | Lullvale `web` (shared with Featee / studio) |
+| Hostname | Mode | Notes |
+|----------|------|--------|
+| `bedtime-api.lullvale.com` | DNS only | Origin nginx → `:8080` |
+| `huhu` / `featee` / `www` | DNS only | Origin nginx → `:8082` |
 
-| Setting | Value |
-|---------|--------|
-| Proxy | Orange cloud |
-| SSL/TLS | **Full** |
-| On-box Caddy/nginx | Not required (compose publishes ports; CF Origin Rules by Host) |
+Media stays on **R2** (unchanged). DNS-only exposes the origin IP; acceptable for closed staging.
 
 ## Object storage (R2)
 
@@ -120,14 +122,16 @@ S3_PUBLIC_BASE_URL=
 
 ## Retention cron
 
-On the VPS, hit origin directly (port **8080**):
+On the VPS, hit the API upstream (port **8080**), not the public hostname:
 
 ```bash
-# cron env:
+# /etc/bedtime-retention.env (mode 600), sourced by cron:
 PUBLIC_API_BASE_URL=http://127.0.0.1:8080
 RETENTION_ADMIN_TOKEN=...   # same as .env
+```
 
-15 3 * * * /srv/bedtime/apps/api/scripts/run_retention.sh >> /var/log/bedtime-retention.log 2>&1
+```cron
+15 3 * * * root set -a; source /etc/bedtime-retention.env; set +a; /srv/bedtime/apps/api/scripts/run_retention.sh >> /var/log/bedtime-retention.log 2>&1
 ```
 
 ```bash

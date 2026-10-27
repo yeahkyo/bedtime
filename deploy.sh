@@ -24,9 +24,10 @@ LOCAL_ENV="${ROOT}/apps/api/.env.staging"
 COMPOSE_FILE="docker-compose.staging.yml"
 COMPOSE_PROJECT="${COMPOSE_PROJECT:-bedtime}"
 
-DEPLOY_SSH="${DEPLOY_SSH:-root@lullvale01}"
+# Default: Alibaba HK lightweight (lullvale-hk). Override for old Linode: DEPLOY_SSH=root@lullvale01
+DEPLOY_SSH="${DEPLOY_SSH:-root@lullvale-hk}"
 REMOTE_REPO_ROOT="${REMOTE_REPO_ROOT:-/srv/bedtime}"
-# Prefer lullvale deploy key (Bandage host); fall back to ed25519/rsa.
+# Prefer lullvale deploy key; fall back to ed25519/rsa.
 if [[ -z "${SSH_KEY:-}" ]]; then
 	if [[ -f "$HOME/.ssh/id_lullvale" ]]; then
 		SSH_KEY="$HOME/.ssh/id_lullvale"
