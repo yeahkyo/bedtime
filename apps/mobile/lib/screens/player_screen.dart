@@ -70,6 +70,7 @@ class PlayerScreen extends StatefulWidget {
     this.voiceName,
     this.core,
     this.localStore,
+    this.analyticsSource,
   });
 
   final String title;
@@ -82,10 +83,14 @@ class PlayerScreen extends StatefulWidget {
   final String? core;
   final LocalStore? localStore;
 
+  /// Where playback was opened from: `create` | `list` | `retry` (analytics).
+  final String? analyticsSource;
+
   /// Convenience for story JSON from API / list.
   factory PlayerScreen.fromStory(
     Map<String, dynamic> story, {
     LocalStore? localStore,
+    String? analyticsSource,
   }) {
     final id = story['id'];
     final storyId = id is int ? id : int.tryParse('$id');
@@ -100,6 +105,7 @@ class PlayerScreen extends StatefulWidget {
       core: story['core'] as String? ??
           story['development_focus_label'] as String?,
       localStore: localStore,
+      analyticsSource: analyticsSource,
     );
   }
 
@@ -151,6 +157,10 @@ class _PlayerScreenState extends State<PlayerScreen> {
   bool _scrubbing = false;
   double _scrubMs = 0;
   int _lastScrolledSentence = -1;
+  StreamSubscription<Duration>? _positionSub;
+  final Set<int> _progressMilestonesSent = {};
+  bool _playbackCompleted = false;
+  bool _playerCloseSent = false;
 
   GlobalKey _keyFor(int i) => _sentenceKeys.putIfAbsent(i, GlobalKey.new);
 
@@ -159,14 +169,61 @@ class _PlayerScreenState extends State<PlayerScreen> {
     super.initState();
     final sid = widget.storyId;
     if (sid != null) {
-      AnalyticsTracker.instance.track('player_open', storyId: sid);
+      AnalyticsTracker.instance.track(
+        'player_open',
+        storyId: sid,
+        props: {
+          if (widget.analyticsSource != null) 'source': widget.analyticsSource,
+        },
+      );
     }
     _narrationStateSub = narration.playerStateStream.listen((state) {
       if (state.processingState == ProcessingState.completed) {
         unawaited(_onNarrationCompleted());
       }
     });
+    _positionSub = narration.positionStream.listen(_onNarrationPosition);
     unawaited(_load());
+  }
+
+  void _onNarrationPosition(Duration pos) {
+    final sid = widget.storyId;
+    if (sid == null) return;
+    final total = narration.duration;
+    if (total == null || total.inMilliseconds <= 0) return;
+    final pct = (pos.inMilliseconds / total.inMilliseconds * 100).floor();
+    for (final m in const [25, 50, 75]) {
+      if (pct >= m && _progressMilestonesSent.add(m)) {
+        AnalyticsTracker.instance.track(
+          'playback_progress',
+          storyId: sid,
+          props: {'pct': m},
+        );
+      }
+    }
+  }
+
+  void _trackPlayerClose() {
+    if (_playerCloseSent) return;
+    final sid = widget.storyId;
+    if (sid == null) return;
+    _playerCloseSent = true;
+    var listenedMs = 0;
+    var totalMs = 0;
+    try {
+      listenedMs = narration.position.inMilliseconds;
+      totalMs = narration.duration?.inMilliseconds ?? 0;
+    } catch (_) {}
+    AnalyticsTracker.instance.track(
+      'player_close',
+      storyId: sid,
+      props: {
+        'listened_sec': (listenedMs / 1000).round(),
+        if (totalMs > 0) 'total_sec': (totalMs / 1000).round(),
+        'completed': _playbackCompleted,
+        if (widget.analyticsSource != null) 'source': widget.analyticsSource,
+      },
+    );
   }
 
   String? _resolveUrl(String? url) {
@@ -316,6 +373,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
   Future<void> _onNarrationCompleted() async {
     final store = widget.localStore;
     final id = widget.storyId;
+    _playbackCompleted = true;
     if (id != null) {
       AnalyticsTracker.instance.track('playback_complete', storyId: id);
     }
@@ -765,8 +823,11 @@ class _PlayerScreenState extends State<PlayerScreen> {
   void dispose() {
     _outroTimer?.cancel();
     _narrationStateSub?.cancel();
+    unawaited(_positionSub?.cancel() ?? Future<void>.value());
+    _positionSub = null;
     unawaited(_cacheProgressSub?.cancel() ?? Future<void>.value());
     _cacheProgressSub = null;
+    _trackPlayerClose();
     final store = widget.localStore;
     final id = widget.storyId;
     final cachingId = _playbackCachingStoryId;

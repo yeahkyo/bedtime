@@ -169,6 +169,7 @@ class _CreatingStoryScreenState extends State<CreatingStoryScreen> {
         builder: (_) => PlayerScreen.fromStory(
           story,
           localStore: widget.localStore,
+          analyticsSource: 'create',
         ),
       ),
     );

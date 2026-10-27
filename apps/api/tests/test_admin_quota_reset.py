@@ -33,7 +33,7 @@ async def test_usage_summary_respects_explicit_redis_zero():
     )
     with patch("app.services.quota.get_redis", AsyncMock(return_value=redis)), patch(
         "app.services.quota.get_settings",
-        return_value=Settings(monthly_story_quota=30, monthly_clone_quota=3),
+        return_value=Settings(monthly_story_quota=15, monthly_clone_quota=3),
     ), patch("app.services.quota._month_prefix", AsyncMock(return_value="2026-10")):
         summary = await usage_summary(db, user_id=1)
     assert summary["story_used"] == 0
@@ -48,7 +48,7 @@ async def test_reset_monthly_quota_sets_redis_zero():
     db = AsyncMock()
     with patch("app.services.quota.get_redis", AsyncMock(return_value=redis)), patch(
         "app.services.quota.get_settings",
-        return_value=Settings(monthly_story_quota=30, monthly_clone_quota=3),
+        return_value=Settings(monthly_story_quota=15, monthly_clone_quota=3),
     ), patch("app.services.quota._month_prefix", AsyncMock(return_value="2026-10")):
         out = await reset_monthly_quota(db, 7, kinds=["story"])
     assert redis.set.await_count == 1
@@ -86,7 +86,7 @@ async def test_admin_quota_reset_endpoint():
             return_value={
                 "month": "2026-10",
                 "story_used": 0,
-                "story_limit": 30,
+                "story_limit": 15,
                 "clone_used": 0,
                 "clone_limit": 3,
             }

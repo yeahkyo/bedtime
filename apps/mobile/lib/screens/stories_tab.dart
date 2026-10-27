@@ -209,6 +209,7 @@ class StoriesTabState extends State<StoriesTab> {
           builder: (_) => PlayerScreen.fromStory(
             story,
             localStore: widget.localStore,
+            analyticsSource: 'continue',
           ),
         ),
       );
@@ -247,6 +248,7 @@ class StoriesTabState extends State<StoriesTab> {
         builder: (_) => PlayerScreen.fromStory(
           s,
           localStore: widget.localStore,
+          analyticsSource: 'list',
         ),
       ),
     );
@@ -296,6 +298,7 @@ class StoriesTabState extends State<StoriesTab> {
           builder: (_) => PlayerScreen.fromStory(
             story,
             localStore: widget.localStore,
+            analyticsSource: 'retry',
           ),
         ),
       );

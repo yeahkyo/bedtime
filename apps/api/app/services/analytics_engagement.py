@@ -16,7 +16,9 @@ ACTIVITY_EVENT_NAMES: frozenset[str] = frozenset(
         "story_ready",
         "story_failed",
         "player_open",
+        "playback_progress",
         "playback_complete",
+        "player_close",
         "quota_hit",
     }
 )
