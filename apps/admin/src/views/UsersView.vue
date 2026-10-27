@@ -63,6 +63,9 @@ onMounted(load)
       </el-table-column>
       <el-table-column prop="children_count" label="孩子" width="80" />
       <el-table-column prop="stories_count" label="故事数" width="90" />
+      <el-table-column label="上次活跃" min-width="160">
+        <template #default="{ row }">{{ formatAdminTime(row.last_active_at) }}</template>
+      </el-table-column>
       <el-table-column label="创建时间" min-width="160">
         <template #default="{ row }">{{ formatAdminTime(row.created_at) }}</template>
       </el-table-column>

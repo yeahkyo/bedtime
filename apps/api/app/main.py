@@ -119,6 +119,7 @@ async def _ensure_story_async_columns(conn) -> None:
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash VARCHAR(128) NULL",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS token_version INT NOT NULL DEFAULT 0",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS disabled_at DATETIME NULL",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS last_active_at DATETIME NULL",
         "ALTER TABLE analytics_events ADD COLUMN IF NOT EXISTS idempotency_key VARCHAR(64) NULL",
     ):
         try:

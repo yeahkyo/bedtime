@@ -27,6 +27,7 @@ class AdminUserListItem(BaseModel):
     phone: str | None = None
     disabled: bool = False
     created_at: str | None
+    last_active_at: str | None = None
     story_used: int = 0
     story_limit: int = 0
     clone_used: int = 0
@@ -69,6 +70,7 @@ class AdminUserDetailOut(BaseModel):
     disabled_at: str | None = None
     token_version: int = 0
     created_at: str | None
+    last_active_at: str | None = None
     deleted_at: str | None
     story_retention_months: int
     story_used: int
@@ -160,6 +162,9 @@ async def list_users(
                 phone=user.phone,
                 disabled=user.disabled_at is not None,
                 created_at=user.created_at.isoformat() if user.created_at else None,
+                last_active_at=(
+                    user.last_active_at.isoformat() if user.last_active_at else None
+                ),
                 story_used=usage["story_used"],
                 story_limit=usage["story_limit"],
                 clone_used=usage["clone_used"],
@@ -203,6 +208,9 @@ async def get_user(
         disabled_at=user.disabled_at.isoformat() if user.disabled_at else None,
         token_version=int(user.token_version or 0),
         created_at=user.created_at.isoformat() if user.created_at else None,
+        last_active_at=(
+            user.last_active_at.isoformat() if user.last_active_at else None
+        ),
         deleted_at=user.deleted_at.isoformat() if user.deleted_at else None,
         story_retention_months=user.story_retention_months,
         story_used=usage["story_used"],

@@ -170,6 +170,9 @@ onMounted(load)
           {{ user.disabled_at ? `已禁用（${formatAdminTime(user.disabled_at)}）` : '正常' }}
         </el-descriptions-item>
         <el-descriptions-item label="Subject">{{ user.apple_sub }}</el-descriptions-item>
+        <el-descriptions-item label="上次活跃">
+          {{ formatAdminTime(user.last_active_at) }}
+        </el-descriptions-item>
         <el-descriptions-item label="创建时间">{{ formatAdminTime(user.created_at) }}</el-descriptions-item>
         <el-descriptions-item label="故事配额">
           {{ user.story_used }} / {{ user.story_limit }}

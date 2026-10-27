@@ -19,6 +19,7 @@ class User(Base):
     preferred_language: Mapped[str] = mapped_column(String(8), default="zh")
     story_retention_months: Mapped[int] = mapped_column(default=24)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    last_active_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     children = relationship("Child", back_populates="user", cascade="all, delete-orphan")

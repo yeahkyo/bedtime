@@ -14,6 +14,7 @@ export interface AdminUserListItem {
   phone?: string | null
   disabled?: boolean
   created_at: string | null
+  last_active_at?: string | null
   story_used: number
   story_limit: number
   clone_used: number
@@ -62,6 +63,7 @@ export interface AdminUserDetailOut {
   disabled_at?: string | null
   token_version?: number
   created_at: string | null
+  last_active_at?: string | null
   deleted_at: string | null
   story_retention_months: number
   story_used: number

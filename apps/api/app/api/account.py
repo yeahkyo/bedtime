@@ -7,6 +7,7 @@ from app.core.db import get_db
 from app.core.security import bearer, get_current_user
 from app.models.user import User
 from app.schemas.common import QuotaOut, UserOut
+from app.services.last_active import touch_user_last_active
 from app.services.quota import usage_summary
 from app.services.retention import (
     cascade_delete_user,
@@ -20,7 +21,11 @@ router = APIRouter(prefix="/account", tags=["account"])
 
 
 @router.get("/me", response_model=UserOut)
-async def get_me(user: User = Depends(get_current_user)) -> UserOut:
+async def get_me(
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> UserOut:
+    await touch_user_last_active(db, user)
     return UserOut(
         id=user.id,
         display_name=user.display_name,
