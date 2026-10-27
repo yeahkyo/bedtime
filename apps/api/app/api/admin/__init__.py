@@ -16,12 +16,14 @@ from app.api.admin import (
     tts_lab,
     users,
     voices,
+    waitlist,
 )
 
 router = APIRouter()
 router.include_router(auth.router)
 router.include_router(users.router)
 router.include_router(invites.router)
+router.include_router(waitlist.router)
 router.include_router(stories.router)
 router.include_router(series.router)
 router.include_router(settings.router)

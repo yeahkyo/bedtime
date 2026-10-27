@@ -66,7 +66,10 @@ If staging `.env` still has `ENV=dev` for App Review / `dev-login`, keep the hos
 5. `./deploy.sh` (API **:8080** + Admin UI **:8083**).
 6. Admin UI: prefer SSH tunnel or a private hostname — **do not** grey-cloud `:8083` onto the public internet without extra auth.
 7. Legal / marketing: deploy sibling [`../Lullvale`](../../Lullvale).  
-   Smoke: `curl -sI https://huhu.lullvale.com/legal/privacy/en.html` → **200**.
+   Set API `CORS_ORIGINS=https://huhu.lullvale.com` so the landing waitlist form can POST.  
+   Smoke: `curl -sI https://huhu.lullvale.com/` → **200**;  
+   `curl -sI https://huhu.lullvale.com/preview/` → **200**;  
+   `curl -sI https://huhu.lullvale.com/legal/privacy/en.html` → **200**.
 8. App: `flutter run --dart-define=APP_ENV=staging`  
    Config: [`apps/mobile/assets/config/staging.json`](../apps/mobile/assets/config/staging.json).  
    LAN API for `APP_ENV=dev`: use gitignored `dev.local.json` (not committed `dev.json`).  
@@ -85,6 +88,7 @@ If staging `.env` still has `ENV=dev` for App Review / `dev-login`, keep the hos
 | `FISH_AUDIO_DEFAULT_VOICE_ID` | yes for system TTS voice |
 | `ADMIN_BOOTSTRAP_PASSWORD` | yes for Admin UI / when ENV≠dev |
 | `PUBLIC_API_BASE_URL` | yes (`https://bedtime-api.lullvale.com`) |
+| `CORS_ORIGINS` | yes for Huhu landing (`https://huhu.lullvale.com`) |
 | `API_HOST_PORT` | optional (default **8080** in compose) |
 | `ADMIN_UI_PORT` | optional (default **8083**) |
 
@@ -142,10 +146,12 @@ curl -fsS -X POST -H "X-Retention-Admin-Token: $RETENTION_ADMIN_TOKEN" \
 ## Smoke test
 
 1. `curl -sS https://bedtime-api.lullvale.com/health`  
-2. `curl -sI https://huhu.lullvale.com/legal/privacy/en.html` → **200**  
-3. App with `APP_ENV=staging` (HTTPS API from config)
-4. Create child → story → play (R2). Soft series / voice clone are off by default (`FEATURE_SOFT_SERIES` / `FEATURE_VOICE_CLONE`).  
-5. Retention curl above  
+2. `curl -sI https://huhu.lullvale.com/` → **200**  
+3. `curl -sI https://huhu.lullvale.com/preview/` → **200**  
+4. `curl -sI https://huhu.lullvale.com/legal/privacy/en.html` → **200**  
+5. App with `APP_ENV=staging` (HTTPS API from config)
+6. Create child → story → play (R2). Soft series / voice clone are off by default (`FEATURE_SOFT_SERIES` / `FEATURE_VOICE_CLONE`).  
+7. Retention curl above  
 
 ## Before public prod
 

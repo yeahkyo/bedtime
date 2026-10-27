@@ -19,6 +19,7 @@ const router = createRouter({
           component: () => import('@/views/AnalyticsView.vue'),
         },
         { path: 'invites', name: 'invites', component: () => import('@/views/InvitesView.vue') },
+        { path: 'waitlist', name: 'waitlist', component: () => import('@/views/WaitlistView.vue') },
         { path: 'stories', name: 'stories', component: () => import('@/views/StoriesView.vue') },
         {
           path: 'stories/:id',

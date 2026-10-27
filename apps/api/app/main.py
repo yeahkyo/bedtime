@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 
-from app.api import account, analytics, auth, characters, children, stories, voices
+from app.api import account, analytics, auth, characters, children, stories, voices, waitlist
 from app.api.admin import router as admin_router
 from app.api.elements import router as elements_router
 from app.api.kernels import router as kernels_router
@@ -39,6 +39,7 @@ from app.models import (  # noqa: F401
     User,
     Voice,
     VoicePrefs,
+    WaitlistLead,
 )
 from app.services.provider_settings import first_configured_speech_provider, env_story_provider
 from app.services.story_elements import (
@@ -290,6 +291,7 @@ app.include_router(account.router, prefix="/v1")
 app.include_router(analytics.router, prefix="/v1")
 app.include_router(kernels_router, prefix="/v1")
 app.include_router(elements_router, prefix="/v1")
+app.include_router(waitlist.router, prefix="/v1")
 app.include_router(admin_router, prefix="/admin")
 
 local_data = Path(__file__).resolve().parents[1] / ".data"

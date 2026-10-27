@@ -47,6 +47,22 @@ export interface InviteCreateOut {
   items: InviteOut[]
 }
 
+export interface WaitlistLeadOut {
+  id: number
+  email: string
+  device: string
+  note: string | null
+  created_at: string | null
+  updated_at: string | null
+}
+
+export interface WaitlistListOut {
+  items: WaitlistLeadOut[]
+  total: number
+  page: number
+  page_size: number
+}
+
 export interface AdminUserListOut {
   items: AdminUserListItem[]
   total: number

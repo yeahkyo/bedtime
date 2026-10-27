@@ -20,6 +20,7 @@ from app.models.story_shape import StoryShape
 from app.models.usage import UsageLedger
 from app.models.user import User
 from app.models.voice import Voice, VoicePrefs
+from app.models.waitlist import WaitlistLead
 
 __all__ = [
     "User",
@@ -47,4 +48,5 @@ __all__ = [
     "LlmRoutingRule",
     "InviteCode",
     "RefreshToken",
+    "WaitlistLead",
 ]
