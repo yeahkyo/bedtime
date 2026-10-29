@@ -12,6 +12,7 @@ from app.models.story_element import (
     StoryElementUsage,
 )
 from app.models.llm_agent import LlmAgent
+from app.models.llm_agent_version import LlmAgentVersion
 from app.models.llm_model import LlmModel
 from app.models.llm_routing_rule import LlmRoutingRule
 from app.models.story_kernel import StoryKernel, StoryKernelUsage
@@ -46,6 +47,7 @@ __all__ = [
     "StoryKernel",
     "StoryKernelUsage",
     "LlmAgent",
+    "LlmAgentVersion",
     "LlmModel",
     "LlmRoutingRule",
     "InviteCode",

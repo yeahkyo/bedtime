@@ -8,10 +8,12 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import SessionLocal
 from app.models.llm_agent import LlmAgent
+from app.models.llm_agent_version import LlmAgentVersion
 from app.providers.story_prompt import (
     PLAN_SYSTEM_PROMPT,
     SERIES_OUTLINE_SYSTEM_PROMPT,
@@ -260,6 +262,20 @@ async def get_agent(db: AsyncSession | None, agent_id: str) -> AgentConfig:
     return cfg
 
 
+async def get_agent_stored(db: AsyncSession, agent_id: str) -> AgentConfig:
+    """Admin/lab editing: return the DB row as stored (even if disabled).
+
+    Runtime story pipeline must keep using get_agent (enabled + non-empty gate).
+    Missing row → code default with from_db=False.
+    """
+    if agent_id not in CODE_DEFAULTS:
+        raise ValueError(f"unknown agent id: {agent_id}")
+    row = await db.get(LlmAgent, agent_id)
+    if row is None:
+        return code_default_config(agent_id)
+    return _row_to_config(row)
+
+
 async def get_agent_standalone(agent_id: str) -> AgentConfig:
     """Load agent using a short-lived session (for pipeline without injected db)."""
     async with SessionLocal() as db:
@@ -313,7 +329,13 @@ async def seed_llm_agents_if_missing(db: AsyncSession) -> int:
     return inserted
 
 
-async def reset_agent_to_code_default(db: AsyncSession, agent_id: str) -> LlmAgent:
+async def reset_agent_to_code_default(
+    db: AsyncSession,
+    agent_id: str,
+    *,
+    created_by: str = "",
+    note: str = "",
+) -> LlmAgent:
     if agent_id not in CODE_DEFAULTS:
         raise ValueError(f"unknown agent id: {agent_id}")
     d = CODE_DEFAULTS[agent_id]
@@ -321,6 +343,11 @@ async def reset_agent_to_code_default(db: AsyncSession, agent_id: str) -> LlmAge
     if row is None:
         row = LlmAgent(id=agent_id)
         db.add(row)
+        await db.flush()
+    else:
+        # Preserve pre-reset text as history when this agent has no versions yet.
+        await ensure_baseline_version_if_needed(db, row, created_by=created_by)
+
     row.label_zh = d["label_zh"]
     row.description = d["description"]
     row.provider = d.get("provider")
@@ -332,6 +359,158 @@ async def reset_agent_to_code_default(db: AsyncSession, agent_id: str) -> LlmAge
     row.temperature = d.get("temperature")
     row.placeholders_json = d["placeholders_json"]
     row.enabled = True
+    await snapshot_agent_version(
+        db,
+        row,
+        source="reset_code",
+        created_by=created_by,
+        note=note or "恢复代码默认",
+    )
+    await db.commit()
+    await db.refresh(row)
+    return row
+
+
+async def next_version_no(db: AsyncSession, agent_id: str) -> int:
+    result = await db.execute(
+        select(func.coalesce(func.max(LlmAgentVersion.version), 0)).where(
+            LlmAgentVersion.agent_id == agent_id
+        )
+    )
+    return int(result.scalar_one() or 0) + 1
+
+
+def _version_fields_from_agent(row: LlmAgent) -> dict[str, Any]:
+    return {
+        "system_prompt": row.system_prompt or "",
+        "user_prompt_template": row.user_prompt_template or DEFAULT_USER_TEMPLATE,
+        "temperature": row.temperature,
+        "max_tokens": row.max_tokens,
+        "timeout_seconds": row.timeout_seconds,
+    }
+
+
+async def snapshot_agent_version(
+    db: AsyncSession,
+    row: LlmAgent,
+    *,
+    source: str,
+    created_by: str = "",
+    note: str = "",
+) -> LlmAgentVersion:
+    """Insert a version row matching the agent's current prompt/generation fields."""
+    ver = await next_version_no(db, row.id)
+    snap = LlmAgentVersion(
+        agent_id=row.id,
+        version=ver,
+        note=(note or "")[:256],
+        source=source,
+        created_by=(created_by or "")[:128],
+        **_version_fields_from_agent(row),
+    )
+    db.add(snap)
+    await db.flush()
+    return snap
+
+
+async def ensure_baseline_version_if_needed(
+    db: AsyncSession,
+    row: LlmAgent,
+    *,
+    created_by: str = "",
+) -> LlmAgentVersion | None:
+    """On first versioned save: record the pre-edit row as v1 so history is not lost."""
+    result = await db.execute(
+        select(func.count())
+        .select_from(LlmAgentVersion)
+        .where(LlmAgentVersion.agent_id == row.id)
+    )
+    if int(result.scalar_one() or 0) > 0:
+        return None
+    return await snapshot_agent_version(
+        db,
+        row,
+        source="admin_save",
+        created_by=created_by,
+        note="保存前基线",
+    )
+
+
+async def apply_prompt_fields_and_version(
+    db: AsyncSession,
+    row: LlmAgent,
+    *,
+    system_prompt: str | None = None,
+    user_prompt_template: str | None = None,
+    temperature: float | None = None,
+    max_tokens: int | None = None,
+    timeout_seconds: int | None = None,
+    clear_temperature: bool = False,
+    clear_max_tokens: bool = False,
+    clear_timeout_seconds: bool = False,
+    source: str,
+    created_by: str = "",
+    note: str = "",
+) -> LlmAgentVersion:
+    """Baseline if needed → apply prompt/gen fields → insert version. Caller commits."""
+    await ensure_baseline_version_if_needed(db, row, created_by=created_by)
+
+    if system_prompt is not None:
+        row.system_prompt = system_prompt
+    if user_prompt_template is not None:
+        row.user_prompt_template = user_prompt_template
+    if clear_temperature:
+        row.temperature = None
+    elif temperature is not None:
+        row.temperature = temperature
+    if clear_max_tokens:
+        row.max_tokens = None
+    elif max_tokens is not None:
+        row.max_tokens = max_tokens
+    if clear_timeout_seconds:
+        row.timeout_seconds = None
+    elif timeout_seconds is not None:
+        row.timeout_seconds = timeout_seconds
+
+    return await snapshot_agent_version(
+        db, row, source=source, created_by=created_by, note=note
+    )
+
+
+async def restore_agent_version(
+    db: AsyncSession,
+    agent_id: str,
+    version: int,
+    *,
+    created_by: str = "",
+    note: str = "",
+) -> LlmAgent:
+    row = await db.get(LlmAgent, agent_id)
+    if row is None:
+        raise ValueError("Agent not found")
+    result = await db.execute(
+        select(LlmAgentVersion).where(
+            LlmAgentVersion.agent_id == agent_id,
+            LlmAgentVersion.version == version,
+        )
+    )
+    snap = result.scalar_one_or_none()
+    if snap is None:
+        raise ValueError("Version not found")
+
+    await ensure_baseline_version_if_needed(db, row, created_by=created_by)
+    row.system_prompt = snap.system_prompt or ""
+    row.user_prompt_template = snap.user_prompt_template or DEFAULT_USER_TEMPLATE
+    row.temperature = snap.temperature
+    row.max_tokens = snap.max_tokens
+    row.timeout_seconds = snap.timeout_seconds
+    await snapshot_agent_version(
+        db,
+        row,
+        source="restore",
+        created_by=created_by,
+        note=note or f"回滚至 v{version}",
+    )
     await db.commit()
     await db.refresh(row)
     return row

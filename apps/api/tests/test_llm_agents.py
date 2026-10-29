@@ -18,6 +18,7 @@ from app.services.llm_agents import (
     build_chat_messages,
     code_default_config,
     get_agent,
+    get_agent_stored,
     render_template,
     reset_agent_to_code_default,
     resolve_temperature,
@@ -151,6 +152,12 @@ async def test_get_agent_falls_back_when_disabled_or_empty():
     fb2 = await get_agent(_Db(empty), "story_draft")
     assert fb2.from_db is False
 
+    # Admin/lab must still see the stored disabled row (not runtime fallback).
+    stored = await get_agent_stored(_Db(disabled), "story_draft")
+    assert stored.from_db is True
+    assert stored.enabled is False
+    assert stored.system_prompt == "CUSTOM"
+
 
 @pytest.mark.asyncio
 async def test_seed_does_not_overwrite_existing():
@@ -235,8 +242,18 @@ async def test_reset_restores_code_default():
         async def get(self, _model, _id):
             return row
 
-        def add(self, _row):
-            raise AssertionError("should update existing")
+        def add(self, obj):
+            # Version snapshot rows are expected on reset; agent row already exists.
+            if getattr(obj, "id", None) == "catalog_element_gen":
+                raise AssertionError("should update existing")
+
+        async def flush(self):
+            pass
+
+        async def execute(self, _stmt):
+            r = MagicMock()
+            r.scalar_one.return_value = 0
+            return r
 
         async def commit(self):
             pass
@@ -283,7 +300,8 @@ async def test_admin_list_patch_reset_smoke():
             return store.get(agent_id)
 
         def add(self, row):
-            store[row.id] = row
+            if hasattr(row, "id") and row.id in AGENT_IDS:
+                store[row.id] = row
 
         async def commit(self):
             pass
@@ -291,15 +309,43 @@ async def test_admin_list_patch_reset_smoke():
         async def refresh(self, row):
             pass
 
+        async def flush(self):
+            pass
+
+        async def execute(self, _stmt):
+            # Version helpers no-op count/max → treat as empty history
+            r = MagicMock()
+            r.scalar_one.return_value = 0
+            r.scalar_one_or_none.return_value = None
+            r.scalars.return_value.all.return_value = []
+            return r
+
     async def _db():
         yield _Db()
+
+    async def _apply(db, row, **kwargs):
+        if kwargs.get("system_prompt") is not None:
+            row.system_prompt = kwargs["system_prompt"]
+        if kwargs.get("user_prompt_template") is not None:
+            row.user_prompt_template = kwargs["user_prompt_template"]
+        if kwargs.get("clear_temperature"):
+            row.temperature = None
+        elif kwargs.get("temperature") is not None:
+            row.temperature = kwargs["temperature"]
+        return MagicMock()
 
     app.dependency_overrides[require_admin] = lambda: "ops"
     app.dependency_overrides[get_db] = _db
 
-    with patch(
-        "app.api.admin.llm_agents.seed_llm_agents_if_missing",
-        AsyncMock(return_value=0),
+    with (
+        patch(
+            "app.api.admin.llm_agents.seed_llm_agents_if_missing",
+            AsyncMock(return_value=0),
+        ),
+        patch(
+            "app.api.admin.llm_agents.apply_prompt_fields_and_version",
+            side_effect=_apply,
+        ),
     ):
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:

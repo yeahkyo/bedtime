@@ -25,17 +25,64 @@ export interface LlmAgent {
   updated_at: string | null
 }
 
+interface VersionSummary {
+  version: number
+  note: string
+  source: string
+  created_by: string
+  created_at: string | null
+  system_prompt_preview: string
+  temperature: number | null
+  max_tokens: number | null
+  timeout_seconds: number | null
+}
+
+interface VersionDetail {
+  agent_id: string
+  version: number
+  note: string
+  source: string
+  created_by: string
+  created_at: string | null
+  system_prompt: string
+  user_prompt_template: string
+  temperature: number | null
+  max_tokens: number | null
+  timeout_seconds: number | null
+}
+
+const SOURCE_LABEL: Record<string, string> = {
+  admin_save: 'Admin 保存',
+  lab_save: '试验台',
+  restore: '回滚',
+  reset_code: '代码默认',
+}
+
 const loading = ref(false)
 const saving = ref(false)
 const items = ref<LlmAgent[]>([])
 const priorityHint = ref('')
 const dialogOpen = ref(false)
 const form = ref<LlmAgent | null>(null)
+const versionNote = ref('')
 /** Avoid `{{ ... }}` inside Vue mustache (parser closes at first `}}`). */
 const placeholderExample = '{{name}}'
 
+const historyOpen = ref(false)
+const historyLoading = ref(false)
+const versions = ref<VersionSummary[]>([])
+const viewOpen = ref(false)
+const viewDetail = ref<VersionDetail | null>(null)
+const compareOpen = ref(false)
+const compareDetail = ref<VersionDetail | null>(null)
+const restoring = ref(false)
+
 function formatPlaceholder(name: string): string {
   return `{{${name}}}`
+}
+
+function sourceLabel(source: string): string {
+  return SOURCE_LABEL[source] || source
 }
 
 async function load() {
@@ -62,6 +109,7 @@ function openEdit(row: LlmAgent) {
     system_prompt: row.system_prompt,
     user_prompt_template: row.user_prompt_template,
   }
+  versionNote.value = ''
   dialogOpen.value = true
 }
 
@@ -88,11 +136,13 @@ async function save() {
       clear_timeout_seconds: f.timeout_seconds == null,
       clear_temperature: f.temperature == null,
       enabled: f.enabled,
+      version_note: versionNote.value.trim() || null,
     })
     const idx = items.value.findIndex((x) => x.id === data.id)
     if (idx >= 0) items.value[idx] = data
     form.value = data
-    ElMessage.success('已保存')
+    versionNote.value = ''
+    ElMessage.success('已保存（新版本已记录）')
     dialogOpen.value = false
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '保存失败')
@@ -105,7 +155,7 @@ async function resetToDefault() {
   if (!form.value) return
   try {
     await ElMessageBox.confirm(
-      `将「${form.value.label_zh}」恢复为代码默认 prompt / 参数？运营修改会丢失。`,
+      `将「${form.value.label_zh}」恢复为代码默认 prompt / 参数？会新增一版 reset_code 记录。`,
       '恢复默认',
       { type: 'warning' },
     )
@@ -126,6 +176,78 @@ async function resetToDefault() {
   }
 }
 
+async function openHistory() {
+  if (!form.value) return
+  historyOpen.value = true
+  historyLoading.value = true
+  versions.value = []
+  try {
+    const { data } = await api.get<{ items: VersionSummary[]; total: number }>(
+      `/admin/llm-agents/${form.value.id}/versions`,
+    )
+    versions.value = data.items
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '加载版本失败')
+  } finally {
+    historyLoading.value = false
+  }
+}
+
+async function viewVersion(v: VersionSummary) {
+  if (!form.value) return
+  try {
+    const { data } = await api.get<VersionDetail>(
+      `/admin/llm-agents/${form.value.id}/versions/${v.version}`,
+    )
+    viewDetail.value = data
+    viewOpen.value = true
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '加载版本详情失败')
+  }
+}
+
+async function compareVersion(v: VersionSummary) {
+  if (!form.value) return
+  try {
+    const { data } = await api.get<VersionDetail>(
+      `/admin/llm-agents/${form.value.id}/versions/${v.version}`,
+    )
+    compareDetail.value = data
+    compareOpen.value = true
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '加载版本失败')
+  }
+}
+
+async function restoreVersion(v: VersionSummary) {
+  if (!form.value) return
+  try {
+    await ElMessageBox.confirm(
+      `将 v${v.version} 写回当前生效 Agent，并新增一版 restore 审计记录？`,
+      '回滚版本',
+      { type: 'warning' },
+    )
+  } catch {
+    return
+  }
+  restoring.value = true
+  try {
+    const { data } = await api.post<LlmAgent>(
+      `/admin/llm-agents/${form.value.id}/versions/${v.version}/restore`,
+      { note: `回滚至 v${v.version}` },
+    )
+    const idx = items.value.findIndex((x) => x.id === data.id)
+    if (idx >= 0) items.value[idx] = data
+    form.value = data
+    ElMessage.success(`已回滚至 v${v.version}`)
+    await openHistory()
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '回滚失败')
+  } finally {
+    restoring.value = false
+  }
+}
+
 onMounted(load)
 </script>
 
@@ -139,7 +261,7 @@ onMounted(load)
       }}。
       某阶段要走「LLM 路由」时，请将该 Agent 的 Provider/Model
       <strong>留空</strong>。全局强制模型在「Provider 设置」；实例在「LLM 模型」，条件绑定在「LLM
-      路由」。禁用 Agent 时用代码 fallback prompt。
+      路由」。禁用 Agent 时用代码 fallback prompt。每次保存会自动落一版历史。
     </p>
     <el-table :data="items" stripe style="width: 100%">
       <el-table-column prop="id" label="ID" min-width="160" />
@@ -259,6 +381,14 @@ onMounted(load)
               class="mono"
             />
           </el-form-item>
+          <el-form-item label="版本备注">
+            <el-input
+              v-model="versionNote"
+              maxlength="256"
+              show-word-limit
+              placeholder="可选，如「去掉叠词软软」"
+            />
+          </el-form-item>
           <el-form-item label="可用变量">
             <p class="field-hint" style="margin: 0 0 6px; margin-left: 0">
               只读说明：可在上方 System / User 模板中书写的占位符；运行时由代码替换，保存表单不会提交此项。
@@ -273,9 +403,106 @@ onMounted(load)
         </el-form>
       </template>
       <template #footer>
+        <el-button :disabled="saving" @click="openHistory">版本历史</el-button>
         <el-button :disabled="saving" @click="resetToDefault">恢复代码默认</el-button>
         <el-button @click="dialogOpen = false">取消</el-button>
         <el-button type="primary" :loading="saving" @click="save">保存</el-button>
+      </template>
+    </el-dialog>
+
+    <el-drawer v-model="historyOpen" title="版本历史" size="520px" destroy-on-close>
+      <div v-loading="historyLoading">
+        <el-empty v-if="!versions.length && !historyLoading" description="尚无版本记录" />
+        <el-table v-else :data="versions" size="small" stripe>
+          <el-table-column prop="version" label="#" width="56" />
+          <el-table-column label="来源" width="100">
+            <template #default="{ row }">{{ sourceLabel(row.source) }}</template>
+          </el-table-column>
+          <el-table-column label="备注" min-width="120">
+            <template #default="{ row }">{{ row.note || '—' }}</template>
+          </el-table-column>
+          <el-table-column label="时间" width="150">
+            <template #default="{ row }">{{ formatAdminTime(row.created_at) }}</template>
+          </el-table-column>
+          <el-table-column label="操作" width="160" fixed="right">
+            <template #default="{ row }">
+              <el-button type="primary" link @click="viewVersion(row)">查看</el-button>
+              <el-button type="primary" link @click="compareVersion(row)">对比</el-button>
+              <el-button
+                type="warning"
+                link
+                :loading="restoring"
+                @click="restoreVersion(row)"
+              >
+                回滚
+              </el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+      </div>
+    </el-drawer>
+
+    <el-dialog
+      v-model="viewOpen"
+      :title="viewDetail ? `版本 v${viewDetail.version}` : '版本详情'"
+      width="720px"
+      destroy-on-close
+    >
+      <template v-if="viewDetail">
+        <p class="desc">
+          {{ sourceLabel(viewDetail.source) }}
+          · {{ viewDetail.created_by || '—' }}
+          · {{ formatAdminTime(viewDetail.created_at) }}
+          <template v-if="viewDetail.note"> · {{ viewDetail.note }}</template>
+        </p>
+        <p class="field-hint" style="margin-left: 0">
+          temp={{ viewDetail.temperature ?? '—' }} · max_tokens={{
+            viewDetail.max_tokens ?? '—'
+          }}
+          · timeout={{ viewDetail.timeout_seconds ?? '—' }}
+        </p>
+        <h4>System</h4>
+        <pre class="prompt-block">{{ viewDetail.system_prompt }}</pre>
+        <h4>User 模板</h4>
+        <pre class="prompt-block">{{ viewDetail.user_prompt_template }}</pre>
+      </template>
+    </el-dialog>
+
+    <el-dialog
+      v-model="compareOpen"
+      :title="
+        compareDetail && form
+          ? `对比 · v${compareDetail.version} vs 当前稿`
+          : '对比'
+      "
+      width="960px"
+      destroy-on-close
+    >
+      <template v-if="compareDetail && form">
+        <el-row :gutter="16">
+          <el-col :span="12">
+            <h4>v{{ compareDetail.version }}</h4>
+            <p class="field-hint" style="margin-left: 0">
+              temp={{ compareDetail.temperature ?? '—' }} · max={{
+                compareDetail.max_tokens ?? '—'
+              }}
+            </p>
+            <h5>System</h5>
+            <pre class="prompt-block">{{ compareDetail.system_prompt }}</pre>
+            <h5>User</h5>
+            <pre class="prompt-block">{{ compareDetail.user_prompt_template }}</pre>
+          </el-col>
+          <el-col :span="12">
+            <h4>当前稿</h4>
+            <p class="field-hint" style="margin-left: 0">
+              temp={{ form.temperature ?? '—' }} · max={{ form.max_tokens ?? '—' }}
+            </p>
+            <h5>System</h5>
+            <pre class="prompt-block">{{ form.system_prompt }}</pre>
+            <h5>User</h5>
+            <pre class="prompt-block">{{ form.user_prompt_template }}</pre>
+          </el-col>
+        </el-row>
       </template>
     </el-dialog>
   </div>
@@ -306,5 +533,23 @@ onMounted(load)
 .mono :deep(textarea) {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 12px;
+}
+.prompt-block {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  background: var(--el-fill-color-light);
+  border-radius: 6px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 40vh;
+  overflow: auto;
+}
+h4,
+h5 {
+  margin: 8px 0 6px;
+  font-weight: 600;
 }
 </style>

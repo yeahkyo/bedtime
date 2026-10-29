@@ -43,6 +43,7 @@ const router = createRouter({
           component: () => import('@/views/ThemeSparksView.vue'),
         },
         { path: 'agents', name: 'agents', component: () => import('@/views/AgentsView.vue') },
+        { path: 'llm-lab', name: 'llm-lab', component: () => import('@/views/LlmLabView.vue') },
         {
           path: 'llm-models',
           name: 'llm-models',

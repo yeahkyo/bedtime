@@ -7,15 +7,19 @@ from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_db
 from app.core.security import require_admin
 from app.models.llm_agent import LlmAgent
+from app.models.llm_agent_version import LlmAgentVersion
 from app.services.llm_agents import (
     AGENT_IDS,
     CODE_DEFAULTS,
+    apply_prompt_fields_and_version,
     reset_agent_to_code_default,
+    restore_agent_version,
     seed_llm_agents_if_missing,
 )
 
@@ -67,6 +71,54 @@ class LlmAgentPatch(BaseModel):
     clear_max_tokens: bool = False
     clear_timeout_seconds: bool = False
     clear_temperature: bool = False
+    version_note: str | None = Field(default=None, max_length=256)
+
+
+class LlmAgentVersionSummary(BaseModel):
+    version: int
+    note: str
+    source: str
+    created_by: str
+    created_at: datetime | None = None
+    system_prompt_preview: str = ""
+    temperature: float | None = None
+    max_tokens: int | None = None
+    timeout_seconds: int | None = None
+
+
+class LlmAgentVersionListOut(BaseModel):
+    items: list[LlmAgentVersionSummary]
+    total: int
+
+
+class LlmAgentVersionOut(BaseModel):
+    agent_id: str
+    version: int
+    note: str
+    source: str
+    created_by: str
+    created_at: datetime | None = None
+    system_prompt: str
+    user_prompt_template: str
+    temperature: float | None
+    max_tokens: int | None
+    timeout_seconds: int | None
+
+
+class RestoreBody(BaseModel):
+    note: str | None = Field(default=None, max_length=256)
+
+
+class LabSaveBody(BaseModel):
+    system_prompt: str
+    user_prompt_template: str
+    temperature: float | None = Field(default=None, ge=0, le=2)
+    clear_temperature: bool = False
+    max_tokens: int | None = Field(default=None, ge=1, le=128000)
+    clear_max_tokens: bool = False
+    timeout_seconds: int | None = Field(default=None, ge=1, le=3600)
+    clear_timeout_seconds: bool = False
+    version_note: str | None = Field(default=None, max_length=256)
 
 
 def _parse_placeholders(raw: str | None) -> list[PlaceholderOut]:
@@ -103,6 +155,57 @@ def _out(row: LlmAgent) -> LlmAgentOut:
         placeholders=_parse_placeholders(row.placeholders_json),
         enabled=bool(row.enabled),
         updated_at=row.updated_at,
+    )
+
+
+def _version_summary(row: LlmAgentVersion) -> LlmAgentVersionSummary:
+    sys_p = row.system_prompt or ""
+    preview = sys_p[:120] + ("…" if len(sys_p) > 120 else "")
+    return LlmAgentVersionSummary(
+        version=row.version,
+        note=row.note or "",
+        source=row.source or "",
+        created_by=row.created_by or "",
+        created_at=row.created_at,
+        system_prompt_preview=preview,
+        temperature=row.temperature,
+        max_tokens=row.max_tokens,
+        timeout_seconds=row.timeout_seconds,
+    )
+
+
+def _version_out(row: LlmAgentVersion) -> LlmAgentVersionOut:
+    return LlmAgentVersionOut(
+        agent_id=row.agent_id,
+        version=row.version,
+        note=row.note or "",
+        source=row.source or "",
+        created_by=row.created_by or "",
+        created_at=row.created_at,
+        system_prompt=row.system_prompt or "",
+        user_prompt_template=row.user_prompt_template or "{{user_payload}}",
+        temperature=row.temperature,
+        max_tokens=row.max_tokens,
+        timeout_seconds=row.timeout_seconds,
+    )
+
+
+def _prompt_fields_in_patch(body: LlmAgentPatch, data: dict) -> bool:
+    if any(
+        k in data
+        for k in (
+            "system_prompt",
+            "user_prompt_template",
+            "temperature",
+            "max_tokens",
+            "timeout_seconds",
+        )
+    ):
+        return True
+    return bool(
+        body.clear_temperature
+        or body.clear_max_tokens
+        or body.clear_timeout_seconds
     )
 
 
@@ -159,7 +262,7 @@ async def get_agent_admin(
 async def patch_agent(
     agent_id: str,
     body: LlmAgentPatch,
-    _: str = Depends(require_admin),
+    operator: str = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ) -> LlmAgentOut:
     if agent_id not in CODE_DEFAULTS:
@@ -176,6 +279,7 @@ async def patch_agent(
         "clear_max_tokens",
         "clear_timeout_seconds",
         "clear_temperature",
+        "version_note",
     ):
         data.pop(key, None)
 
@@ -191,31 +295,43 @@ async def patch_agent(
         mod = data["model"]
         row.model = (mod or "").strip() or None
 
-    if body.clear_max_tokens:
-        row.max_tokens = None
-    elif "max_tokens" in data:
-        row.max_tokens = data["max_tokens"]
-
-    if body.clear_timeout_seconds:
-        row.timeout_seconds = None
-    elif "timeout_seconds" in data:
-        row.timeout_seconds = data["timeout_seconds"]
-
-    if body.clear_temperature:
-        row.temperature = None
-    elif "temperature" in data:
-        row.temperature = data["temperature"]
-
     if "label_zh" in data and data["label_zh"] is not None:
         row.label_zh = data["label_zh"].strip()
     if "description" in data and data["description"] is not None:
         row.description = data["description"]
-    if "system_prompt" in data and data["system_prompt"] is not None:
-        row.system_prompt = data["system_prompt"]
-    if "user_prompt_template" in data and data["user_prompt_template"] is not None:
-        row.user_prompt_template = data["user_prompt_template"]
     if "enabled" in data and data["enabled"] is not None:
         row.enabled = bool(data["enabled"])
+
+    if _prompt_fields_in_patch(body, data):
+        await apply_prompt_fields_and_version(
+            db,
+            row,
+            system_prompt=data.get("system_prompt"),
+            user_prompt_template=data.get("user_prompt_template"),
+            temperature=data.get("temperature"),
+            max_tokens=data.get("max_tokens"),
+            timeout_seconds=data.get("timeout_seconds"),
+            clear_temperature=body.clear_temperature,
+            clear_max_tokens=body.clear_max_tokens,
+            clear_timeout_seconds=body.clear_timeout_seconds,
+            source="admin_save",
+            created_by=operator,
+            note=(body.version_note or "").strip(),
+        )
+    else:
+        # Metadata-only: still apply clears / numeric fields if somehow present
+        if body.clear_max_tokens:
+            row.max_tokens = None
+        elif "max_tokens" in data:
+            row.max_tokens = data["max_tokens"]
+        if body.clear_timeout_seconds:
+            row.timeout_seconds = None
+        elif "timeout_seconds" in data:
+            row.timeout_seconds = data["timeout_seconds"]
+        if body.clear_temperature:
+            row.temperature = None
+        elif "temperature" in data:
+            row.temperature = data["temperature"]
 
     await db.commit()
     await db.refresh(row)
@@ -225,13 +341,113 @@ async def patch_agent(
 @router.post("/{agent_id}/reset", response_model=LlmAgentOut)
 async def reset_agent(
     agent_id: str,
-    _: str = Depends(require_admin),
+    operator: str = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ) -> LlmAgentOut:
     if agent_id not in CODE_DEFAULTS:
         raise HTTPException(status_code=404, detail="Agent not found")
     try:
-        row = await reset_agent_to_code_default(db, agent_id)
+        row = await reset_agent_to_code_default(db, agent_id, created_by=operator)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return _out(row)
+
+
+@router.get("/{agent_id}/versions", response_model=LlmAgentVersionListOut)
+async def list_versions(
+    agent_id: str,
+    _: str = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> LlmAgentVersionListOut:
+    if agent_id not in CODE_DEFAULTS:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    result = await db.execute(
+        select(LlmAgentVersion)
+        .where(LlmAgentVersion.agent_id == agent_id)
+        .order_by(LlmAgentVersion.version.desc())
+    )
+    rows = list(result.scalars().all())
+    return LlmAgentVersionListOut(
+        items=[_version_summary(r) for r in rows],
+        total=len(rows),
+    )
+
+
+@router.get("/{agent_id}/versions/{version}", response_model=LlmAgentVersionOut)
+async def get_version(
+    agent_id: str,
+    version: int,
+    _: str = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> LlmAgentVersionOut:
+    if agent_id not in CODE_DEFAULTS:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    result = await db.execute(
+        select(LlmAgentVersion).where(
+            LlmAgentVersion.agent_id == agent_id,
+            LlmAgentVersion.version == version,
+        )
+    )
+    row = result.scalar_one_or_none()
+    if row is None:
+        raise HTTPException(status_code=404, detail="Version not found")
+    return _version_out(row)
+
+
+@router.post("/{agent_id}/versions/{version}/restore", response_model=LlmAgentOut)
+async def restore_version(
+    agent_id: str,
+    version: int,
+    body: RestoreBody | None = None,
+    operator: str = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> LlmAgentOut:
+    if agent_id not in CODE_DEFAULTS:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    note = (body.note if body else None) or ""
+    try:
+        row = await restore_agent_version(
+            db,
+            agent_id,
+            version,
+            created_by=operator,
+            note=note.strip(),
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return _out(row)
+
+
+@router.post("/{agent_id}/lab-save", response_model=LlmAgentOut)
+async def lab_save_agent(
+    agent_id: str,
+    body: LabSaveBody,
+    operator: str = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> LlmAgentOut:
+    """Write lab prompts/temperature to the live agent and insert a lab_save version."""
+    if agent_id not in CODE_DEFAULTS:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    await seed_llm_agents_if_missing(db)
+    row = await db.get(LlmAgent, agent_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Agent not found")
+
+    await apply_prompt_fields_and_version(
+        db,
+        row,
+        system_prompt=body.system_prompt,
+        user_prompt_template=body.user_prompt_template,
+        temperature=body.temperature,
+        max_tokens=body.max_tokens,
+        timeout_seconds=body.timeout_seconds,
+        clear_temperature=body.clear_temperature,
+        clear_max_tokens=body.clear_max_tokens,
+        clear_timeout_seconds=body.clear_timeout_seconds,
+        source="lab_save",
+        created_by=operator,
+        note=(body.version_note or "").strip() or "试验台存为新版本",
+    )
+    await db.commit()
+    await db.refresh(row)
     return _out(row)
