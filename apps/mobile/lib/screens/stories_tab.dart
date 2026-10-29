@@ -27,20 +27,16 @@ String _storiesLengthMeta(AppLocalizations l10n, Object? rawMinutes) {
   };
 }
 
-/// Coarse list status only (detail lives on the wait screen).
-String _storiesStatusMeta(AppLocalizations l10n, Map<String, dynamic> s) {
+/// List shows status only for in-flight / failed; ready stories omit it.
+String? _storiesStatusMeta(AppLocalizations l10n, Map<String, dynamic> s) {
   final status = s['status'] as String? ?? '';
   switch (status) {
-    case 'ready':
-      return l10n.storiesStatusPlayable;
     case 'generating':
       return l10n.storiesStatusGenerating;
-    case 'text_ready':
-      return l10n.storyNoAudioShort;
     case 'failed':
       return l10n.storyProgressFailed;
     default:
-      return status.isEmpty ? l10n.storiesStatusGenerating : status;
+      return null;
   }
 }
 
@@ -447,10 +443,14 @@ class StoriesTabState extends State<StoriesTab> {
                                   hook.length > 42 ? '${hook.substring(0, 42)}…' : hook,
                                 );
                               } else {
-                                meta.write(_storiesStatusMeta(l10n, s));
+                                final statusLabel = _storiesStatusMeta(l10n, s);
+                                if (statusLabel != null) {
+                                  meta.write(statusLabel);
+                                }
                                 if (s['duration_minutes'] != null) {
+                                  if (meta.isNotEmpty) meta.write(' · ');
                                   meta.write(
-                                    ' · ${_storiesLengthMeta(l10n, s['duration_minutes'])}',
+                                    _storiesLengthMeta(l10n, s['duration_minutes']),
                                   );
                                 }
                               }
