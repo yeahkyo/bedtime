@@ -30,11 +30,14 @@ DEFAULT_TEMPERATURE = 0.7
 # Task leads live in Agent user templates (editable in Admin); code only supplies JSON.
 OUTLINE_USER_TEMPLATE = (
     "请为软系列设计 {{episode_count}} 集睡前大纲。只输出 JSON（短字段名）。"
-    "arc/premise 跟 theme；kw/likes 只是可选点缀，禁止整季围着某个兴趣转。\n"
+    "theme_mode=seed 时 arc/premise 跟 theme 灵感自由展开；"
+    "theme_mode=plot 时 arc/premise 跟用户 theme 情节骨架，可润色勿改主线。"
+    "禁止整季围着某个兴趣偏好转。\n"
     "{{user_payload}}"
 )
 PLAN_USER_TEMPLATE = (
     "请根据以下输入构思今晚睡前故事大纲。"
+    "遵守 theme_mode（seed=灵感种子自由构思；plot=按用户情节骨架，勿改主线）。"
     "只输出 JSON（字段：title、theme、casts、beats、shape），不要正文、不要 markdown。\n"
     "{{user_payload}}"
 )
@@ -75,8 +78,8 @@ CODE_DEFAULTS: dict[str, dict[str, Any]] = {
         "placeholders_json": _ph(
             (
                 "user_payload",
-                "代码组装的纯 JSON：n/theme/lang/age/gender/age_how/kw/roster/"
-                "likes/cast_tip/dials/focus_pool/focus_seed/values",
+                "代码组装的纯 JSON：n/theme/theme_mode/lang/age/gender/age_how/roster/"
+                "cast_tip/dials/focus_pool/focus_seed",
             ),
             ("episode_count", "系列集数（已钳制 2–8），供 User 模板 lead 使用"),
         ),
@@ -95,8 +98,8 @@ CODE_DEFAULTS: dict[str, dict[str, Any]] = {
         "placeholders_json": _ph(
             (
                 "user_payload",
-                "代码组装的纯 JSON：theme/keywords/roster/age/gender/fantasy/len"
-                "（len 为「下限-上限」；三档参考 4/7/10 分±1×220字/分）",
+                "代码组装的纯 JSON：theme/theme_mode/roster/fantasy/len"
+                "（theme_mode=seed|plot；len 为「下限-上限」；三档参考 4/7/10 分±1×220字/分）",
             ),
         ),
         "enabled": True,

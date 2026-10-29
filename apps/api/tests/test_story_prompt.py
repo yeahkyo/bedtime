@@ -402,12 +402,14 @@ def test_plan_message_is_simplified_schema():
     payload = json.loads(msg)
     assert set(payload) == {
         "theme",
+        "theme_mode",
         "audiences",
         "roster",
         "fantasy",
         "len",
     }
     assert payload["theme"] == "森林"
+    assert payload["theme_mode"] == "seed"
     assert payload["audiences"][0]["name"] == "豆豆"
     assert payload["roster"][0]["name"] == "小兔子"
     assert payload["fantasy"] == 3
@@ -416,6 +418,21 @@ def test_plan_message_is_simplified_schema():
     assert "dials" not in payload
     assert "age" not in payload
     assert "gender" not in payload
+
+
+def test_plan_message_plot_mode_passes_through():
+    req = StoryRequest(
+        child_nickname="豆豆",
+        age_band="3-5",
+        language="zh",
+        theme="小猫想爬上云朵，路上遇见月亮，最后一起回家睡觉。",
+        theme_mode="plot",
+        duration_minutes=5,
+    )
+    payload = json.loads(build_plan_user_message(req))
+    assert payload["theme_mode"] == "plot"
+    assert "theme_mode" in PLAN_SYSTEM_PROMPT
+    assert "plot" in PLAN_SYSTEM_PROMPT
 
 
 

@@ -69,6 +69,17 @@ const DIALOGUE_LABELS: Record<string, string> = {
   more: '多对话',
 }
 
+const THEME_MODE_LABELS: Record<string, string> = {
+  seed: '给灵感',
+  plot: '按情节',
+}
+
+const THEME_SOURCE_LABELS: Record<string, string> = {
+  user: '用户填写',
+  hint: '留空·用了 hint 例子',
+  fallback: '服务端兜底',
+}
+
 const createDialSummary = computed(() => {
   const raw = story.value?.params_json
   if (!raw) return null
@@ -76,12 +87,20 @@ const createDialSummary = computed(() => {
     const p = JSON.parse(raw) as Record<string, unknown>
     const wonder = typeof p.wonder === 'string' ? p.wonder : null
     const dialogue = typeof p.dialogue === 'string' ? p.dialogue : null
-    if (!wonder && !dialogue) return null
+    const themeMode = typeof p.theme_mode === 'string' ? p.theme_mode : null
+    const themeSource = typeof p.theme_source === 'string' ? p.theme_source : null
+    if (!wonder && !dialogue && !themeMode && !themeSource) return null
     return {
       wonder,
       wonderLabel: wonder ? WONDER_LABELS[wonder] || wonder : null,
       dialogue,
       dialogueLabel: dialogue ? DIALOGUE_LABELS[dialogue] || dialogue : null,
+      themeMode,
+      themeModeLabel: themeMode ? THEME_MODE_LABELS[themeMode] || themeMode : null,
+      themeSource,
+      themeSourceLabel: themeSource
+        ? THEME_SOURCE_LABELS[themeSource] || themeSource
+        : null,
     }
   } catch {
     return null
@@ -285,6 +304,22 @@ onMounted(load)
           <template v-else>—</template>
         </el-descriptions-item>
         <el-descriptions-item label="主题" :span="2">{{ story.theme || '—' }}</el-descriptions-item>
+        <el-descriptions-item label="主题模式">
+          <template v-if="createDialSummary?.themeMode">
+            <el-tag type="warning">{{ createDialSummary.themeModeLabel }}</el-tag>
+            <span class="muted tiny"> {{ createDialSummary.themeMode }}</span>
+          </template>
+          <template v-else>—</template>
+        </el-descriptions-item>
+        <el-descriptions-item label="主题来源">
+          <template v-if="createDialSummary?.themeSource">
+            <el-tag :type="createDialSummary.themeSource === 'user' ? 'success' : 'info'">
+              {{ createDialSummary.themeSourceLabel }}
+            </el-tag>
+            <span class="muted tiny"> {{ createDialSummary.themeSource }}</span>
+          </template>
+          <template v-else>—</template>
+        </el-descriptions-item>
         <el-descriptions-item v-if="story.series_id" label="软系列">
           <el-button link type="primary" @click="router.push(`/series/${story.series_id}`)">
             #{{ story.series_id }}

@@ -37,6 +37,11 @@ const router = createRouter({
         { path: 'beats', redirect: '/shapes' },
         { path: 'elements', name: 'elements', component: () => import('@/views/ElementsView.vue') },
         { path: 'kernels', name: 'kernels', component: () => import('@/views/KernelsView.vue') },
+        {
+          path: 'theme-sparks',
+          name: 'theme-sparks',
+          component: () => import('@/views/ThemeSparksView.vue'),
+        },
         { path: 'agents', name: 'agents', component: () => import('@/views/AgentsView.vue') },
         {
           path: 'llm-models',

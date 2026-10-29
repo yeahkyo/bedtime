@@ -275,6 +275,21 @@ class ApiClient {
     await _delete(_u('/v1/characters/$characterId'));
   }
 
+  /// Theme spark phrases for create-page inspiration hints.
+  Future<List<Map<String, dynamic>>> listThemeSparks({
+    String language = 'zh',
+  }) async {
+    final res = await _get(
+      _u('/v1/theme-sparks').replace(
+        queryParameters: {'language': language},
+      ),
+      timeout: const Duration(seconds: 8),
+    );
+    final data = jsonDecode(res.body) as Map<String, dynamic>;
+    final items = data['items'] as List<dynamic>? ?? [];
+    return items.cast<Map<String, dynamic>>();
+  }
+
   /// Developmental theme kernels (inspiration chips) for an age band.
   Future<List<Map<String, dynamic>>> listKernels({
     String ageBand = '3-5',
@@ -440,6 +455,8 @@ class ApiClient {
   Future<Map<String, dynamic>> createStory({
     required int childId,
     required String theme,
+    String themeMode = 'seed',
+    String themeSource = 'user',
     required String language,
     required int durationMinutes,
     int? voiceId,
@@ -453,6 +470,8 @@ class ApiClient {
       body: jsonEncode({
         'child_id': childId,
         'theme': theme,
+        'theme_mode': themeMode,
+        'theme_source': themeSource,
         'language': language,
         'duration_minutes': durationMinutes,
         'voice_id': voiceId,
@@ -470,6 +489,8 @@ class ApiClient {
   Future<Map<String, dynamic>> createStoryAndWait({
     required int childId,
     required String theme,
+    String themeMode = 'seed',
+    String themeSource = 'user',
     required String language,
     required int durationMinutes,
     int? voiceId,
@@ -482,6 +503,8 @@ class ApiClient {
     final created = await createStory(
       childId: childId,
       theme: theme,
+      themeMode: themeMode,
+      themeSource: themeSource,
       language: language,
       durationMinutes: durationMinutes,
       voiceId: voiceId,

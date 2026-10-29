@@ -477,8 +477,17 @@
   "createStoryOptionsTitle": "What kind of story?",
   "createStoryOptionsSubtitle": "We'll build tonight's story from these choices",
   "createStoryInspiration": "Idea",
-  "createStoryInspirationHint": "Optional",
-  "createStoryThemeHint": "Optional — e.g. a kitten watching stars on a cloud…",
+  "createStoryThemeModeSeed": "Theme only",
+  "createStoryThemeModePlot": "Write a plot",
+  "createStoryThemeHint": "One-line spark (e.g. {example})",
+  "@createStoryThemeHint": {
+    "placeholders": {
+      "example": {
+        "type": "String"
+      }
+    }
+  },
+  "createStoryThemePlotHint": "Write tonight’s plot — we’ll follow it",
   "createStoryCastTitle": "Tonight's cast",
   "createStoryAddCharacter": "Add",
   "createStoryCastEmpty": "Add listeners, family, or toys in Characters.",

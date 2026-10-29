@@ -462,13 +462,13 @@ PLAN_SYSTEM_PROMPT = """你是一位世界级的儿童睡前故事作家，你�
 
 【输入说明】
 关键词信息会以json的形式输入，以下说明字段含义：
-- theme：故事主题。它将是你创作故事内核的初始动机。
-- keywords：关键词。以这些关键词提到的事物为出发点，来构思场景、情节、角色。
+- theme：用户给出的主题或情节素材。
+- theme_mode：seed=一句话灵感，只作创作种子，你自由构思场景与情节；plot=用户写了情节骨架，beats 必须覆盖其主要事件与顺序，可润色细节与口语，勿擅自改主线、勿另起炉灶。
 - age：目标听众的年龄（整数，单位：岁）。你的故事情节、角色要适合这个年纪的听众。
 - gender：目标听众的性别（如：男孩、女孩、其他、不指定）。构思角色与称呼时可参考，禁止刻板印象与说教。
 - fantasy: 故事是偏幻想还是偏日常。0-5打分。分数越高则世界观与剧情设定更偏虚构幻想充满想象力；分数越低则更偏日常生活。
 - len：目标正文篇幅范围，字符串格式「下限-上限」（如 1320-1760）；中文按汉字计、英文按词计。beats 数量与密度应能支撑该篇幅（按上限规划），仍保持睡前温和，禁止为空凑拍。
-- roster：今晚已选角色库（数组，可空）。元素含 k（child|person|toy）、n（名字），可选 rel（关系）、note（特征）。优先轻用 1～3 个写入 casts；禁止把名单当必须清单；可与 keywords 搭配，勿整篇只围着名单转。
+- roster：今晚已选角色库（数组，可空）。元素含 k（child|person|toy）、n（名字），可选 rel（关系）、note（特征）。优先轻用 1～3 个写入 casts；禁止把名单当必须清单；可与 theme 搭配，勿整篇只围着名单转。
 
 【输出格式】
 将你构思的内容梳理为一个json，这个数据将用于给下一位作家用来写正文。json的字段说明如下：
@@ -997,10 +997,18 @@ def build_user_payload(request: StoryRequest) -> dict:
     minutes = max(2, min(12, int(request.duration_minutes or 5)))
     max_places = 1 if minutes <= 3 else 2
     dials = resolve_style_dials(request)
+    theme_mode = (request.theme_mode or "seed").strip().lower()
+    if theme_mode not in ("seed", "plot"):
+        theme_mode = "seed"
+    if theme_mode == "plot":
+        mainline_hint = "主线严格跟用户 theme 情节骨架，可润色勿改主线事件"
+    else:
+        mainline_hint = "主线跟 theme 灵感自由展开"
 
     out = {
         "language": request.language,
         "theme": request.theme,
+        "theme_mode": theme_mode,
         "duration_minutes": minutes,
         "audiences": audiences,
         "roster": normalized_roster,
@@ -1008,7 +1016,7 @@ def build_user_payload(request: StoryRequest) -> dict:
         "cast_hint": cast_hint,
         "setting_hint": (
             f"全篇建议不超过 {max_places} 个地点（含入睡处）；"
-            "主线跟 theme 与今晚情节；audiences/roster 都是可选点缀；用动作推进，结尾自然安静入睡。"
+            f"{mainline_hint}；audiences/roster 都是可选点缀；用动作推进，结尾自然安静入睡。"
         ),
         "style_dials": dials,
         "require_emotional_closure": request.require_emotional_closure,
@@ -1340,6 +1348,7 @@ def build_outline_user_message(request: StoryRequest) -> str:
     outline_payload = {
         "n": count,
         "theme": payload["theme"],
+        "theme_mode": payload.get("theme_mode") or "seed",
         "lang": payload["language"],
         "audiences": payload.get("audiences") or [],
         "roster": payload.get("roster") or [],
@@ -1372,6 +1381,7 @@ def build_plan_user_message(
     payload = build_user_payload(request)
     plan_payload = {
         "theme": payload["theme"],
+        "theme_mode": payload.get("theme_mode") or "seed",
         "audiences": payload.get("audiences") or [],
         "roster": payload.get("roster") or [],
         "fantasy": fantasy_score_from_wonder(request.wonder),

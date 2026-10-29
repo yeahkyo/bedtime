@@ -365,11 +365,13 @@ async def test_pipeline_uses_agent_messages_with_fallback():
             payload = json.loads(user[start:])
             assert set(payload) == {
                 "theme",
+                "theme_mode",
                 "audiences",
                 "roster",
                 "fantasy",
                 "len",
             }
+            assert payload["theme_mode"] == "seed"
             assert payload["len"] == "660-1100"  # short tier LLM ref 4 min ±1 @ 220 chars/min
             return (
                 '{"title":"月亮夜","theme":"窗边一点光","core":"一点暖光",'

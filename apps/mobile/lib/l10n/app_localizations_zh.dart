@@ -935,10 +935,18 @@ class AppLocalizationsZh extends AppLocalizations {
   String get createStoryInspiration => '故事灵感';
 
   @override
-  String get createStoryInspirationHint => '可选，不写也可以';
+  String get createStoryThemeModeSeed => '只写主题';
 
   @override
-  String get createStoryThemeHint => '今晚想讲什么（可选，例如：在云朵上看星星的小猫咪…）';
+  String get createStoryThemeModePlot => '按情节写';
+
+  @override
+  String createStoryThemeHint(String example) {
+    return '一句话灵感（例如：$example）';
+  }
+
+  @override
+  String get createStoryThemePlotHint => '写今晚想听的情节，我们会按这个讲';
 
   @override
   String get createStoryCastTitle => '今晚一起出场';
@@ -2184,10 +2192,18 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
   String get createStoryInspiration => '故事靈感';
 
   @override
-  String get createStoryInspirationHint => '可選，不寫也可以';
+  String get createStoryThemeModeSeed => '只寫主題';
 
   @override
-  String get createStoryThemeHint => '今晚想講什麼（可選，例如：在雲朵上看星星的小貓咪…）';
+  String get createStoryThemeModePlot => '按情節寫';
+
+  @override
+  String createStoryThemeHint(String example) {
+    return '一句話靈感（例如：$example）';
+  }
+
+  @override
+  String get createStoryThemePlotHint => '寫今晚想聽的情節，我們會按這個講';
 
   @override
   String get createStoryCastTitle => '今晚一起出場';

@@ -13,6 +13,7 @@ from app.api.admin import (
     settings,
     shapes,
     stories,
+    theme_sparks,
     tts_lab,
     users,
     voices,
@@ -30,6 +31,7 @@ router.include_router(settings.router)
 router.include_router(shapes.router)
 router.include_router(elements.router)
 router.include_router(kernels.router)
+router.include_router(theme_sparks.router)
 router.include_router(llm_agents.router)
 router.include_router(llm_models.router)
 router.include_router(llm_routing_rules.router)

@@ -167,7 +167,12 @@ class AudienceItem(BaseModel):
 
 class StoryCreate(BaseModel):
     child_id: int
-    theme: str = "a gentle forest adventure"
+    # Client: seed ≤40 / plot ≤280 (same for any input language).
+    theme: str = Field(default="a gentle forest adventure", max_length=280)
+    # seed = one-line inspiration; plot = follow user's written synopsis.
+    theme_mode: str = Field(default="seed", pattern="^(seed|plot)$")
+    # user = typed; hint = client filled tonight's spark example because field was empty.
+    theme_source: str = Field(default="user", pattern="^(user|hint)$")
     language: str = "zh"
     duration_minutes: int = Field(default=5, ge=2, le=12)
     voice_id: int | None = None

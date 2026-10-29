@@ -18,6 +18,7 @@ const active = computed(() => {
   if (route.path.startsWith('/shapes') || route.path.startsWith('/beats')) return '/shapes'
   if (route.path.startsWith('/elements')) return '/elements'
   if (route.path.startsWith('/kernels')) return '/kernels'
+  if (route.path.startsWith('/theme-sparks')) return '/theme-sparks'
   if (route.path.startsWith('/agents')) return '/agents'
   if (route.path.startsWith('/llm-models')) return '/llm-models'
   if (route.path.startsWith('/llm-routing')) return '/llm-routing'
@@ -72,6 +73,10 @@ function logout() {
         <el-menu-item index="/kernels">
           <el-icon><Sunny /></el-icon>
           <span>故事内核</span>
+        </el-menu-item>
+        <el-menu-item index="/theme-sparks">
+          <el-icon><MagicStick /></el-icon>
+          <span>灵感火花</span>
         </el-menu-item>
         <el-menu-item index="/agents">
           <el-icon><Cpu /></el-icon>

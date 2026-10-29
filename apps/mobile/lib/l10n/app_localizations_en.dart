@@ -969,11 +969,19 @@ class AppLocalizationsEn extends AppLocalizations {
   String get createStoryInspiration => 'Idea';
 
   @override
-  String get createStoryInspirationHint => 'Optional';
+  String get createStoryThemeModeSeed => 'Theme only';
 
   @override
-  String get createStoryThemeHint =>
-      'Optional — e.g. a kitten watching stars on a cloud…';
+  String get createStoryThemeModePlot => 'Write a plot';
+
+  @override
+  String createStoryThemeHint(String example) {
+    return 'One-line spark (e.g. $example)';
+  }
+
+  @override
+  String get createStoryThemePlotHint =>
+      'Write tonight’s plot — we’ll follow it';
 
   @override
   String get createStoryCastTitle => 'Tonight\'s cast';

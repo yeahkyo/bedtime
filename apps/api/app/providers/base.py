@@ -16,6 +16,10 @@ class StoryRequest:
     language: str
     theme: str
     duration_minutes: int
+    # seed = short inspiration; plot = follow user's synopsis skeleton.
+    theme_mode: str = "seed"
+    # user | hint | fallback — how theme was chosen (admin / analytics).
+    theme_source: str = "user"
     # Tonight listeners: [{name, age?, gender?, desc?, prefer?}].
     audiences: list[dict[str, Any]] | None = None
     # Tonight roster from /v1/characters: [{name, desc?, age?, gender?}].

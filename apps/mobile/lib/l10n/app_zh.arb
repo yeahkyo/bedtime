@@ -477,8 +477,17 @@
   "createStoryOptionsTitle": "想听什么故事？",
   "createStoryOptionsSubtitle": "故事将依据这些要素来创作",
   "createStoryInspiration": "故事灵感",
-  "createStoryInspirationHint": "可选，不写也可以",
-  "createStoryThemeHint": "今晚想讲什么（可选，例如：在云朵上看星星的小猫咪…）",
+  "createStoryThemeModeSeed": "只写主题",
+  "createStoryThemeModePlot": "按情节写",
+  "createStoryThemeHint": "一句话灵感（例如：{example}）",
+  "@createStoryThemeHint": {
+    "placeholders": {
+      "example": {
+        "type": "String"
+      }
+    }
+  },
+  "createStoryThemePlotHint": "写今晚想听的情节，我们会按这个讲",
   "createStoryCastTitle": "今晚一起出场",
   "createStoryAddCharacter": "添加角色",
   "createStoryCastEmpty": "可在角色管理中添加小听众、家人或玩具。",

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../analytics/analytics_tracker.dart';
 import '../api/client.dart';
+import '../data/seed_hint_pool.dart';
 import '../l10n/app_localizations.dart';
 import '../config.dart';
 import '../local/create_prefs.dart';
@@ -40,6 +41,13 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
   /// Listeners selected for tonight (multi-select when 2+ children).
   final Set<int> selectedChildIds = {};
 
+  /// seed = one-line inspiration; plot = follow user's synopsis.
+  String themeMode = 'seed';
+  /// Rotates per visit so the seed-field hint shows varied spark styles.
+  late String _seedHintExample;
+
+  /// Unified char budget (story language ≠ theme input language).
+  int get _themeMaxLength => themeMode == 'plot' ? 280 : 40;
   String wonder = 'soft';
   String dialogue = 'some';
   int duration = 5;
@@ -91,6 +99,9 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
   @override
   void initState() {
     super.initState();
+    // Local pool only — never block create on network. Sync runs in _prepare.
+    unawaited(SeedHintPool.hydrateFromDisk());
+    _seedHintExample = SeedHintPool.pick(language: language);
     AnalyticsTracker.instance.bind(widget.api);
     AnalyticsTracker.instance.track('create_open');
     _prepare();
@@ -396,6 +407,8 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
   Future<void> _prepare() async {
     setState(() => preparing = true);
     final store = widget.localStore;
+    // Background: refresh spark pool for next visit; create page already picked locally.
+    unawaited(SeedHintPool.syncFromServer(widget.api));
     try {
       await _loadPrefs();
 
@@ -625,7 +638,11 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
       return;
     }
 
-    final theme = themeCtrl.text.trim();
+    final typedTheme = themeCtrl.text.trim();
+    // Seed mode + empty → send tonight's hint spark; mark source so admin can tell.
+    final usedHint = typedTheme.isEmpty && themeMode == 'seed';
+    final theme = usedHint ? _seedHintExample : typedTheme;
+    final themeSource = usedHint ? 'hint' : 'user';
     final audiences = _audiencesForApi();
     if (audiences.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -643,6 +660,8 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
           'wonder': wonder,
           'dialogue': dialogue,
           'language': language,
+          'theme_mode': themeMode,
+          'theme_source': themeSource,
         },
       );
       await widget.api.updateVoicePrefs(
@@ -655,6 +674,8 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
       final created = await widget.api.createStory(
         childId: childId!,
         theme: theme,
+        themeMode: themeMode,
+        themeSource: themeSource,
         language: language,
         durationMinutes: duration,
         voiceId: voiceId,
@@ -1146,17 +1167,41 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
             context,
             Icons.auto_stories_outlined,
             l10n.createStoryInspiration,
-            hint: l10n.createStoryInspirationHint,
+            action: TextButton(
+              onPressed: () {
+                _dismissKeyboard();
+                setState(() {
+                  themeMode = themeMode == 'plot' ? 'seed' : 'plot';
+                });
+              },
+              style: TextButton.styleFrom(
+                foregroundColor: AppColors.primary,
+                padding: const EdgeInsets.symmetric(horizontal: 6),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                visualDensity: VisualDensity.compact,
+              ),
+              child: Text(
+                themeMode == 'plot'
+                    ? l10n.createStoryThemeModeSeed
+                    : l10n.createStoryThemeModePlot,
+              ),
+            ),
           ),
           const SizedBox(height: 10),
           TextField(
             controller: themeCtrl,
             decoration: InputDecoration(
-              hintText: l10n.createStoryThemeHint,
+              hintText: themeMode == 'plot'
+                  ? l10n.createStoryThemePlotHint
+                  : l10n.createStoryThemeHint(_seedHintExample),
             ),
-            minLines: 2,
-            maxLines: 4,
-            textInputAction: TextInputAction.done,
+            minLines: themeMode == 'plot' ? 3 : 1,
+            maxLines: themeMode == 'plot' ? 5 : 1,
+            maxLength: _themeMaxLength,
+            textInputAction: themeMode == 'plot'
+                ? TextInputAction.newline
+                : TextInputAction.done,
             onTapOutside: (_) => _dismissKeyboard(),
             onEditingComplete: _dismissKeyboard,
           ),

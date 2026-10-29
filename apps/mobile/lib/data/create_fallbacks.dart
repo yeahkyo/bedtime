@@ -12,6 +12,30 @@ class InspirationChip {
   final String name;
 }
 
+/// Builtin offline fallback for theme-spark hints (see SeedHintPool + server catalog).
+/// Theme/mood sparks — not full plot synopses.
+const List<String> kSeedHintExamplesZh = [
+  '我不想睡觉',
+  '勇气与月亮',
+  '小小和好',
+  '今天有点委屈',
+  '想变成一朵云',
+  '雨声和好朋友',
+  '第一次说对不起',
+  '被轻轻抱抱',
+];
+
+const List<String> kSeedHintExamplesEn = [
+  "I don't want to sleep",
+  'courage and moonlight',
+  'a tiny make-up',
+  'a little sad today',
+  'want to be a cloud',
+  'rain and a friend',
+  'saying sorry first',
+  'a soft hug',
+];
+
 /// Full age-band pools aligned with server FOCUS_POOLS (short display names).
 const Map<String, List<InspirationChip>> kInspirationFallback = {
   '2-3': [

@@ -12,6 +12,7 @@ from app.api import account, analytics, auth, characters, children, stories, voi
 from app.api.admin import router as admin_router
 from app.api.elements import router as elements_router
 from app.api.kernels import router as kernels_router
+from app.api.theme_sparks import router as theme_sparks_router
 from app.core.config import get_settings, validate_settings_for_runtime
 from app.core.db import Base, SessionLocal, engine
 from app.core.redis_client import close_redis
@@ -33,8 +34,11 @@ from app.models import (  # noqa: F401
     StoryElementCategory,
     StoryElementSubcategory,
     StoryElementUsage,
+    StoryKernel,
+    StoryKernelUsage,
     StorySeries,
     StoryShape,
+    ThemeSpark,
     UsageLedger,
     User,
     Voice,
@@ -54,6 +58,7 @@ from app.services.story_job_recovery import (
 from app.services.llm_agents import seed_llm_agents_if_missing
 from app.services.story_kernels import seed_story_kernels_if_empty
 from app.services.story_shapes import seed_story_shapes_if_empty
+from app.services.theme_sparks import seed_theme_sparks_if_empty
 
 
 def _configure_app_logging() -> None:
@@ -102,6 +107,8 @@ async def _ensure_story_async_columns(conn) -> None:
         "ALTER TABLE stories ADD COLUMN IF NOT EXISTS metrics_json TEXT NULL",
         "ALTER TABLE stories ADD COLUMN prompts_json MEDIUMTEXT NULL",
         "ALTER TABLE stories ADD COLUMN IF NOT EXISTS progress_at DATETIME NULL",
+        # Plot-mode themes up to 280 chars (en); keep headroom vs legacy VARCHAR(256).
+        "ALTER TABLE stories MODIFY theme VARCHAR(512) NULL",
         "ALTER TABLE children ADD COLUMN IF NOT EXISTS birth_date DATE NULL",
         "ALTER TABLE children ADD COLUMN IF NOT EXISTS gender VARCHAR(32) NULL",
         "ALTER TABLE children ADD COLUMN IF NOT EXISTS intro TEXT NULL",
@@ -234,6 +241,7 @@ async def lifespan(_: FastAPI):
         await seed_story_elements_if_empty(db)
         await enable_elements_if_none_enabled(db)
         await seed_story_kernels_if_empty(db)
+        await seed_theme_sparks_if_empty(db)
         await seed_llm_agents_if_missing(db)
         await _backfill_child_birth_dates(db)
         resume_jobs, failed_n = await reclaim_orphaned_story_jobs(db)
@@ -291,6 +299,7 @@ app.include_router(account.router, prefix="/v1")
 app.include_router(analytics.router, prefix="/v1")
 app.include_router(kernels_router, prefix="/v1")
 app.include_router(elements_router, prefix="/v1")
+app.include_router(theme_sparks_router, prefix="/v1")
 app.include_router(waitlist.router, prefix="/v1")
 app.include_router(admin_router, prefix="/admin")
 

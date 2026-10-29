@@ -1851,17 +1851,29 @@ abstract class AppLocalizations {
   /// **'Idea'**
   String get createStoryInspiration;
 
-  /// No description provided for @createStoryInspirationHint.
+  /// No description provided for @createStoryThemeModeSeed.
   ///
   /// In en, this message translates to:
-  /// **'Optional'**
-  String get createStoryInspirationHint;
+  /// **'Theme only'**
+  String get createStoryThemeModeSeed;
+
+  /// No description provided for @createStoryThemeModePlot.
+  ///
+  /// In en, this message translates to:
+  /// **'Write a plot'**
+  String get createStoryThemeModePlot;
 
   /// No description provided for @createStoryThemeHint.
   ///
   /// In en, this message translates to:
-  /// **'Optional — e.g. a kitten watching stars on a cloud…'**
-  String get createStoryThemeHint;
+  /// **'One-line spark (e.g. {example})'**
+  String createStoryThemeHint(String example);
+
+  /// No description provided for @createStoryThemePlotHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Write tonight’s plot — we’ll follow it'**
+  String get createStoryThemePlotHint;
 
   /// No description provided for @createStoryCastTitle.
   ///

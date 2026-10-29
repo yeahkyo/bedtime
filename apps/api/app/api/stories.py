@@ -225,15 +225,25 @@ async def _build_story_request(
         )
     # Empty / placeholder theme → generic title (not focus/kernel label).
     theme = (body.theme or "").strip()
+    theme_mode = (body.theme_mode or "seed").strip().lower()
+    if theme_mode not in ("seed", "plot"):
+        theme_mode = "seed"
+    theme_source = (body.theme_source or "user").strip().lower()
+    if theme_source not in ("user", "hint"):
+        theme_source = "user"
     if not theme or theme in ("温柔的夜晚", "a gentle forest adventure"):
         theme = ((focus_label or focus_id) if focus_id else None) or "睡前小故事"
         theme = theme[:128]
+        theme_mode = "seed"
+        theme_source = "fallback"
     series_on = bool(soft_series_mode) or need_series_outline or series_outline is not None
     req = StoryRequest(
         child_nickname=child.nickname,
         age_band=age_band,
         language=body.language,
         theme=theme,
+        theme_mode=theme_mode,
+        theme_source=theme_source,
         duration_minutes=canonicalize_duration_minutes(body.duration_minutes),
         audiences=audiences or None,
         roster=roster or None,
@@ -411,6 +421,8 @@ async def create_story_batch(
 
     params = body.model_dump(mode="json")
     params["theme"] = story_req.theme
+    params["theme_mode"] = story_req.theme_mode
+    params["theme_source"] = story_req.theme_source
     params["audiences"] = audiences
     params["character_ids"] = char_ids
     params["characters_snapshot"] = snaps
@@ -495,9 +507,18 @@ def _story_create_from_params(story: Story, params: dict) -> StoryCreate:
     audiences = params.get("audiences") or []
     if not isinstance(audiences, list):
         audiences = []
+    mode = params.get("theme_mode") or "seed"
+    if mode not in ("seed", "plot"):
+        mode = "seed"
+    source = params.get("theme_source") or "user"
+    # Retry must not re-claim hint/fallback as typed input; only user|hint are on StoryCreate.
+    if source not in ("user", "hint"):
+        source = "user"
     data = {
         "child_id": story.child_id,
         "theme": story.theme or params.get("theme") or "a gentle forest adventure",
+        "theme_mode": mode,
+        "theme_source": source,
         "language": story.language or params.get("language") or "zh",
         "duration_minutes": story.duration_minutes or params.get("duration_minutes") or 5,
         "voice_id": story.voice_id or params.get("voice_id"),
@@ -774,6 +795,8 @@ async def create_story_streaming(
 
     params = body.model_dump(mode="json")
     params["theme"] = story_req.theme
+    params["theme_mode"] = story_req.theme_mode
+    params["theme_source"] = story_req.theme_source
     params["audiences"] = audiences
     params["character_ids"] = char_ids
     params["characters_snapshot"] = snaps

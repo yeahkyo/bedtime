@@ -17,7 +17,7 @@ class Story(Base):
 
     title: Mapped[str] = mapped_column(String(256), default="")
     language: Mapped[str] = mapped_column(String(8), default="zh")
-    theme: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    theme: Mapped[str | None] = mapped_column(String(512), nullable=True)
     body: Mapped[str] = mapped_column(Text, default="")
     status: Mapped[str] = mapped_column(String(32), default="draft")  # draft|generating|ready|failed
     # queued|series_outline|episode_plan|draft|tts|ready|failed
