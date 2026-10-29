@@ -867,6 +867,24 @@ abstract class AppLocalizations {
   /// **'Untitled story'**
   String get storiesUntitled;
 
+  /// No description provided for @storiesStatusGenerating.
+  ///
+  /// In en, this message translates to:
+  /// **'Creating'**
+  String get storiesStatusGenerating;
+
+  /// No description provided for @storiesStatusPlayable.
+  ///
+  /// In en, this message translates to:
+  /// **'Ready to play'**
+  String get storiesStatusPlayable;
+
+  /// No description provided for @storiesLangEn.
+  ///
+  /// In en, this message translates to:
+  /// **'English'**
+  String get storiesLangEn;
+
   /// No description provided for @storiesFailedRetry.
   ///
   /// In en, this message translates to:

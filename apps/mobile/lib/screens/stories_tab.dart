@@ -14,17 +14,34 @@ import 'create_story_screen.dart';
 import 'creating_story_screen.dart';
 import 'player_screen.dart';
 
+/// Short / medium / long only — no "~N min".
 String _storiesLengthMeta(AppLocalizations l10n, Object? rawMinutes) {
   final minutes = rawMinutes is int
       ? rawMinutes
       : int.tryParse('$rawMinutes') ?? 5;
   final canon = minutes <= 4 ? 3 : (minutes <= 7 ? 5 : 10);
-  final label = switch (canon) {
+  return switch (canon) {
     3 => l10n.storiesLengthShort,
     10 => l10n.storiesLengthLong,
     _ => l10n.storiesLengthMedium,
   };
-  return l10n.storiesLengthLabel(label, canon);
+}
+
+/// Coarse list status only (detail lives on the wait screen).
+String _storiesStatusMeta(AppLocalizations l10n, Map<String, dynamic> s) {
+  final status = s['status'] as String? ?? '';
+  switch (status) {
+    case 'ready':
+      return l10n.storiesStatusPlayable;
+    case 'generating':
+      return l10n.storiesStatusGenerating;
+    case 'text_ready':
+      return l10n.storyNoAudioShort;
+    case 'failed':
+      return l10n.storyProgressFailed;
+    default:
+      return status.isEmpty ? l10n.storiesStatusGenerating : status;
+  }
 }
 
 /// Tab 1: story library (newest first) + entry to create flow.
@@ -430,7 +447,7 @@ class StoriesTabState extends State<StoriesTab> {
                                   hook.length > 42 ? '${hook.substring(0, 42)}…' : hook,
                                 );
                               } else {
-                                meta.write('${s['language'] ?? 'zh'} · ${s['status'] ?? ''}');
+                                meta.write(_storiesStatusMeta(l10n, s));
                                 if (s['duration_minutes'] != null) {
                                   meta.write(
                                     ' · ${_storiesLengthMeta(l10n, s['duration_minutes'])}',

@@ -197,6 +197,9 @@
   "storiesEmptyShelfTitle": "空空的書架",
   "storiesEmptyShelfBody": "今晚的第一本小書，還在等你點上方金色卡片。",
   "storiesUntitled": "未完成的故事",
+  "storiesStatusGenerating": "創作中",
+  "storiesStatusPlayable": "可播放",
+  "storiesLangEn": "英文",
   "storiesFailedRetry": "產生失敗 · 可重試",
   "storiesFailedWithError": "失敗 · {error}",
   "@storiesFailedWithError": {

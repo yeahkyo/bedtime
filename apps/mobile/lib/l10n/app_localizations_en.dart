@@ -416,6 +416,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String get storiesUntitled => 'Untitled story';
 
   @override
+  String get storiesStatusGenerating => 'Creating';
+
+  @override
+  String get storiesStatusPlayable => 'Ready to play';
+
+  @override
+  String get storiesLangEn => 'English';
+
+  @override
   String get storiesFailedRetry => 'Failed · Tap to retry';
 
   @override

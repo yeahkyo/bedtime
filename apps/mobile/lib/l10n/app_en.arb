@@ -197,6 +197,9 @@
   "storiesEmptyShelfTitle": "Your shelf is empty",
   "storiesEmptyShelfBody": "Tap the card above to make tonight's first story.",
   "storiesUntitled": "Untitled story",
+  "storiesStatusGenerating": "Creating",
+  "storiesStatusPlayable": "Ready to play",
+  "storiesLangEn": "English",
   "storiesFailedRetry": "Failed · Tap to retry",
   "storiesFailedWithError": "Failed · {error}",
   "@storiesFailedWithError": {

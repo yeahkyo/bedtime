@@ -90,7 +90,10 @@ class MeTabState extends State<MeTab> {
     try {
       final info = await PackageInfo.fromPlatform();
       if (!mounted) return;
-      setState(() => _versionLabel = info.version);
+      final build = info.buildNumber.trim();
+      setState(() {
+        _versionLabel = build.isEmpty ? info.version : '${info.version}+$build';
+      });
     } catch (_) {
       if (!mounted) return;
       setState(() => _versionLabel = '1.0.0');

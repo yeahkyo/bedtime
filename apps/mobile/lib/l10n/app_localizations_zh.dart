@@ -411,6 +411,15 @@ class AppLocalizationsZh extends AppLocalizations {
   String get storiesUntitled => '未完成的故事';
 
   @override
+  String get storiesStatusGenerating => '创作中';
+
+  @override
+  String get storiesStatusPlayable => '可播放';
+
+  @override
+  String get storiesLangEn => '英文';
+
+  @override
   String get storiesFailedRetry => '生成失败 · 可重试';
 
   @override
@@ -1666,6 +1675,15 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get storiesUntitled => '未完成的故事';
+
+  @override
+  String get storiesStatusGenerating => '創作中';
+
+  @override
+  String get storiesStatusPlayable => '可播放';
+
+  @override
+  String get storiesLangEn => '英文';
 
   @override
   String get storiesFailedRetry => '產生失敗 · 可重試';

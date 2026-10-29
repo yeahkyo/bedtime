@@ -33,7 +33,11 @@ class _AboutScreenState extends State<AboutScreen> {
     try {
       final info = await PackageInfo.fromPlatform();
       if (!mounted) return;
-      setState(() => _version = info.version);
+      // Include build so TestFlight / QA can match builds (e.g. 1.0.0+4).
+      final build = info.buildNumber.trim();
+      setState(() {
+        _version = build.isEmpty ? info.version : '${info.version}+$build';
+      });
     } catch (_) {
       if (!mounted) return;
       setState(() => _version = '1.0.0');

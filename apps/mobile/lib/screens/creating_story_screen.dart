@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../analytics/analytics_tracker.dart';
 import '../api/client.dart';
 import '../l10n/app_localizations.dart';
+import '../l10n/story_progress_labels.dart';
 import '../local/local_store.dart';
 import '../local/network_errors.dart';
 import '../theme/app_theme.dart';
@@ -208,29 +209,6 @@ class _CreatingStoryScreenState extends State<CreatingStoryScreen> {
     return l10n.creatingWaitEtaLong;
   }
 
-  String _progressLabel(AppLocalizations l10n, String progress) {
-    switch (progress) {
-      case 'queued':
-        return l10n.storyProgressQueued;
-      case 'series_outline':
-        return l10n.storyProgressSeriesOutline;
-      case 'episode_plan':
-        return l10n.storyProgressEpisodePlan;
-      case 'draft':
-        return l10n.storyProgressDraft;
-      case 'tts':
-        return l10n.storyProgressTts;
-      case 'ready':
-        return l10n.storyProgressReadyPlay;
-      case 'failed':
-        return l10n.storyProgressFailed;
-      case 'retrying':
-        return l10n.storyRetrying;
-      default:
-        return l10n.storyProgressGenerating(progress);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final tt = Theme.of(context).textTheme;
@@ -243,7 +221,7 @@ class _CreatingStoryScreenState extends State<CreatingStoryScreen> {
             (_useFailedFallback ? l10n.storyGenerateFailed : null));
     final progressText = progressKey == 'queued' && waiting
         ? l10n.storySubmittedQueued
-        : _progressLabel(l10n, progressKey);
+        : storyProgressLabel(l10n, progressKey);
 
     return Scaffold(
       backgroundColor: AppColors.background,
