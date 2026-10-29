@@ -457,6 +457,7 @@ class ApiClient {
     required String theme,
     String themeMode = 'seed',
     String themeSource = 'user',
+    int? themeSparkId,
     required String language,
     required int durationMinutes,
     int? voiceId,
@@ -472,6 +473,7 @@ class ApiClient {
         'theme': theme,
         'theme_mode': themeMode,
         'theme_source': themeSource,
+        if (themeSparkId != null) 'theme_spark_id': themeSparkId,
         'language': language,
         'duration_minutes': durationMinutes,
         'voice_id': voiceId,
@@ -491,6 +493,7 @@ class ApiClient {
     required String theme,
     String themeMode = 'seed',
     String themeSource = 'user',
+    int? themeSparkId,
     required String language,
     required int durationMinutes,
     int? voiceId,
@@ -505,6 +508,7 @@ class ApiClient {
       theme: theme,
       themeMode: themeMode,
       themeSource: themeSource,
+      themeSparkId: themeSparkId,
       language: language,
       durationMinutes: durationMinutes,
       voiceId: voiceId,
@@ -572,6 +576,8 @@ class ApiClient {
         final prog = story['progress'] as String? ?? st;
         onProgress?.call(prog);
         if (st == 'ready') return story;
+        // STORY_SKIP_TTS terminal — body done, no audio (not a hang).
+        if (st == 'text_ready') return story;
         if (st == 'failed') {
           throw ApiException(
             story['error_message'] as String? ?? _l10n.apiStoryGenerateFailed,

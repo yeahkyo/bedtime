@@ -4,6 +4,8 @@
 <dict>
 	<key>method</key>
 	<string>app-store-connect</string>
+	<!-- destination=upload: one shot only. Prefer: bash tool/build_testflight.sh --upload -->
+	<!-- Do not also run xcodebuild -exportArchive with this plist after that. -->
 	<key>destination</key>
 	<string>upload</string>
 	<key>teamID</key>

@@ -173,6 +173,8 @@ class StoryCreate(BaseModel):
     theme_mode: str = Field(default="seed", pattern="^(seed|plot)$")
     # user = typed; hint = client filled tonight's spark example because field was empty.
     theme_source: str = Field(default="user", pattern="^(user|hint)$")
+    # When theme_source=hint, optional catalog id so we can suppress that spark later.
+    theme_spark_id: int | None = Field(default=None, ge=1)
     language: str = "zh"
     duration_minutes: int = Field(default=5, ge=2, le=12)
     voice_id: int | None = None

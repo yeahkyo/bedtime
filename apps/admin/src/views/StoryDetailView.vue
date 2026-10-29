@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { api } from '@/api/client'
 import type { AdminStoryDetailOut, AdminStoryTtsInputOut } from '@/api/types'
 import { formatAdminTime } from '@/utils/datetime'
@@ -12,6 +12,12 @@ const loading = ref(false)
 const story = ref<AdminStoryDetailOut | null>(null)
 const recomputedTts = ref<AdminStoryTtsInputOut | null>(null)
 const recomputingTts = ref(false)
+const retrying = ref(false)
+
+const canRetry = computed(() => {
+  const s = story.value?.status
+  return s === 'failed' || s === 'generating'
+})
 
 function prettyJson(raw: string | null | undefined): string {
   if (!raw) return ''
@@ -250,6 +256,33 @@ function openInTtsLab() {
   })
 }
 
+async function retryGenerate(forceFull: boolean) {
+  if (!story.value || !canRetry.value) return
+  const id = story.value.id
+  const title = forceFull ? '强制从头重新生成' : '重新生成故事'
+  const msg = forceFull
+    ? `将清空故事 #${id} 的正文/大纲检查点，从构思阶段重新跑完整管线（不扣用户额度）。确定？`
+    : `将重新入队故事 #${id}（失败或卡住时可点；有检查点时可能只续跑 TTS/正文，不扣用户额度）。确定？`
+  try {
+    await ElMessageBox.confirm(msg, title, { type: 'warning' })
+  } catch {
+    return
+  }
+  retrying.value = true
+  try {
+    const { data } = await api.post<AdminStoryDetailOut>(
+      `/admin/stories/${id}/retry`,
+      { force_full: forceFull },
+    )
+    story.value = data
+    ElMessage.success(forceFull ? '已强制重新入队' : '已重新入队生成')
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '重新生成失败')
+  } finally {
+    retrying.value = false
+  }
+}
+
 onMounted(load)
 </script>
 
@@ -261,6 +294,25 @@ onMounted(load)
       </template>
     </el-page-header>
     <template v-if="story">
+      <div class="actions">
+        <el-button
+          type="warning"
+          :disabled="!canRetry"
+          :loading="retrying"
+          @click="retryGenerate(false)"
+        >
+          重新生成
+        </el-button>
+        <el-button
+          :disabled="!canRetry"
+          :loading="retrying"
+          @click="retryGenerate(true)"
+        >
+          强制从头生成
+        </el-button>
+        <span v-if="!canRetry" class="muted tiny">仅 failed / generating 可重新入队</span>
+        <span v-else-if="story.error_message" class="muted tiny err">{{ story.error_message }}</span>
+      </div>
       <el-descriptions :column="2" border class="block">
         <el-descriptions-item label="标题">{{ story.title || '—' }}</el-descriptions-item>
         <el-descriptions-item label="状态">{{ story.status }} / {{ story.progress || '—' }}</el-descriptions-item>
@@ -547,6 +599,13 @@ onMounted(load)
 </template>
 
 <style scoped>
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 12px 0 0;
+}
 .block {
   margin: 16px 0 24px;
 }

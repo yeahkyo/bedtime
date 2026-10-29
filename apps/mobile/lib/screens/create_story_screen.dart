@@ -43,8 +43,8 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
 
   /// seed = one-line inspiration; plot = follow user's synopsis.
   String themeMode = 'seed';
-  /// Rotates per visit so the seed-field hint shows varied spark styles.
-  late String _seedHintExample;
+  /// Rotates per visit so the seed-field hint shows varied unused sparks.
+  late SeedHint _seedHint;
 
   /// Unified char budget (story language ≠ theme input language).
   int get _themeMaxLength => themeMode == 'plot' ? 280 : 40;
@@ -101,7 +101,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
     super.initState();
     // Local pool only — never block create on network. Sync runs in _prepare.
     unawaited(SeedHintPool.hydrateFromDisk());
-    _seedHintExample = SeedHintPool.pick(language: language);
+    _seedHint = SeedHintPool.pick(language: language);
     AnalyticsTracker.instance.bind(widget.api);
     AnalyticsTracker.instance.track('create_open');
     _prepare();
@@ -214,7 +214,6 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
     birthDate = c['birth_date'] as String?;
     gender = c['gender'] as String? ?? gender;
     prefer = _preferTags(c);
-    unawaited(_loadRosterForChild());
   }
 
   void _clearChildSelection() {
@@ -242,6 +241,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
     if (c == null) return;
     _applyChild(c);
     if (mounted) setState(() {});
+    await _loadRosterForChild();
     await _reloadVoicePrefs();
   }
 
@@ -251,34 +251,46 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
       if (selectedChildIds.contains(id)) {
         if (selectedChildIds.length <= 1) return; // keep at least one
         selectedChildIds.remove(id);
+        // Drop that listener's twin from cast; do not re-add others.
+        _syncChildCastWithListeners(ensureListenerTwins: false);
       } else {
         selectedChildIds.add(id);
+        // Newly picked listener: select their kind=child cast chip by default.
+        _ensureChildCastForListeners({id});
+        _syncChildCastWithListeners(ensureListenerTwins: false);
       }
-      _syncChildCastWithListeners();
     });
     await _syncPrimaryFromSelection();
     unawaited(_savePrefs());
   }
 
-  /// Keep kind=child cast chips in sync with selected little listeners only.
-  void _syncChildCastWithListeners() {
-    final keepNonChild = <int>{};
-    for (final id in selectedCharacterIds) {
+  /// Drop kind=child cast whose listener is not selected tonight.
+  ///
+  /// When [ensureListenerTwins] is true (first visit / no cast prefs), also
+  /// select each selected listener's twin — otherwise leave explicit cast picks.
+  void _syncChildCastWithListeners({bool ensureListenerTwins = false}) {
+    selectedCharacterIds.removeWhere((id) {
       final c = _characterById(id);
-      if (c != null && c['kind'] != 'child') keepNonChild.add(id);
+      if (c == null) return false;
+      if (c['kind'] != 'child') return false;
+      return !selectedChildIds.contains(_asId(c['related_child_id']));
+    });
+    if (ensureListenerTwins) {
+      _ensureChildCastForListeners(selectedChildIds);
     }
-    final listenerCast = rosterCharacters
-        .where(
-          (c) =>
-              c['kind'] == 'child' &&
-              selectedChildIds.contains(_asId(c['related_child_id'])),
-        )
-        .map((c) => _asId(c['id']))
-        .whereType<int>();
-    selectedCharacterIds
-      ..clear()
-      ..addAll(keepNonChild)
-      ..addAll(listenerCast);
+  }
+
+  void _ensureChildCastForListeners(Set<int> listenerIds) {
+    for (final c in rosterCharacters) {
+      if (c['kind'] != 'child') continue;
+      final related = _asId(c['related_child_id']);
+      if (related == null || !listenerIds.contains(related)) continue;
+      final id = _asId(c['id']);
+      if (id == null) continue;
+      if (selectedCharacterIds.contains(id)) continue;
+      if (selectedCharacterIds.length >= 8) break;
+      selectedCharacterIds.add(id);
+    }
   }
 
   Future<void> _loadRosterForChild() async {
@@ -297,20 +309,28 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
       setState(() {
         rosterCharacters = listed;
         selectedCharacterIds.removeWhere((id) => !validIds.contains(id));
-        _syncChildCastWithListeners();
+        // Explicit cast prefs: prune only. Else default-select listener twins.
+        _syncChildCastWithListeners(
+          ensureListenerTwins: !_castPrefsExplicit,
+        );
       });
     } catch (_) {
       // Roster is optional for create.
     }
   }
 
-  /// Defaults only — not inspiration or cast (those reset each visit).
+  /// Explicit「今晚一起出场」choice (user toggled cast, or prefs with cast_set).
+  /// When false, roster load may default-select listener twins; saves omit cast.
+  bool _castPrefsExplicit = false;
+
+  /// Defaults: listeners, cast, duration, wonder, dialogue. Not inspiration text.
   Future<void> _loadPrefs() async {
     final store = widget.localStore;
     if (store == null) return;
     final prefs = await CreatePrefs.load(store.userId);
     if (prefs == null || !mounted) return;
     setState(() {
+      _castPrefsExplicit = false;
       final draftChild = _asId(prefs['child_id']);
       if (draftChild != null) {
         childId = draftChild;
@@ -323,6 +343,15 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
         selectedChildIds
           ..clear()
           ..addAll(ids.map(_asId).whereType<int>());
+      }
+      final castIds = prefs['character_ids'];
+      // Only restore when cast_set (user edited cast). Bare [] from an early
+      // save must not permanently disable twin defaults.
+      if (prefs['cast_set'] == true && castIds is List) {
+        _castPrefsExplicit = true;
+        selectedCharacterIds
+          ..clear()
+          ..addAll(castIds.map(_asId).whereType<int>());
       }
       final d = prefs['duration'] as int?;
       if (d != null) duration = _canonicalizeDuration(d);
@@ -341,7 +370,8 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
   Future<void> _savePrefs() async {
     final store = widget.localStore;
     if (store == null) return;
-    await CreatePrefs.save(store.userId, {
+    final prev = await CreatePrefs.load(store.userId);
+    final data = <String, dynamic>{
       'child_id': childId,
       'child_ids': selectedChildIds.toList(),
       'duration': duration,
@@ -349,7 +379,16 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
       'dialogue': dialogue,
       'language': language,
       'soft_series': softSeries,
-    });
+    };
+    if (_castPrefsExplicit) {
+      data['cast_set'] = true;
+      data['character_ids'] = selectedCharacterIds.toList();
+    } else if (prev != null && prev['cast_set'] == true && prev['character_ids'] is List) {
+      // Keep prior cast while other knobs save (duration, etc.).
+      data['cast_set'] = true;
+      data['character_ids'] = prev['character_ids'];
+    }
+    await CreatePrefs.save(store.userId, data);
   }
 
   void _applyQuotaMap(Map<String, dynamic> q) {
@@ -433,6 +472,8 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
         final primary = _primaryChildId!;
         final keep = _childById(primary) ?? children.first;
         _applyChild(keep);
+        // Await roster so cast prefs / default twins settle before _savePrefs.
+        await _loadRosterForChild();
       }
 
       if (store != null) {
@@ -641,8 +682,9 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
     final typedTheme = themeCtrl.text.trim();
     // Seed mode + empty → send tonight's hint spark; mark source so admin can tell.
     final usedHint = typedTheme.isEmpty && themeMode == 'seed';
-    final theme = usedHint ? _seedHintExample : typedTheme;
+    final theme = usedHint ? _seedHint.text : typedTheme;
     final themeSource = usedHint ? 'hint' : 'user';
+    final themeSparkId = usedHint ? _seedHint.id : null;
     final audiences = _audiencesForApi();
     if (audiences.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -662,6 +704,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
           'language': language,
           'theme_mode': themeMode,
           'theme_source': themeSource,
+          if (themeSparkId != null) 'theme_spark_id': themeSparkId,
         },
       );
       await widget.api.updateVoicePrefs(
@@ -676,6 +719,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
         theme: theme,
         themeMode: themeMode,
         themeSource: themeSource,
+        themeSparkId: themeSparkId,
         language: language,
         durationMinutes: duration,
         voiceId: voiceId,
@@ -704,6 +748,11 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
       final storyId = id is int ? id : int.tryParse('$id');
       if (storyId == null) {
         throw ApiException(AppLocalizations.of(context).storyCreateFailed);
+      }
+
+      // Story row exists (quota charged) — suppress this hint even if job later fails.
+      if (usedHint) {
+        await SeedHintPool.markUsed(_seedHint, language: language);
       }
 
       final status = created['status'] as String? ?? '';
@@ -1194,7 +1243,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
             decoration: InputDecoration(
               hintText: themeMode == 'plot'
                   ? l10n.createStoryThemePlotHint
-                  : l10n.createStoryThemeHint(_seedHintExample),
+                  : l10n.createStoryThemeHint(_seedHint.text),
             ),
             minLines: themeMode == 'plot' ? 3 : 1,
             maxLines: themeMode == 'plot' ? 5 : 1,
@@ -1259,6 +1308,9 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
                               selectedCharacterIds.add(cid);
                             }
                           });
+                          // Remember「今晚一起出场」picks across visits.
+                          _castPrefsExplicit = true;
+                          unawaited(_savePrefs());
                         },
                       );
                     },
@@ -1473,7 +1525,10 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
                         }
                       },
                       onSelect: (v) {
-                        language = v;
+                        setState(() {
+                          language = v;
+                          _seedHint = SeedHintPool.pick(language: language);
+                        });
                         unawaited(_savePrefs());
                       },
                     ),

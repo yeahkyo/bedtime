@@ -19,6 +19,7 @@ from app.models.story_kernel import StoryKernel, StoryKernelUsage
 from app.models.story_series import StorySeries
 from app.models.story_shape import StoryShape
 from app.models.theme_spark import ThemeSpark
+from app.models.user_theme_spark_use import UserThemeSparkUse
 from app.models.usage import UsageLedger
 from app.models.user import User
 from app.models.voice import Voice, VoicePrefs
@@ -40,6 +41,7 @@ __all__ = [
     "MemoryElement",
     "StoryShape",
     "ThemeSpark",
+    "UserThemeSparkUse",
     "StoryElementCategory",
     "StoryElementSubcategory",
     "StoryElement",

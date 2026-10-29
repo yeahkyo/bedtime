@@ -8,7 +8,7 @@ from app.core.db import get_db
 from app.core.security import get_current_user
 from app.models.user import User
 from app.services.theme_sparks import (
-    list_enabled_sparks,
+    list_enabled_sparks_for_user,
     normalize_spark_language,
     seed_theme_sparks_if_empty,
 )
@@ -33,9 +33,10 @@ async def list_theme_sparks(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> ThemeSparkListOut:
-    _ = user
     await seed_theme_sparks_if_empty(db)
     lang = normalize_spark_language(language)
-    rows = await list_enabled_sparks(db, language=lang)
+    rows = await list_enabled_sparks_for_user(
+        db, language=lang, user_id=user.id
+    )
     items = [ThemeSparkOut(id=r.id, text=r.text) for r in rows if (r.text or "").strip()]
     return ThemeSparkListOut(items=items, language=lang, total=len(items))

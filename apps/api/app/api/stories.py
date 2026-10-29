@@ -43,6 +43,7 @@ from app.services.storage import storage_service
 from app.services.story_elements import resolve_story_element_for_job
 from app.services.story_history import load_recent_story_history
 from app.services.story_job_recovery import (
+    TTS_LEASE_PROGRESS,
     is_retryable_story,
     load_episode_plan_json,
     should_resume_draft_only,
@@ -53,6 +54,7 @@ from app.services.story_kernels import (
     record_kernel_usage,
     resolve_story_kernel_for_create,
 )
+from app.services.theme_sparks import record_theme_spark_hint_use
 from app.services.characters import (
     character_snapshot,
     load_characters_for_story,
@@ -423,6 +425,8 @@ async def create_story_batch(
     params["theme"] = story_req.theme
     params["theme_mode"] = story_req.theme_mode
     params["theme_source"] = story_req.theme_source
+    if body.theme_spark_id is not None:
+        params["theme_spark_id"] = body.theme_spark_id
     params["audiences"] = audiences
     params["character_ids"] = char_ids
     params["characters_snapshot"] = snaps
@@ -476,11 +480,20 @@ async def create_story_batch(
     await db.commit()
     await db.refresh(story)
 
+    if story_req.theme_source == "hint":
+        await record_theme_spark_hint_use(
+            db,
+            user_id=user.id,
+            spark_id=body.theme_spark_id,
+            theme=story_req.theme,
+            language=body.language,
+        )
+        await db.commit()
+
     if kernel_id and get_settings().feature_story_focus_elements:
         await record_kernel_usage(
             db, child_id=child.id, kernel_id=kernel_id, story_id=story.id
         )
-
     background_tasks.add_task(
         process_story_job,
         story_id=story.id,
@@ -530,25 +543,19 @@ def _story_create_from_params(story: Story, params: dict) -> StoryCreate:
     return StoryCreate.model_validate(data)
 
 
-@router.post("/{story_id}/retry", response_model=StoryOut, status_code=202)
-async def retry_failed_story(
-    story_id: int,
+async def enqueue_story_retry(
+    db: AsyncSession,
+    *,
+    story: Story,
+    owner: User,
     background_tasks: BackgroundTasks,
-    user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-) -> StoryOut:
-    """Re-enqueue a failed or stuck generating story. Does not charge quota again.
+    force_full: bool = False,
+) -> Story:
+    """Re-enqueue a failed/stuck story without charging quota.
 
-    If body is already checkpointed and audio is missing, resumes TTS only.
-    If episode_plan is checkpointed and body is empty, skips plan LLM and drafts only.
+    Shared by user and admin retry. Raises HTTPException on validation errors.
+    When force_full is True, clears body/plan checkpoints and re-runs from the start.
     """
-    story = (
-        await db.execute(
-            select(Story).where(Story.id == story_id).options(selectinload(Story.audio))
-        )
-    ).scalar_one_or_none()
-    if story is None or story.user_id != user.id:
-        raise HTTPException(status_code=404, detail="Story not found")
     if not is_retryable_story(story):
         raise HTTPException(
             status_code=400,
@@ -556,11 +563,25 @@ async def retry_failed_story(
         )
     if story.child_id is None:
         raise HTTPException(status_code=400, detail="Missing child")
-    resume_tts_only = should_resume_tts_only(story)
-    resume_draft_only = (not resume_tts_only) and should_resume_draft_only(story)
+    if story.user_id != owner.id:
+        raise HTTPException(status_code=404, detail="Story not found")
+
+    if force_full:
+        story.body = ""
+        story.title = ""
+        story.episode_plan_json = None
+        story.soft_hook = None
+        # Drop TTS checkpoint so we never resume audio-only after a forced full regen.
+        if (story.progress or "") in ("tts", TTS_LEASE_PROGRESS):
+            story.progress = "failed"
+
+    resume_tts_only = (not force_full) and should_resume_tts_only(story)
+    resume_draft_only = (
+        (not force_full) and (not resume_tts_only) and should_resume_draft_only(story)
+    )
 
     child = await db.get(Child, story.child_id)
-    if child is None or child.user_id != user.id:
+    if child is None or child.user_id != owner.id:
         raise HTTPException(status_code=404, detail="Child not found")
 
     try:
@@ -578,7 +599,7 @@ async def retry_failed_story(
 
     if story.series_id is not None:
         series_row = await db.get(StorySeries, story.series_id)
-        if series_row is None or series_row.user_id != user.id:
+        if series_row is None or series_row.user_id != owner.id:
             raise HTTPException(status_code=404, detail="Series not found")
         try:
             outline = json.loads(series_row.outline_json or "{}")
@@ -590,7 +611,9 @@ async def retry_failed_story(
         need_outline = True
         episode_no = 1
 
-    voice, vs = await _resolve_voice_and_settings(db, user, child, story.voice_id or body.voice_id)
+    voice, vs = await _resolve_voice_and_settings(
+        db, owner, child, story.voice_id or body.voice_id
+    )
     if story.voice_settings_json:
         try:
             saved = json.loads(story.voice_settings_json)
@@ -618,7 +641,7 @@ async def retry_failed_story(
         roster = _roster_from_snapshot(params.get("characters_snapshot"))
     if roster is None:
         roster, _, _ = await _resolve_roster(
-            db, user_id=user.id, body=body, listener_child_id=child.id
+            db, user_id=owner.id, body=body, listener_child_id=child.id
         )
     story_req, focus_id, focus_label, kernel_id = await _build_story_request(
         db,
@@ -641,8 +664,6 @@ async def retry_failed_story(
             story_req.need_series_outline = False
     # Refresh params snapshot (keep voice/child binding on the story row).
     from app.services.story_kernels import axis_for_focus
-
-    from app.core.config import get_settings
 
     retry_params = body.model_dump(mode="json")
     retry_params["audiences"] = audiences
@@ -698,7 +719,7 @@ async def retry_failed_story(
         request_data=serialize_story_request(story_req),
         provider_voice_id=voice.provider_voice_id,
         voice_settings=vs.__dict__,
-        user_id=user.id,
+        user_id=owner.id,
         episode_count=int(params.get("episode_count") or 4) if isinstance(params, dict) else 4,
         continuing_series_id=series_row.id if series_row else None,
         story_provider=story_provider,
@@ -706,13 +727,39 @@ async def retry_failed_story(
         resume_tts_only=resume_tts_only,
     )
 
-    story = (
+    return (
         await db.execute(
             select(Story).where(Story.id == story.id).options(selectinload(Story.audio))
         )
     ).scalar_one()
-    return await _story_out(db, story)
 
+
+@router.post("/{story_id}/retry", response_model=StoryOut, status_code=202)
+async def retry_failed_story(
+    story_id: int,
+    background_tasks: BackgroundTasks,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> StoryOut:
+    """Re-enqueue a failed or stuck generating story. Does not charge quota again.
+
+    If body is already checkpointed and audio is missing, resumes TTS only.
+    If episode_plan is checkpointed and body is empty, skips plan LLM and drafts only.
+    """
+    story = (
+        await db.execute(
+            select(Story).where(Story.id == story_id).options(selectinload(Story.audio))
+        )
+    ).scalar_one_or_none()
+    if story is None or story.user_id != user.id:
+        raise HTTPException(status_code=404, detail="Story not found")
+    story = await enqueue_story_retry(
+        db,
+        story=story,
+        owner=user,
+        background_tasks=background_tasks,
+    )
+    return await _story_out(db, story)
 
 @router.post("/{story_id}/stream-audio")
 async def stream_story_audio(
@@ -797,6 +844,8 @@ async def create_story_streaming(
     params["theme"] = story_req.theme
     params["theme_mode"] = story_req.theme_mode
     params["theme_source"] = story_req.theme_source
+    if body.theme_spark_id is not None:
+        params["theme_spark_id"] = body.theme_spark_id
     params["audiences"] = audiences
     params["character_ids"] = char_ids
     params["characters_snapshot"] = snaps
@@ -847,6 +896,16 @@ async def create_story_streaming(
     db.add(story)
     await db.commit()
     await db.refresh(story)
+
+    if story_req.theme_source == "hint":
+        await record_theme_spark_hint_use(
+            db,
+            user_id=user.id,
+            spark_id=body.theme_spark_id,
+            theme=story_req.theme,
+            language=body.language,
+        )
+        await db.commit()
 
     if kernel_id and get_settings().feature_story_focus_elements:
         await record_kernel_usage(

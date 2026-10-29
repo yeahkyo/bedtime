@@ -35,11 +35,14 @@ Do **not** rename the Xcode target away from `Runner` unless you also update Flu
 
 ```bash
 cd apps/mobile
-bash tool/build_testflight.sh          # APP_ENV=staging
+bash tool/build_testflight.sh                 # staging IPA only (no upload)
 # bash tool/build_testflight.sh production
+bash tool/build_testflight.sh --upload         # staging + upload once to ASC
 ```
 
-5. Organizer → Distribute App → App Store Connect, or upload `build/ios/ipa/*.ipa`.
+Default is **export only**. `--upload` uses `ios/ExportOptions-upload.plist` (`destination=upload`) **once** — do not also run Organizer / `xcodebuild -exportArchive` with that plist for the same build number (duplicate ASC uploads).
+
+5. If you did not use `--upload`: Organizer → Distribute App → App Store Connect, or Transporter on `build/ios/ipa/*.ipa`.
 6. Export compliance: `ITSAppUsesNonExemptEncryption=false` is set (HTTPS-only). Confirm if you add non-standard crypto later.
 7. TestFlight checklist for this product:
    - Invite-code register + phone login against staging API works on device

@@ -41,6 +41,8 @@ class _CreatingStoryScreenState extends State<CreatingStoryScreen> {
   bool waiting = true;
   bool retrying = false;
   bool _useFailedFallback = false;
+  /// STORY_SKIP_TTS finished with body only — stop waiting, no player/retry.
+  bool _textReadyNoAudio = false;
 
   @override
   void initState() {
@@ -57,6 +59,11 @@ class _CreatingStoryScreenState extends State<CreatingStoryScreen> {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted) _openPlayer(initial);
         });
+        return;
+      }
+      if (st == 'text_ready') {
+        waiting = false;
+        _textReadyNoAudio = true;
         return;
       }
       if (st == 'failed') {
@@ -85,6 +92,7 @@ class _CreatingStoryScreenState extends State<CreatingStoryScreen> {
       waiting = true;
       errorText = null;
       _useFailedFallback = false;
+      _textReadyNoAudio = false;
       progressKey = 'queued';
     });
     try {
@@ -95,10 +103,20 @@ class _CreatingStoryScreenState extends State<CreatingStoryScreen> {
           setState(() => progressKey = p);
         },
       );
-      AnalyticsTracker.instance.bind(widget.api);
-      AnalyticsTracker.instance.track('story_ready', storyId: widget.storyId);
       await widget.localStore?.stories.upsertOne(story);
       if (!mounted) return;
+      final st = story['status'] as String? ?? '';
+      if (st == 'text_ready') {
+        setState(() {
+          waiting = false;
+          _textReadyNoAudio = true;
+          errorText = null;
+          _useFailedFallback = false;
+        });
+        return;
+      }
+      AnalyticsTracker.instance.bind(widget.api);
+      AnalyticsTracker.instance.track('story_ready', storyId: widget.storyId);
       await _openPlayer(story);
     } catch (e) {
       final failed = e is ApiException && e.storyFailed;
@@ -218,8 +236,11 @@ class _CreatingStoryScreenState extends State<CreatingStoryScreen> {
     final tt = Theme.of(context).textTheme;
     final l10n = AppLocalizations.of(context);
     final failed = errorText != null || _useFailedFallback;
-    final displayError = errorText ??
-        (_useFailedFallback ? l10n.storyGenerateFailed : null);
+    final terminal = failed || _textReadyNoAudio;
+    final displayError = _textReadyNoAudio
+        ? l10n.storyNoAudio
+        : (errorText ??
+            (_useFailedFallback ? l10n.storyGenerateFailed : null));
     final progressText = progressKey == 'queued' && waiting
         ? l10n.storySubmittedQueued
         : _progressLabel(l10n, progressKey);
@@ -244,19 +265,19 @@ class _CreatingStoryScreenState extends State<CreatingStoryScreen> {
               const BrandMark(),
               const SizedBox(height: 18),
               Text(
-                failed ? l10n.creatingHeadlineFail : l10n.creatingHeadlineOk,
+                terminal ? l10n.creatingHeadlineFail : l10n.creatingHeadlineOk,
                 style: tt.headlineMedium,
               ),
               const SizedBox(height: 8),
               Text(
-                failed
+                terminal
                     ? l10n.creatingBodyFail
                     : l10n.creatingBodyOk(_waitEtaLabel(l10n)),
                 style: tt.bodyMedium?.copyWith(color: AppColors.onSurfaceMuted),
               ),
               const SizedBox(height: 36),
               Center(
-                child: failed
+                child: terminal
                     ? Icon(
                         Icons.cloud_off_outlined,
                         size: 56,
@@ -270,19 +291,19 @@ class _CreatingStoryScreenState extends State<CreatingStoryScreen> {
               ),
               const SizedBox(height: 20),
               Text(
-                failed ? displayError! : progressText,
+                terminal ? displayError! : progressText,
                 textAlign: TextAlign.center,
                 style: tt.titleMedium,
               ),
               const SizedBox(height: 28),
               SectionCard(
-                title: failed
+                title: terminal
                     ? l10n.creatingHintsFailTitle
                     : l10n.creatingHintsOkTitle,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    if (!failed) ...[
+                    if (!terminal) ...[
                       _hintRow(
                         context,
                         Icons.play_circle_outline,
@@ -301,12 +322,14 @@ class _CreatingStoryScreenState extends State<CreatingStoryScreen> {
                         l10n.creatingHintList,
                       ),
                     ] else ...[
-                      _hintRow(
-                        context,
-                        Icons.refresh_rounded,
-                        l10n.creatingHintRetry,
-                      ),
-                      const SizedBox(height: 12),
+                      if (failed) ...[
+                        _hintRow(
+                          context,
+                          Icons.refresh_rounded,
+                          l10n.creatingHintRetry,
+                        ),
+                        const SizedBox(height: 12),
+                      ],
                       _hintRow(
                         context,
                         Icons.menu_book_outlined,
@@ -343,7 +366,7 @@ class _CreatingStoryScreenState extends State<CreatingStoryScreen> {
                   ),
                 ),
                 child: Text(
-                  failed ? l10n.creatingBackFailed : l10n.creatingBackOk,
+                  terminal ? l10n.creatingBackFailed : l10n.creatingBackOk,
                 ),
               ),
             ],

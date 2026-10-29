@@ -4,8 +4,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 /// Lightweight create-story defaults (not a full form draft).
 ///
-/// Persists options families tend to reuse night to night. Per-story fields
-/// like inspiration and cast picks stay session-only.
+/// Persists options families tend to reuse night to night: listeners, cast
+/// (`cast_set` + `character_ids`), duration, wonder, dialogue. Inspiration
+/// text stays session-only. Cast is only restored when `cast_set` is true so
+/// accidental empty lists do not disable listener-twin defaults.
 class CreatePrefs {
   CreatePrefs._();
 

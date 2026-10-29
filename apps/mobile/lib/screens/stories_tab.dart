@@ -11,6 +11,7 @@ import '../theme/app_theme.dart';
 import '../theme/widgets.dart';
 import '../utils/require_login.dart';
 import 'create_story_screen.dart';
+import 'creating_story_screen.dart';
 import 'player_screen.dart';
 
 String _storiesLengthMeta(AppLocalizations l10n, Object? rawMinutes) {
@@ -46,9 +47,7 @@ class StoriesTab extends StatefulWidget {
 class StoriesTabState extends State<StoriesTab> {
   List<dynamic> stories = [];
   bool loading = true;
-  bool continuing = false;
   bool retrying = false;
-  String? retryProgress;
   Timer? _generatingPoll;
   bool _loadInFlight = false;
   /// Bumped on each load; stale responses are discarded.
@@ -59,8 +58,8 @@ class StoriesTabState extends State<StoriesTab> {
 
   static bool _storyInFlight(dynamic raw) {
     if (raw is! Map) return false;
-    final st = '${raw['status'] ?? ''}';
-    return st == 'generating' || st == 'text_ready';
+    // text_ready is terminal (STORY_SKIP_TTS) — not in-flight.
+    return '${raw['status'] ?? ''}' == 'generating';
   }
 
   static int? _storyId(dynamic raw) {
@@ -92,9 +91,7 @@ class StoriesTabState extends State<StoriesTab> {
       setState(() {
         stories = [];
         loading = false;
-        continuing = false;
         retrying = false;
-        retryProgress = null;
       });
     } else if (oldWidget.localStore == null && widget.localStore != null) {
       unawaited(_load());
@@ -298,58 +295,37 @@ class StoriesTabState extends State<StoriesTab> {
     await _openCreate();
   }
 
-  Future<void> _resumeWait(int storyId) async {
-    final l10n = AppLocalizations.of(context);
-    setState(() {
-      continuing = true;
-      retryProgress = l10n.storyResumeWaiting;
-    });
-    try {
-      final story = await widget.api.waitForStory(
-        storyId,
-        onProgress: (p) {
-          if (!mounted) return;
-          setState(() => retryProgress = _progressLabel(AppLocalizations.of(context), p));
-        },
-      );
-      await widget.localStore?.stories.upsertOne(story);
-      if (!mounted) return;
-      await Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => PlayerScreen.fromStory(
-            story,
-            localStore: widget.localStore,
-            analyticsSource: 'continue',
-          ),
+  void _openCreatingWait(Map<String, dynamic> s) {
+    final id = _storyId(s);
+    if (id == null) return;
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => CreatingStoryScreen(
+          api: widget.api,
+          localStore: widget.localStore,
+          storyId: id,
+          initialStory: s,
         ),
-      );
-      await _load();
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(friendlyNetworkError(e))),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          continuing = false;
-          retryProgress = null;
-        });
-      }
-    }
+      ),
+    ).then((_) {
+      if (mounted) unawaited(_load());
+    });
   }
 
   void _openPlayer(Map<String, dynamic> s) {
     final l10n = AppLocalizations.of(context);
     final status = s['status'] as String? ?? '';
     final audioUrl = s['audio_url'] as String?;
+    // In-flight → same wait screen as create (back returns to list).
+    if (status == 'generating') {
+      _openCreatingWait(s);
+      return;
+    }
+    // text_ready (TTS skipped) / failed / missing audio — not playable.
     if (status != 'ready' || audioUrl == null || audioUrl.isEmpty) {
-      final msg = status == 'generating'
-          ? l10n.storyStillGenerating
-          : status == 'failed'
-              ? (s['error_message'] as String? ?? l10n.storyGenerateFailedRetry)
-              : l10n.storyNoAudio;
+      final msg = status == 'failed'
+          ? (s['error_message'] as String? ?? l10n.storyGenerateFailedRetry)
+          : l10n.storyNoAudio;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
       return;
     }
@@ -364,102 +340,41 @@ class StoriesTabState extends State<StoriesTab> {
     );
   }
 
-  String _progressLabel(AppLocalizations l10n, String progress) {
-    switch (progress) {
-      case 'queued':
-        return l10n.storyProgressQueued;
-      case 'series_outline':
-        return l10n.storyProgressSeriesOutline;
-      case 'episode_plan':
-        return l10n.storyProgressEpisodePlan;
-      case 'draft':
-        return l10n.storyProgressDraft;
-      case 'tts':
-        return l10n.storyProgressTts;
-      case 'ready':
-        return l10n.storyProgressReady;
-      case 'failed':
-        return l10n.storyProgressFailed;
-      default:
-        return l10n.storyProgressGenerating(progress);
-    }
-  }
-
   Future<void> _retryStory(Map<String, dynamic> s) async {
     final id = s['id'] as int?;
     if (id == null || retrying) return;
-    final l10n = AppLocalizations.of(context);
-    setState(() {
-      retrying = true;
-      retryProgress = l10n.storyRetrying;
-    });
+    setState(() => retrying = true);
     try {
-      final story = await widget.api.retryStoryAndWait(
-        id,
-        onProgress: (p) {
-          if (!mounted) return;
-          setState(() => retryProgress = _progressLabel(AppLocalizations.of(context), p));
-        },
-      );
+      // Enqueue only — wait UI is CreatingStoryScreen (can pop back to list).
+      final story = await widget.api.retryStory(id);
       await widget.localStore?.stories.upsertOne(story);
       if (!mounted) return;
       await Navigator.of(context).push(
         MaterialPageRoute(
-          builder: (_) => PlayerScreen.fromStory(
-            story,
+          builder: (_) => CreatingStoryScreen(
+            api: widget.api,
             localStore: widget.localStore,
-            analyticsSource: 'retry',
+            storyId: id,
+            initialStory: story,
           ),
         ),
       );
-      await _load();
+      if (mounted) await _load();
     } catch (e) {
       if (mounted) {
-        final resumeId = e is ApiException ? e.storyId : id;
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(friendlyNetworkError(e)),
-            action: resumeId == null
-                ? null
-                : SnackBarAction(
-                    label: AppLocalizations.of(context).storyContinueWaiting,
-                    onPressed: () => unawaited(_resumeWait(resumeId)),
-                  ),
-          ),
+          SnackBar(content: Text(friendlyNetworkError(e))),
         );
         await _load();
       }
     } finally {
-      if (mounted) {
-        setState(() {
-          retrying = false;
-          retryProgress = null;
-        });
-      }
+      if (mounted) setState(() => retrying = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    if (continuing || retrying) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const CircularProgressIndicator(),
-            const SizedBox(height: 12),
-            Text(
-              retrying
-                  ? (retryProgress ?? l10n.storyRetrying)
-                  : l10n.storyContinuingEpisode,
-              style: Theme.of(context).textTheme.bodyMedium,
-            ),
-          ],
-        ),
-      );
-    }
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [

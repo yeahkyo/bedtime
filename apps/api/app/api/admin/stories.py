@@ -1,11 +1,12 @@
 import json
 
-from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
+from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.api.stories import enqueue_story_retry
 from app.core.db import get_db
 from app.core.security import require_admin
 from app.models.story import Story
@@ -15,6 +16,7 @@ from app.models.voice import Voice
 from app.services.llm_routing import draft_model_from_metrics
 from app.services.narration_prosody import prepare_narration
 from app.services.storage import storage_service
+from app.services.story_job_recovery import is_retryable_story
 
 router = APIRouter(prefix="/stories", tags=["admin-stories"])
 
@@ -292,6 +294,50 @@ async def get_story(
         series=series_brief,
         created_at=story.created_at.isoformat() if story.created_at else None,
     )
+
+
+class AdminStoryRetryIn(BaseModel):
+    """Admin re-generate. force_full clears body/plan and re-runs from episode plan."""
+
+    force_full: bool = Field(
+        default=False,
+        description="Clear checkpoints and regenerate from the start (ignore TTS/draft resume).",
+    )
+
+
+@router.post("/{story_id}/retry", response_model=AdminStoryDetailOut, status_code=202)
+async def admin_retry_story(
+    story_id: int,
+    background_tasks: BackgroundTasks,
+    body: AdminStoryRetryIn | None = None,
+    _: str = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> AdminStoryDetailOut:
+    """Re-enqueue a failed/stuck story for the owning user. Does not charge quota."""
+    story = (
+        await db.execute(
+            select(Story).where(Story.id == story_id).options(selectinload(Story.audio))
+        )
+    ).scalar_one_or_none()
+    if story is None:
+        raise HTTPException(status_code=404, detail="Story not found")
+    if not is_retryable_story(story):
+        raise HTTPException(
+            status_code=400,
+            detail="Only failed or stuck generating stories can be retried",
+        )
+    owner = await db.get(User, story.user_id)
+    if owner is None:
+        raise HTTPException(status_code=404, detail="Story owner not found")
+    force_full = bool(body.force_full) if body else False
+    await enqueue_story_retry(
+        db,
+        story=story,
+        owner=owner,
+        background_tasks=background_tasks,
+        force_full=force_full,
+    )
+    return await get_story(story_id, _, db)
 
 
 @router.get("/{story_id}/tts-input", response_model=AdminStoryTtsInputOut)
