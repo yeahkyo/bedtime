@@ -1,7 +1,7 @@
 name: bedtime_mobile
 description: 呼呼 · 枕边故事 / Huhu · Pillow Tales — personalized bilingual bedtime stories
 publish_to: "none"
-version: 1.0.0+2
+version: 1.0.0+4
 
 environment:
   sdk: ^3.9.2
